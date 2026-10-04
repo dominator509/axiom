@@ -1,0 +1,516 @@
+{
+  "version": 1,
+  "baselineSha": "490f01d16b2bba3bf4366b1b2706a4879df3004e",
+  "criteria": [
+    {
+      "id": "LBI-01",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 01 | No plaintext credentials at rest | grep vault + DB dump shows only ciphertext; token column is `bytea` enc | unit + audit |",
+      "requirementSha256": "e09a9ae54009699d1291f00a094e82a44b595a912936505558da8c181296d43f",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-02",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 02 | Tenant isolation via RLS | cross-org read returns 0 rows; policy-coverage query = table count | integration |",
+      "requirementSha256": "b233e5e037cd7fb698e42cc7a963d07d01e6f2e0fcd038396340965dfa72b4ba",
+      "lane": 2,
+      "status": "unverified",
+      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-03",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 03 | Fail-closed egress | egress-off publish blocked at netns; no default route in ns | integration |",
+      "requirementSha256": "9c224c5658da4c57dfb299766207d9cab275c3660e5ae55d27e95d156ef281ae",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-04",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 04 | Commands mutate state, workers publish | Relay approve sets state; no publish call in ingest path | integration |",
+      "requirementSha256": "a283f87f4feec31aa3cc5ebf1840147bc392369a511eef9869304d87c4f6303b",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-05",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 05 | Exactly-once publish | double-approve/retry ⇒ one remote post; ledger hit skips call | integration |",
+      "requirementSha256": "a35a3e96c587d5067d7f7aa808a787bccaa13a61a91f7959860d6c055f0f15a3",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-06",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 06 | Signed single-use commands | replayed nonce rejected; expired token rejected | security |",
+      "requirementSha256": "21cdce681260761a38c61212fbf80454d00d57e1a01bb6dce7ddc726810c736a",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-07",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 07 | Honest capabilities | Snapchat = assisted (no faked publish); declared matrix matches behavior | unit |",
+      "requirementSha256": "f2602418e3852a4a1a366b5a339707df37f55a4df797fb7e38aed86dc191b880",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-08",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 08 | Hash-chained audit | tamper a row ⇒ chain verify fails | security |",
+      "requirementSha256": "b68105865ed83b872eadaf5cce585a20b2756fb815bf365208be2290eb2b354a",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-09",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 09 | Prefix cache discipline | repeat generation cache-hit > 97% | perf |",
+      "requirementSha256": "0abb3cd005ed1cca6c2494300261a13d2cd9eaa53472e2df89fcd09cde246d07",
+      "lane": 6,
+      "status": "unverified",
+      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-10",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 10 | Marker-gated builds | re-run SKIPs done steps; checksum drift FAILs | build |",
+      "requirementSha256": "04815cea8fcfd959980a003367b996b62c9f1701648219a5a7315ac242bd592a",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-11",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 11 | ToS gate before ship | block verdict prevents approval/publish | integration |",
+      "requirementSha256": "a967066ac4a01623faa2861749e67e3418ba634635f153449a6416be6bba326d",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "LBI-12",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| 12 | Global kill-switch | flip halts all egress mid-flight | integration |",
+      "requirementSha256": "fa1ff84460174638aaf0ac10e270a93439d2263ebb9ecd2ffabef162370f6e7e",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "A1",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; 3 providers simultaneously; Native always works |",
+      "requirementSha256": "839144c0737d1550470d210a99beb895bb2250453e829d876477ffc2ae5103e6",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "A2",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A2 | 10 publishing social platforms first-class | connect + validate + publish/assist per platform; capability resolves |",
+      "requirementSha256": "286d69a99eb344c9099b05d78350383fe264580e355b80364b5447e9a5ccc49f",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "A3",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A3 | On-the-go control channel | approve/reject/reschedule/publish from Telegram/iMessage/Signal/Discord |",
+      "requirementSha256": "b688915d997abcc3bf4c47dfabeee68c984108795a013cd6bb1f0b670b924005",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "A4",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A4 | Auto crash/bug reporting + logging | injected fault auto-captured in GlitchTip; structured logs + traces present |",
+      "requirementSha256": "c954093b654933d14499e1f323215ac242cedcb773960dfe5081da513ac4e85d",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "A5",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A5 | Self-improving viral loop | high performer becomes exemplar; appears in later S2; bandit updates |",
+      "requirementSha256": "899e8c202cee85569ec5feb2be59cbb10706621b691981df42d6d76ee5c5ce90",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "A6",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A6 | Patreon creator/community integration | v2 OAuth with minimum scopes; campaign/member/tier/post reads; cursor sync; signed webhook verification; truthful manual-assist/unsupported publish state; no fabricated DM, payout or analytics capability |",
+      "requirementSha256": "3e19dae6bdf88b3a86de8dbededef19f0d4a5b2c1156245d8286252fe2ae32c5",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "FEATURE-PRESERVATION",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control) and F-91 (Patreon creator/community integration) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.",
+      "requirementSha256": "e1ccbf2a46de0c718fe4f8f5f5a81f973f6efdebae283f39c01c4010e161e598",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    },
+    {
+      "id": "MATRIX-NFR-1",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "- Load: sustained generation + publish at target rate, p95 within budget.",
+      "requirementSha256": "f2577706a3ebe5bed220eded085f2fc1bbdf112a2dbf33d97a5231d3c85c61e5",
+      "lane": 6,
+      "status": "unverified",
+      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "evidence": []
+    },
+    {
+      "id": "MATRIX-NFR-2",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "- Recovery: restart mid-publish ⇒ no dupes, no lost jobs (durability of PG queue).",
+      "requirementSha256": "b40852900a90adbe8bc60c51ecdf36692646792a5b8e9fb45d8bf6e63ed6d439",
+      "lane": 7,
+      "status": "unverified",
+      "nextStep": "Restore an isolated fresh cluster and deployment; measure PITR RPO <=5m and RTO <=60m twice.",
+      "evidence": []
+    },
+    {
+      "id": "MATRIX-NFR-3",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "- Security scan: dependency audit, secret scan, RLS coverage, egress default-deny.",
+      "requirementSha256": "c9fc8f92ba36e2ee133fdb28d9d8e6846389bb632186f6a0000eb9b84c12df2d",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "MATRIX-NFR-4",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "- Cost telemetry: monthly infra projection within the `A1` cost-model band (`appendices/A1`).",
+      "requirementSha256": "309e1261ffa16bd7b5d95df5c59efaddfec1fe90a817c1ee549d647c3897f9e8",
+      "lane": 6,
+      "status": "unverified",
+      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "evidence": []
+    },
+    {
+      "id": "MATRIX-CI",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "All of §1–§4 run in CI. Phase advancement (`L4`) requires the relevant subset green; release requires the full matrix green.",
+      "requirementSha256": "7577a2f793dabe302940ed0ec6604156b3c58d5849242c26fdb58e9db6466c78",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-1",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Runs on a **single box** (Hetzner + Coolify) with Cloudflare + R2; no per-service metered PaaS required.",
+      "requirementSha256": "4f0ed5c9e832343031d52a03965cbb75345cf29c6caa3818913f5c2b2ba980d1",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-2",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] All **10 publishing platforms** connect, validate, and publish (or assist honestly for Snapchat); creator/community integrations are evaluated under their own capability contracts.",
+      "requirementSha256": "81fadd75d84abb54c6ef7570c710d6531a7661348e92a2e61e08f74ed42e7354",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-3",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **Link-in-bio Native** works with zero external providers; Fanlynks, Linktree, and Beacons remain blocked until their real adapters and unified analytics are implemented.",
+      "requirementSha256": "ca4a83dc89bac24f5332ba90241012b0cb3417a79b3135f2e5a47d7028b842bc",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-4",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **On-the-go control** from Telegram, iMessage, Signal, and Discord: approve / reject / edit / reschedule / publish-now.",
+      "requirementSha256": "8254654482235ef4899e62cb0ac9eb48bba10625bd6f57c1ee62a8fb75d18ce6",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-5",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] On generation, a **card** with preview + per-platform mock captions + hashtags + ToS verdict is pushed to the operator's channel.",
+      "requirementSha256": "82645f914d681fce772c429260852e569ebf8d90b862dbd18ac1f1f093212ecc",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-6",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **Auto crash/bug reporting** captures injected faults; structured logs + traces + dashboards live.",
+      "requirementSha256": "3a1dd83d57201b0e790fe42245aaaefbeaed942c93b92736b24a4cca489e0e84",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-7",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **Self-improving viral loop** turns performance into exemplars that measurably bias later generations; bandit explores + exploits.",
+      "requirementSha256": "151f164764893e91f4901335c296dcdb01ece536fea87fc3e3ce7d8c6cac815b",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-8",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Every **v1 feature (F-01..F-88)** resolves in v2 — nothing removed.",
+      "requirementSha256": "2ba9da44011e91b9e1540e7e5028d046587d92d613b40ebb611884c362872efd",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-9",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **F-89 localization**: six launch locales, persisted switch/fallback, catalog completeness, accessible language metadata and dashboard/native-mobile parity pass.",
+      "requirementSha256": "de1cb1781d07158341fdd839193fda3277982aa8c67ce3c39cbf6f8a335ff593",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-10",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **F-90 FanThynks platform affiliate/referral**: license/security decision, partner attribution and SaaS-conversion commission ledger, fraud/reversal/payout controls, partner UI, export/deletion and browser acceptance pass; tenant-owned affiliate/reseller features are out of scope and no live payout is implied by source tests.",
+      "requirementSha256": "d5568ecc0c0003b7d8a5c8685132882ea5876abdf94abdc79346b92234b085d5",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    },
+    {
+      "id": "FUNCTIONAL-11",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **F-91 Patreon**: v2 OAuth/minimum scopes, campaign/member/tier/post sync, cursor/idempotency/reconciliation, signed webhook verification, truthful manual-assist/unsupported-publish UI, RLS and desktop/mobile/provider acceptance pass; no member mutation, DM, payout or unsupported analytics is implied.",
+      "requirementSha256": "4481c7cef58a7a454d02935202aaf8fc58983e19ece8546ee627cf729f7995ae",
+      "lane": 4,
+      "status": "unverified",
+      "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-1",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Prefix cache-hit **> 97%** on repeat generations (LBI-09).",
+      "requirementSha256": "500378ef1f8e18d74ddcecf96aaf5214c7603d05ca5be9234970a2911b1ef969",
+      "lane": 6,
+      "status": "unverified",
+      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-2",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Cross-tenant read returns **0 rows** under RLS (LBI-02).",
+      "requirementSha256": "ec51891904c25afdc2645f2fc56f1ee14df86d2b7e2b3de200ca76692eeabd5c",
+      "lane": 2,
+      "status": "unverified",
+      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-3",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Egress **fail-closed** proven; kill-switch halts publishing (LBI-03, LBI-12).",
+      "requirementSha256": "0009962375bfdf64a6dead9f16aaf78e50b269c2e8e8509b1a6edc9232278c31",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-4",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Exactly-once publish under retry/double-tap (LBI-05).",
+      "requirementSha256": "1aed5bf7183df47069cc40614596efe6f283389cdd735982fa23510fda2e8ef4",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-5",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Monthly infra cost within the modeled band (`appendices/A1`), materially below v1.",
+      "requirementSha256": "d4e8fbe18563c2c7980105052a437824643813a2a97e1d4b32f01fdb50db96f8",
+      "lane": 6,
+      "status": "unverified",
+      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "evidence": []
+    },
+    {
+      "id": "NONFUNCTIONAL-6",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] RPO ≤ 5 min, RTO ≤ 60 min in a rehearsed drill (`L5.1`).",
+      "requirementSha256": "93a2e17e40caccfbc192ac778252db0043eb46fc2b90aa1b1edf40527988b324",
+      "lane": 7,
+      "status": "unverified",
+      "nextStep": "Restore an isolated fresh cluster and deployment; measure PITR RPO <=5m and RTO <=60m twice.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-1",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] No plaintext credentials at rest or in logs (LBI-01); envelope encryption verified.",
+      "requirementSha256": "804f0a9a1657a3acd79c42bdc1e93f0c10e52e7fb07ac55ee1909d36b8818246",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-2",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Every org-scoped table has `org_isolation` RLS with `FORCE`; app role can't bypass (LBI-02).",
+      "requirementSha256": "7d10b2235f4e3f320dad2a2cffda91551bfcfabe8d6d27ef1077258d2a49518d",
+      "lane": 2,
+      "status": "unverified",
+      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-3",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Egress default-deny; only whitelisted hosts reachable when enabled (LBI-03).",
+      "requirementSha256": "42a3b4b2f750d02b770b97abde4c23ad8d64fd2f79e173df37c5046c6a8cd8dc",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-4",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Relay commands signed, single-use (nonce), expiring; replay + expiry rejected (LBI-06).",
+      "requirementSha256": "ad3ff99e3e09542bfb3a358e3a70cc6ad0681516195d9e81c254471f03bd82ee",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-5",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Audit log hash chain verifies; tamper detectable (LBI-08).",
+      "requirementSha256": "8854bea613cc189c637a1f44117dbf55b4f75093911046d9c4df0b6dff791192",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-6",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] ToS engine fails to **block**, never **pass** (LBI-11).",
+      "requirementSha256": "470cc4fa50e53fd6e70d7704643a35a320c1fab79c29306cbcfa6e4466d17bc8",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-7",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Adult-content Consent & Records Vault populated + access-controlled (`L0.1`).",
+      "requirementSha256": "c4f1b3d51259dcdc6fbfbe5a6cc2198f54eccecbdfb0b84e61be02cf94f8e9f7",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-8",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Secrets in KMS/secret store, not git; dependency + secret scans clean.",
+      "requirementSha256": "27d69a3f065ed301ed7019856280766b56866ed588713b76e977b97583e0167f",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "SECURITY-9",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] Agent `requires_approval` tools cannot publish directly; RBAC + tier enforced (LBI-04).",
+      "requirementSha256": "3afd8f8c1416e75ea960c2f1b0a3b5b9988da3f58bd924e2e9ae2e94320ff875",
+      "lane": 3,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": []
+    },
+    {
+      "id": "HUMAN-SIGNOFF",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "Release is authorized only when §1–§3 are fully checked and the `L5.0` matrix is green in CI. Any red item blocks release. The improvements ledger (`00-IMPROVEMENTS-AND-CHANGELOG.md`) is the record of what changed from v1 and why; this acceptance sheet is the record that it works.",
+      "requirementSha256": "7d3950203f059eb6931d57c84cba97524922e9e2ec48322423bd6bbfa3a7aa12",
+      "lane": 8,
+      "status": "unverified",
+      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "evidence": []
+    }
+  ]
+}
