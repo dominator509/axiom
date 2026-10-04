@@ -117,11 +117,10 @@ try {
     ['foreign organization insert denied', denied(`INSERT INTO ui_locale_preference(scope,org_id,user_id,locale) VALUES ('user','${b}','rls-user-a','en')`)],
     ['foreign org default insert denied', `RESET ROLE; DELETE FROM ui_locale_preference WHERE org_id='${b}'; SET LOCAL ROLE axiom_app; ${denied(`INSERT INTO ui_locale_preference(scope,org_id,locale) VALUES ('org','${b}','en')`)}`],
     ['another user insert denied', denied(`INSERT INTO ui_locale_preference(scope,org_id,user_id,locale) VALUES ('user','${a}','rls-user-b','en')`)],
-    ['foreign read/update/delete invisible', `DO $probe$ DECLARE n int; BEGIN
+    ['foreign read/update invisible and delete denied', `DO $probe$ DECLARE n int; BEGIN
       SELECT count(*) INTO n FROM ui_locale_preference WHERE org_id='${b}'; IF n<>0 THEN RAISE EXCEPTION 'Foreign read'; END IF;
       UPDATE ui_locale_preference SET locale='de' WHERE org_id='${b}'; GET DIAGNOSTICS n=ROW_COUNT; IF n<>0 THEN RAISE EXCEPTION 'Foreign update'; END IF;
-      DELETE FROM ui_locale_preference WHERE org_id='${b}'; GET DIAGNOSTICS n=ROW_COUNT; IF n<>0 THEN RAISE EXCEPTION 'Foreign delete'; END IF;
-      END $probe$;`],
+      END $probe$; ${denied(`DELETE FROM ui_locale_preference WHERE org_id='${b}'`)}`],
     ['tenant reassignment denied', `INSERT INTO ui_locale_preference(scope,org_id,locale) VALUES ('org','${a}','en');
       ${denied(`UPDATE ui_locale_preference SET org_id='${b}' WHERE org_id='${a}'`)}`],
     ['unset tenant context denied', `SELECT set_config('app.current_org_id','',true); DO $probe$ BEGIN
