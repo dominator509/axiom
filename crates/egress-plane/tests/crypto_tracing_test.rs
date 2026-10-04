@@ -45,6 +45,9 @@ fn tracing_does_not_record_envelope_or_key_bytes() {
         "tracing positive control"
     );
     for forbidden in ["dek=", "enc_token=", "enc_nonce=", "test-private-envelope"] {
-        assert!(!captured.contains(forbidden), "tracing output leaked {forbidden}");
+        assert!(
+            !captured.contains(forbidden),
+            "tracing output leaked {forbidden}"
+        );
     }
 }

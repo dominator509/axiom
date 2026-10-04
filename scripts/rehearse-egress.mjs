@@ -71,6 +71,7 @@ try {
     'socks_auth_failure_cannot_acknowledge_target_connection',
     'dead_direct_target_never_receives_a_successful_socks_ack',
     'test_drain_during_probe_cannot_resurrect_binding',
+    'test_org_kill_switch_drains_only_target_and_requires_explicit_release',
     'test_continuous_monitor_detects_failure_without_operator_probe',
     'test_net_admin_alone_cannot_provision_namespaces',
     'signed_lifecycle_creates_inspects_and_releases_a_closed_namespace',

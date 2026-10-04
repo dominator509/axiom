@@ -7,11 +7,11 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 pub mod config;
@@ -220,6 +220,10 @@ pub struct BoundEgress {
 
 pub struct Registry {
     pub bounds: HashMap<String, BoundEgress>,
+    /// Organization pauses are separate from the process-wide emergency stop.
+    /// The set is protected by the registry lock so bind installation and an
+    /// org drain have one atomic ordering point.
+    pub blocked_orgs: HashSet<String>,
     pub used_octets: Vec<u16>,
     pub base_octet: u16,
     pub binds_total: u64,
@@ -242,6 +246,7 @@ impl Registry {
     pub fn with_start(base_octet: u16) -> Self {
         Self {
             bounds: HashMap::new(),
+            blocked_orgs: HashSet::new(),
             used_octets: Vec::new(),
             base_octet,
             binds_total: 0,
@@ -326,11 +331,9 @@ fn install_bound(
     new_binding: bool,
 ) -> Result<Option<BoundEgress>, EgressError> {
     let mut registry = state.registry.lock().unwrap();
-    // kill_switch_drain flips the atomic flag before taking this same
-    // registry lock. Checking it here closes the interval between the
-    // expensive namespace setup/probe and the final registry install: a bind
-    // that raced with drain is torn down instead of becoming live afterward.
-    if state.kill_switch.is_enabled() {
+    // Both the global and org-scoped drains close the interval between
+    // namespace setup/probe and final registry installation.
+    if state.kill_switch.is_enabled() || registry.blocked_orgs.contains(&bound.config.org_id) {
         if let Some(octet) = bound_octet(&bound) {
             registry.release_octet(octet);
         }
@@ -351,6 +354,70 @@ fn install_bound(
         registry.binds_total += 1;
     }
     Ok(previous)
+}
+
+fn org_egress_blocked(state: &Arc<AppState>, org_id: &str) -> bool {
+    if state.kill_switch.is_enabled() {
+        return true;
+    }
+    state.registry.lock().unwrap().blocked_orgs.contains(org_id)
+}
+
+/// Mark the tenant blocked before removing any live bindings. This shares the
+/// registry lock with install_bound, so a bind either lands before this drain
+/// and is removed here, or loses the install race and is torn down by caller.
+fn take_org_bounds(state: &Arc<AppState>, org_id: &str) -> Vec<BoundEgress> {
+    let mut registry = state.registry.lock().unwrap();
+    registry.blocked_orgs.insert(org_id.to_string());
+    let model_ids: Vec<String> = registry
+        .bounds
+        .iter()
+        .filter_map(|(model_id, bound)| {
+            (bound.config.org_id.as_str() == org_id).then(|| model_id.clone())
+        })
+        .collect();
+    let mut removed = Vec::with_capacity(model_ids.len());
+    for model_id in model_ids {
+        if let Some(bound) = registry.bounds.remove(&model_id) {
+            if let Some(octet) = bound_octet(&bound) {
+                registry.release_octet(octet);
+            }
+            registry.unbinds_total += 1;
+            removed.push(bound);
+        }
+    }
+    removed
+}
+
+fn block_org(state: &Arc<AppState>, org_id: &str) {
+    state
+        .registry
+        .lock()
+        .unwrap()
+        .blocked_orgs
+        .insert(org_id.to_string());
+}
+
+async fn teardown_bounds(bounds: Vec<BoundEgress>) -> usize {
+    let tasks: Vec<_> = bounds
+        .into_iter()
+        .map(|bound| tokio::task::spawn_blocking(move || teardown_bound(bound)))
+        .collect();
+    let mut failures = 0;
+    for result in tasks {
+        match result.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                error!(error = %error, "Organization egress teardown failed");
+                failures += 1;
+            }
+            Err(error) => {
+                error!(error = %error, "Organization egress teardown task failed");
+                failures += 1;
+            }
+        }
+    }
+    failures
 }
 
 fn bound_octet(bound: &BoundEgress) -> Option<u16> {
@@ -422,6 +489,13 @@ mod registry_tests {
             health: HealthState::default(),
             failover_index: 0,
         }
+    }
+
+    fn bound_for(model_id: &str, org_id: &str) -> BoundEgress {
+        let mut value = bound();
+        value.config.model_id = model_id.to_string();
+        value.config.org_id = org_id.to_string();
+        value
     }
 
     fn state() -> Arc<AppState> {
@@ -497,6 +571,34 @@ mod registry_tests {
     }
 
     #[test]
+    fn organization_pause_blocks_only_that_tenants_new_binding() {
+        let state = state();
+        state
+            .registry
+            .lock()
+            .unwrap()
+            .blocked_orgs
+            .insert("org-paused".to_string());
+
+        let paused = replace_bound(
+            &state,
+            "paused-model".to_string(),
+            bound_for("paused-model", "org-paused"),
+        );
+        assert!(matches!(paused, Err(EgressError::KillSwitch(_))));
+
+        let active = replace_bound(
+            &state,
+            "active-model".to_string(),
+            bound_for("active-model", "org-active"),
+        );
+        assert!(active.is_ok());
+        let registry = state.registry.lock().unwrap();
+        assert!(!registry.bounds.contains_key("paused-model"));
+        assert!(registry.bounds.contains_key("active-model"));
+    }
+
+    #[test]
     fn failed_health_write_is_not_reclassified_as_current_health() {
         let error = durable_health_result(Err("database unavailable".to_string()))
             .expect_err("failed persistence must be visible to the caller");
@@ -555,6 +657,11 @@ pub struct UnbindRequest {
 #[derive(Debug, Deserialize)]
 pub struct ModelRequest {
     pub model_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OrgKillSwitchRequest {
+    pub org_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -695,7 +802,7 @@ fn proxy_upstream_for(
 
 async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEgress, EgressError> {
     let cfg = resolve_config(req).await?;
-    if state.kill_switch.is_enabled() {
+    if org_egress_blocked(state, &cfg.org_id) {
         return Err(EgressError::KillSwitch(
             "egress blocked by kill-switch".to_string(),
         ));
@@ -839,6 +946,11 @@ async fn probe_registered(
             .bounds
             .get(model_id)
             .ok_or_else(|| EgressError::Validation("model is not bound".into()))?;
+        if state.kill_switch.is_enabled() || registry.blocked_orgs.contains(&bound.config.org_id) {
+            return Err(EgressError::KillSwitch(
+                "egress blocked by kill-switch".into(),
+            ));
+        }
         (
             if bound.config.mode == EgressMode::Direct {
                 None
@@ -857,7 +969,11 @@ async fn probe_registered(
     .await;
     let health = health::reconcile_health(&previous, &result, expected.as_deref(), &now);
     let mut registry = state.registry.lock().unwrap();
-    if state.kill_switch.is_enabled() {
+    let org_blocked = registry
+        .bounds
+        .get(model_id)
+        .is_some_and(|bound| registry.blocked_orgs.contains(&bound.config.org_id));
+    if state.kill_switch.is_enabled() || org_blocked {
         return Err(EgressError::KillSwitch(
             "egress drained during probe".into(),
         ));
@@ -983,7 +1099,7 @@ pub async fn egress_bind(
     // deterministic namespace name, so the previous namespace must be torn
     // down before a replacement can be created without a name collision.
     resolve_config(&body).await?;
-    if state.kill_switch.is_enabled() {
+    if org_egress_blocked(&state, &body.org_id) {
         return Err(EgressError::KillSwitch(
             "egress blocked by kill-switch".to_string(),
         ));
@@ -1033,8 +1149,14 @@ pub async fn egress_bind(
 
 fn teardown_bound(mut bound: BoundEgress) -> io::Result<()> {
     if let Some(mut child) = bound.child.take() {
-        let _ = child.kill();
-        let _ = child.wait();
+        if child.try_wait()?.is_none() {
+            if let Err(error) = child.kill() {
+                if child.try_wait()?.is_none() {
+                    return Err(error);
+                }
+            }
+            let _ = child.wait()?;
+        }
     }
     if !bound.ns.is_empty() {
         if bound.config.mode.is_tunnel() {
@@ -1418,6 +1540,94 @@ pub async fn kill_switch_disable(State(state): State<Arc<AppState>>) -> impl Int
     )
 }
 
+/// POST /kill-switch/org/drain — block one tenant and tear down its bindings.
+#[instrument(skip(state))]
+pub async fn kill_switch_drain_org(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<OrgKillSwitchRequest>,
+) -> Result<impl IntoResponse, EgressError> {
+    let org_id = Uuid::parse_str(&body.org_id)
+        .map_err(|_| EgressError::Validation("org_id must be a UUID".into()))?
+        .to_string();
+    let correlation_id = Uuid::new_v4().to_string();
+    // Close new bind installs immediately, then serialize with reconciliation
+    // so a binding already removed by sync cannot still be tearing down after
+    // this handler reports success.
+    block_org(&state, &org_id);
+    let _lifecycle = state.lifecycle.lock().await;
+    let bounds = take_org_bounds(&state, &org_id);
+    let drained = bounds.len();
+    let cleanup_failures = teardown_bounds(bounds).await;
+    let status = if cleanup_failures == 0 {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    Ok((
+        status,
+        Json(serde_json::json!({
+            "status": if cleanup_failures == 0 { "drained" } else { "cleanup_incomplete" },
+            "org_id": org_id,
+            "org_blocked": true,
+            "drained": drained,
+            "cleanup_failures": cleanup_failures,
+            "correlation_id": correlation_id,
+        })),
+    ))
+}
+
+/// POST /kill-switch/org/release — remove an org pause after durable enable.
+#[instrument(skip(state))]
+pub async fn kill_switch_release_org(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<OrgKillSwitchRequest>,
+) -> Result<impl IntoResponse, EgressError> {
+    let org_id = Uuid::parse_str(&body.org_id)
+        .map_err(|_| EgressError::Validation("org_id must be a UUID".into()))?
+        .to_string();
+    // Reconciliation is serialized with release so a stale DB read from an
+    // earlier sync cannot reapply the pause after this explicit resume.
+    let _lifecycle = state.lifecycle.lock().await;
+    state.registry.lock().unwrap().blocked_orgs.remove(&org_id);
+    let correlation_id = Uuid::new_v4().to_string();
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "released",
+            "org_id": org_id,
+            "org_blocked": false,
+            "correlation_id": correlation_id,
+        })),
+    ))
+}
+
+/// GET /kill-switch/org/status?org_id=... — private control-plane readback.
+#[instrument(skip(state))]
+pub async fn kill_switch_org_status(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<OrgKillSwitchRequest>,
+) -> Result<impl IntoResponse, EgressError> {
+    let org_id = Uuid::parse_str(&query.org_id)
+        .map_err(|_| EgressError::Validation("org_id must be a UUID".into()))?
+        .to_string();
+    let registry = state.registry.lock().unwrap();
+    let bound_models = registry
+        .bounds
+        .values()
+        .filter(|bound| bound.config.org_id.as_str() == org_id.as_str())
+        .count();
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "org_id": org_id,
+            "org_blocked": registry.blocked_orgs.contains(&org_id),
+            "global_blocked": state.kill_switch.is_enabled(),
+            "bound_models": bound_models,
+            "correlation_id": Uuid::new_v4().to_string(),
+        })),
+    ))
+}
+
 /// GET /metrics — Prometheus text format
 #[instrument(skip(state))]
 pub async fn metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -1528,22 +1738,54 @@ pub async fn egress_sync(
     let correlation_id = Uuid::new_v4().to_string();
     let mut client = state.db.lock().unwrap().take();
     let configs_result = match client.as_mut() {
-        Some(c) => db::load_configs(c).await.map_err(EgressError::Config),
-        None => {
-            return Err(EgressError::Config(
-                "DATABASE_URL not configured".to_string(),
-            ))
+        Some(client) => {
+            async {
+                let configs = db::load_configs(client).await?;
+                let org_ids: HashSet<String> = configs
+                    .iter()
+                    .filter(|cfg| scope.includes(&cfg.model_id, &cfg.org_id))
+                    .map(|cfg| cfg.org_id.clone())
+                    .collect();
+                let tx = client
+                    .transaction()
+                    .await
+                    .map_err(|error| format!("begin org gate lookup failed: {error}"))?;
+                let mut disabled_orgs = HashSet::new();
+                for org_id in org_ids {
+                    if !db::load_org_publishing_enabled(&tx, &org_id)
+                        .await?
+                        .unwrap_or(false)
+                    {
+                        // Missing org_settings is deliberately fail-closed,
+                        // matching the API and worker publishing gates.
+                        disabled_orgs.insert(org_id);
+                    }
+                }
+                tx.commit()
+                    .await
+                    .map_err(|error| format!("commit org gate lookup failed: {error}"))?;
+                Ok::<_, String>((configs, disabled_orgs))
+            }
+            .await
         }
+        None => Err("DATABASE_URL not configured".to_string()),
     };
     *state.db.lock().unwrap() = client;
-    let configs = configs_result?;
+    let (configs, disabled_orgs) = configs_result.map_err(EgressError::Config)?;
+    let blocked_orgs = {
+        let mut registry = state.registry.lock().unwrap();
+        registry.blocked_orgs.extend(disabled_orgs);
+        registry.blocked_orgs.clone()
+    };
     // Reconcile the complete persisted set, not just additions. Removed
     // rows, direct-mode rows, and kill-switch activation must all tear down a
     // previously isolated binding; otherwise deleted credentials and network
     // namespaces remain live after a sync.
     let configs_by_model: HashMap<String, NetworkConfig> = configs
         .into_iter()
-        .filter(|cfg| scope.includes(&cfg.model_id, &cfg.org_id))
+        .filter(|cfg| {
+            scope.includes(&cfg.model_id, &cfg.org_id) && !blocked_orgs.contains(&cfg.org_id)
+        })
         .map(|cfg| (cfg.model_id.clone(), cfg))
         .collect();
     let kill_switch_enabled = state.kill_switch.is_enabled();
@@ -1648,6 +1890,7 @@ pub async fn egress_sync(
             "status": "synced",
             "bound": bound,
             "skipped": skipped,
+            "blocked_organizations": blocked_orgs.len(),
             "correlation_id": correlation_id,
         })),
     ))
@@ -1676,6 +1919,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/kill-switch/drain", post(kill_switch_drain))
         .route("/kill-switch/status", get(kill_switch_status))
         .route("/kill-switch/disable", post(kill_switch_disable))
+        .route("/kill-switch/org/drain", post(kill_switch_drain_org))
+        .route("/kill-switch/org/release", post(kill_switch_release_org))
+        .route("/kill-switch/org/status", get(kill_switch_org_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_control_plane_auth,
