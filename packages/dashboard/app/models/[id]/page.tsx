@@ -73,7 +73,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   if (!model) return <div className="card stack" role="alert">
     <h2>{t('model.profileUnavailable')}</h2>
     <p>{t('model.profileUnavailableDescription')}</p>
-    <Link href="/" className="btn secondary">{t('model.backToTalent')}</Link>
+    <Link href="/" className="btn secondary" prefetch={false}>{t('model.backToTalent')}</Link>
   </div>;
 
   return (
@@ -133,21 +133,21 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
             {networkFailed ? t('model.networkStatusFailed') : t('model.noNetworkConfiguration')}
           </p>
         )}
-        <Link href={`/models/${id}/network`} className="btn secondary">{t('model.openNetworkSettings')}</Link>
+        <Link href={`/models/${id}/network`} className="btn secondary" prefetch={false}>{t('model.openNetworkSettings')}</Link>
       </div>}
       {(allowed('calendar') || allowed('fans') || allowed('generation') || allowed('approvals')) && <div className="card stack">
         <h3>{t('model.activity')}</h3>
         {allowed('calendar') && <div className="row" style={{ justifyContent: 'space-between' }}>
-          <Link href={`/models/${id}/calendar`}>{t('model.viewSchedule')}</Link>
+          <Link href={`/models/${id}/calendar`} prefetch={false}>{t('model.viewSchedule')}</Link>
           <strong>{calendarCount ?? t('model.unavailable')}</strong>
         </div>}
         {allowed('fans') && <div className="row" style={{ justifyContent: 'space-between' }}>
-          <Link href={`/models/${id}/fans`}>{t('model.viewFanContacts')}</Link>
+          <Link href={`/models/${id}/fans`} prefetch={false}>{t('model.viewFanContacts')}</Link>
           <strong>{fanCount ?? t('model.unavailable')}</strong>
         </div>}
         <p className="subtle">{t('model.countsDescription')}</p>
-        {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn">{t('model.createContent')}</Link>}
-        {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary">{t('model.reviewContent')}</Link>}
+        {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn" prefetch={false}>{t('model.createContent')}</Link>}
+        {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary" prefetch={false}>{t('model.reviewContent')}</Link>}
       </div>}
       {canViewCacheControls && <ProviderCacheControls modelId={model.id} initialControls={cacheControls} canEdit={canEditCacheControls} />}
       {canViewWatermark && <WatermarkPolicyControls modelId={model.id} initialPolicy={watermarkPolicy} canEdit={canEditWatermark} />}
@@ -155,7 +155,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         <h3>{t('model.workspaceTools')}</h3>
         <p className="subtle">{t('model.workspaceToolsDescription')}</p>
         <div className="grid" style={{ gap: 10 }}>
-          {tools.map(([section, label]) => <Link key={section} href={`/models/${id}/${section}`} className="btn secondary">{t(label)}</Link>)}
+          {tools.map(([section, label]) => <Link key={section} href={`/models/${id}/${section}`} className="btn secondary" prefetch={false}>{t(label)}</Link>)}
         </div>
       </div>}
     </div>

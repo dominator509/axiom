@@ -190,7 +190,7 @@ COMMIT;
     await context.close();
     // Earlier anonymous checks share one fixture IP and auth bucket; let it refill before UI prefetches.
     await delay(21_000);
-    context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
+    context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
     await context.addCookies(cookies);
     page = await context.newPage();
     observePage(page);

@@ -80,7 +80,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="app-shell">
             <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
-              <Link href="/" className="brand" aria-label={t('layout.home')}>
+              <Link href="/" className="brand" aria-label={t('layout.home')} prefetch={false}>
                 <BrandMark />
                 <span className="brand-copy">
                   <BrandWordmark name={brand.name} />
@@ -107,7 +107,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </aside>
             <div className="workspace">
               <header className="mobile-bar">
-                <Link href="/" className="brand compact">
+                <Link href="/" className="brand compact" prefetch={false}>
                   <BrandMark />
                   <BrandWordmark name={brand.name} />
                 </Link>
@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
                 <span>{t('layout.privateByDesign')}</span>
-                <Link href="/health">
+                <Link href="/health" prefetch={false}>
                   {t('layout.systemHealth')}
                 </Link>
               </footer>
