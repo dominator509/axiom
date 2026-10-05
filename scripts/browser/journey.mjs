@@ -139,6 +139,7 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, method, body, key: randomUUID() });
+  let relayRouteStatus = null;
   const signIn = async (identity, suppliedPassword) => {
     // These are separate user scenarios, not a rate-limit load test. Let the
     // unchanged auth bucket (20 tokens, 1/sec) fully refill and Better Auth's
@@ -345,6 +346,7 @@ COMMIT;
   await check('Relay destination action label stays readable on mobile', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const response = await page.goto(`/models/${ownModel}/relay`);
+    relayRouteStatus = response?.status() ?? null;
     const relayBindings = await linkbioRequest(`/api/v1/models/${ownModel}/relay-bindings`);
     const disableAction = page.getByRole('button', { name: 'Disable', exact: true });
     const actionButtons = page.locator('table tbody tr td:last-child > button');
@@ -385,6 +387,21 @@ COMMIT;
     const brandWordmarks = page.locator('.brand-wordmark');
     failureContext = {
       viewportWidth: await page.evaluate(() => window.innerWidth),
+      relayRouteStatus,
+      pageStructure: await page.evaluate(() => {
+        const bodyText = document.body?.innerText ?? '';
+        return {
+          appShellCount: document.querySelectorAll('.app-shell').length,
+          sidebarCount: document.querySelectorAll('.sidebar').length,
+          mobileBarCount: document.querySelectorAll('.mobile-bar').length,
+          authShellCount: document.querySelectorAll('.auth-shell').length,
+          mainCount: document.querySelectorAll('main').length,
+          loginFormCount: document.querySelectorAll('form').length,
+          hasRelayContent: /relay/i.test(bodyText),
+          hasApplicationError: bodyText.includes('Application error: a server-side exception has occurred'),
+          hasWorkspacePending: bodyText.includes('Workspace access pending'),
+        };
+      }),
       brandWordmarks: await brandWordmarks.evaluateAll(nodes => nodes.map(node => ({
         text: (node.textContent ?? '').slice(0, 100),
         parentClass: node.parentElement?.className ?? null,
