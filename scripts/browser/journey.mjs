@@ -40,6 +40,7 @@ await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
 const redirects = [];
+let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
 const diagnosticRedactions = new Set([process.env.BROWSER_SECRET_SENTINEL].filter(Boolean));
@@ -342,8 +343,24 @@ COMMIT;
     expect(nativePage).toBe(200);
   });
   await check('Relay destination action label stays readable on mobile', async () => {
-    await page.goto(`/models/${ownModel}/relay`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const response = await page.goto(`/models/${ownModel}/relay`);
+    const relayBindings = await linkbioRequest(`/api/v1/models/${ownModel}/relay-bindings`);
     const disableAction = page.getByRole('button', { name: 'Disable', exact: true });
+    const actionButtons = page.locator('table tbody tr td:last-child > button');
+    failureContext = {
+      pageStatus: response?.status() ?? null,
+      apiStatus: relayBindings.status,
+      apiBindingCount: Array.isArray(relayBindings.data?.data) ? relayBindings.data.data.length : null,
+      tableCount: await page.locator('table').count(),
+      rowCount: await page.locator('table tbody tr').count(),
+      actionButtonCount: await actionButtons.count(),
+      exactDisableTextCount: await actionButtons.evaluateAll(buttons => buttons.filter(button => button.textContent?.replace(/\s+/g, ' ').trim() === 'Disable').length),
+      accessibleDisableCount: await disableAction.count(),
+    };
+    expect(relayBindings.status).toBe(200);
+    expect(relayBindings.data?.data).toHaveLength(1);
+    expect(relayBindings.data.data[0]).toMatchObject({ channel: 'telegram', enabled: true });
     await expect(disableAction).toBeVisible();
     const renderedLines = await disableAction.evaluate(button => {
       const range = document.createRange();
@@ -351,6 +368,8 @@ COMMIT;
       return range.getClientRects().length;
     });
     expect(renderedLines).toBe(1);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    failureContext = null;
   });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
@@ -389,7 +408,7 @@ COMMIT;
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
-      failureDetail: safeDiagnostic(error), currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
+      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
     process.exitCode = 1;
   }
 } finally {
