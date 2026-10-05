@@ -5,24 +5,14 @@
     {
       "id": "LBI-01",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 01 | No plaintext credentials at rest | grep vault + DB dump shows only ciphertext; token column is `bytea` enc | unit + audit |",
-      "requirementSha256": "e09a9ae54009699d1291f00a094e82a44b595a912936505558da8c181296d43f",
-      "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
-    },
-    {
-      "id": "LBI-02",
-      "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 02 | Tenant isolation via RLS | cross-org read returns 0 rows; policy-coverage query = table count | integration |",
-      "requirementSha256": "b233e5e037cd7fb698e42cc7a963d07d01e6f2e0fcd038396340965dfa72b4ba",
+      "requirement": "| LBI-01 | Tenant isolation | effective forced-RLS catalog and runtime-role checks; cross-tenant reads return 0 rows and writes are rejected | integration + security |",
+      "requirementSha256": "831fe64557a7362358635df0a4c6525f364f5cf6879a607af36cfafdca3bfe3f",
       "lane": 2,
       "status": "passed",
       "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
       "evidence": [
         {
-          "criterion": "LBI-02",
+          "criterion": "LBI-01",
           "sha": "d8bfb217b4549e8b53c513de71fd92c1ea499c95",
           "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
           "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
@@ -44,117 +34,331 @@
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
-      ]
+      ],
+      "verification": {
+        "test": "effective forced-RLS catalog and runtime-role checks; cross-tenant reads return 0 rows and writes are rejected",
+        "environment": "Owned disposable migrated PostgreSQL in a network-disabled local or GitHub Actions rehearsal on Node 22.23.3; never a shared or production database.",
+        "dependencies": [
+          1
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-01 acceptance behavior: effective forced-RLS catalog and runtime-role checks; cross-tenant reads return 0 rows and writes are rejected; zero failed and zero skipped acceptance checks."
+      }
+    },
+    {
+      "id": "LBI-02",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| LBI-02 | Fail-closed egress | egress-off publish is blocked at netns; no default route or host-route fallback exists in the worker namespace | integration |",
+      "requirementSha256": "31260dfbb2dccb338bc52f22d8ad8c70fb8734d33525ceb9774a84ccb71d5e21",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": [],
+      "verification": {
+        "test": "egress-off publish is blocked at netns; no default route or host-route fallback exists in the worker namespace",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-02 acceptance behavior: egress-off publish is blocked at netns; no default route or host-route fallback exists in the worker namespace; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-03",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 03 | Fail-closed egress | egress-off publish blocked at netns; no default route in ns | integration |",
-      "requirementSha256": "9c224c5658da4c57dfb299766207d9cab275c3660e5ae55d27e95d156ef281ae",
-      "lane": 5,
+      "requirement": "| LBI-03 | Publish idempotency | double-approve/retry produces one remote post; a ledger hit skips a second call | integration |",
+      "requirementSha256": "27e65ab8af90855191d2dbf6fe6604c0d8389476a3da21b323a517931ab5c453",
+      "lane": 3,
       "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "evidence": [],
+      "verification": {
+        "test": "double-approve/retry produces one remote post; a ledger hit skips a second call",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-03 acceptance behavior: double-approve/retry produces one remote post; a ledger hit skips a second call; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-04",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 04 | Commands mutate state, workers publish | Relay approve sets state; no publish call in ingest path | integration |",
-      "requirementSha256": "a283f87f4feec31aa3cc5ebf1840147bc392369a511eef9869304d87c4f6303b",
+      "requirement": "| LBI-04 | Approval-gate integrity | authenticated dashboard approval or a valid signed, unexpired, single-use Relay command mutates state; forged, expired, and replayed commands are rejected and logged; ingest never publishes | security + integration |",
+      "requirementSha256": "ed360284a9b41d92d68ef8ecb70bab6c322e3017bb1f57d7a26d55d418225390",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "authenticated dashboard approval or a valid signed, unexpired, single-use Relay command mutates state; forged, expired, and replayed commands are rejected and logged; ingest never publishes",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-04 acceptance behavior: authenticated dashboard approval or a valid signed, unexpired, single-use Relay command mutates state; forged, expired, and replayed commands are rejected and logged; ingest never publishes; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-05",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 05 | Exactly-once publish | double-approve/retry ⇒ one remote post; ledger hit skips call | integration |",
-      "requirementSha256": "a35a3e96c587d5067d7f7aa808a787bccaa13a61a91f7959860d6c055f0f15a3",
+      "requirement": "| LBI-05 | Secret confidentiality | credential columns and dumps contain ciphertext only; APIs, logs, and Relay never expose plaintext | unit + audit |",
+      "requirementSha256": "d6dd6891945a3576183b159d4fcd8386d08941c4c9f75c82e6b7c1ffbc3121bc",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "credential columns and dumps contain ciphertext only; APIs, logs, and Relay never expose plaintext",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-05 acceptance behavior: credential columns and dumps contain ciphertext only; APIs, logs, and Relay never expose plaintext; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-06",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 06 | Signed single-use commands | replayed nonce rejected; expired token rejected | security |",
-      "requirementSha256": "21cdce681260761a38c61212fbf80454d00d57e1a01bb6dce7ddc726810c736a",
+      "requirement": "| LBI-06 | Audit immutability | tampering with an audit row makes end-to-end hash-chain verification fail | security |",
+      "requirementSha256": "864a981e916528dff0366bec40af66765e6d52adb69e5cb562591b643f82423c",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "tampering with an audit row makes end-to-end hash-chain verification fail",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-06 acceptance behavior: tampering with an audit row makes end-to-end hash-chain verification fail; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-07",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 07 | Honest capabilities | Snapchat = assisted (no faked publish); declared matrix matches behavior | unit |",
-      "requirementSha256": "f2602418e3852a4a1a366b5a339707df37f55a4df797fb7e38aed86dc191b880",
+      "requirement": "| LBI-07 | ToS gate | a block verdict prevents approval and publish; scanner failure never becomes pass | integration |",
+      "requirementSha256": "921d67f92b6762be6a87a6e8749e1b844713414e3f113008e02618a1d42aedde",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "a block verdict prevents approval and publish; scanner failure never becomes pass",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-07 acceptance behavior: a block verdict prevents approval and publish; scanner failure never becomes pass; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-08",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 08 | Hash-chained audit | tamper a row ⇒ chain verify fails | security |",
-      "requirementSha256": "b68105865ed83b872eadaf5cce585a20b2756fb815bf365208be2290eb2b354a",
+      "requirement": "| LBI-08 | Capability honesty | Snapchat uses the documented assisted flow; UI and connector never claim unsupported publishing | unit + integration |",
+      "requirementSha256": "082f692125c9b2a1b8746a85828a7f83a5a1c1205adaac450c2b45aae3849fa6",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Snapchat uses the documented assisted flow; UI and connector never claim unsupported publishing",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-08 acceptance behavior: Snapchat uses the documented assisted flow; UI and connector never claim unsupported publishing; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-09",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 09 | Prefix cache discipline | repeat generation cache-hit > 97% | perf |",
-      "requirementSha256": "0abb3cd005ed1cca6c2494300261a13d2cd9eaa53472e2df89fcd09cde246d07",
+      "requirement": "| LBI-09 | TOKENKILLER ordering | S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97% | unit + performance |",
+      "requirementSha256": "b4326d39833801c6eeaeace9fd39257654855d42ad7315c83be886b3155e587a",
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97%",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-09 acceptance behavior: S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97%; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-10",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 10 | Marker-gated builds | re-run SKIPs done steps; checksum drift FAILs | build |",
-      "requirementSha256": "04815cea8fcfd959980a003367b996b62c9f1701648219a5a7315ac242bd592a",
+      "requirement": "| LBI-10 | Greenfield marker discipline | a satisfied step skips; marker checksum drift fails closed | build |",
+      "requirementSha256": "21d6da357ffe41f030093661750f5adbe770bff2a3f23ef3ea086294aff9f5c4",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "a satisfied step skips; marker checksum drift fails closed",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-10 acceptance behavior: a satisfied step skips; marker checksum drift fails closed; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-11",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 11 | ToS gate before ship | block verdict prevents approval/publish | integration |",
-      "requirementSha256": "a967066ac4a01623faa2861749e67e3418ba634635f153449a6416be6bba326d",
-      "lane": 3,
+      "requirement": "| LBI-11 | Global kill switch | one audited operator action suspends publishing and agents across models within 5 seconds; re-enable is separate | integration + security |",
+      "requirementSha256": "7f23bf4e314025eff5a94d605d6f5b92dbbafab6ede9a5343ba551c8ffa84ae8",
+      "lane": 5,
       "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "evidence": [],
+      "verification": {
+        "test": "one audited operator action suspends publishing and agents across models within 5 seconds; re-enable is separate",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Pass the canonical LBI-11 acceptance behavior: one audited operator action suspends publishing and agents across models within 5 seconds; re-enable is separate; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "LBI-12",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| 12 | Global kill-switch | flip halts all egress mid-flight | integration |",
-      "requirementSha256": "fa1ff84460174638aaf0ac10e270a93439d2263ebb9ecd2ffabef162370f6e7e",
-      "lane": 5,
+      "requirement": "| LBI-12 | Consent record precondition | missing, expired, or unauthorized consent records block publishing for that model | security + integration |",
+      "requirementSha256": "5886a1c013da198fb4d8820fd097041c43d24aaa771550b0e26427ca74d93780",
+      "lane": 8,
       "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "nextStep": "Verify consent existence, model ownership, expiry, access control, and publish blocking using synthetic records in isolated desktop and native-mobile journeys.",
+      "evidence": [],
+      "verification": {
+        "test": "missing, expired, or unauthorized consent records block publishing for that model",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Pass the canonical LBI-12 acceptance behavior: missing, expired, or unauthorized consent records block publishing for that model; zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A1",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; 3 providers simultaneously; Native always works |",
-      "requirementSha256": "839144c0737d1550470d210a99beb895bb2250453e829d876477ffc2ae5103e6",
+      "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works |",
+      "requirementSha256": "18c4d7d66f914b92be979e1625f99279d7d6df531efcc94bbab46236e61df6a7",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A2",
@@ -164,7 +368,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "connect + validate + publish/assist per platform; capability resolves",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A2 | 10 publishing social platforms first-class | connect + validate + publish/assist per platform; capability resolves |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A3",
@@ -174,7 +395,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "approve/reject/reschedule/publish from Telegram/iMessage/Signal/Discord",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A3 | On-the-go control channel | approve/reject/reschedule/publish from Telegram/iMessage/Signal/Discord |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A4",
@@ -184,7 +422,23 @@
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "injected fault auto-captured in GlitchTip; structured logs + traces present",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A4 | Auto crash/bug reporting + logging | injected fault auto-captured in GlitchTip; structured logs + traces present |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A5",
@@ -194,7 +448,22 @@
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "high performer becomes exemplar; appears in later S2; bandit updates",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A5 | Self-improving viral loop | high performer becomes exemplar; appears in later S2; bandit updates |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "A6",
@@ -204,7 +473,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "v2 OAuth with minimum scopes; campaign/member/tier/post reads; cursor sync; signed webhook verification; truthful manual-assist/unsupported publish state; no fabricated DM, payout or analytics capability",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A6 | Patreon creator/community integration | v2 OAuth with minimum scopes; campaign/member/tier/post reads; cursor sync; signed webhook verification; truthful manual-assist/unsupported publish state; no fabricated DM, payout or analytics capability |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FEATURE-PRESERVATION",
@@ -214,47 +500,160 @@
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Resolve every F-01 through F-91 row to an observable UI/API/worker route and execute its acceptance journey.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control) and F-91 (Patreon creator/community integration) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "MATRIX-NFR-1",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "- Load: sustained generation + publish at target rate, p95 within budget.",
-      "requirementSha256": "f2577706a3ebe5bed220eded085f2fc1bbdf112a2dbf33d97a5231d3c85c61e5",
+      "requirement": "- Load: 4 generation batches and 20 publish targets per model per day, up to 20 models; measure sustained and burst load against the latency limits in `L1.2` and `L4`.",
+      "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Run workload at 1/5/10/20 models and the agreed daily batch/target rate; record resource use, latency, errors, and real provider token-cache telemetry.",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - Load: 4 generation batches and 20 publish targets per model per day, up to 20 models; measure sustained and burst load against the latency limits in `L1.2` and `L4`.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "MATRIX-NFR-2",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "- Recovery: restart mid-publish ⇒ no dupes, no lost jobs (durability of PG queue).",
-      "requirementSha256": "b40852900a90adbe8bc60c51ecdf36692646792a5b8e9fb45d8bf6e63ed6d439",
-      "lane": 7,
+      "requirement": "- Availability: core publishing path ≥99.5% across a 30-day observation; report provider availability separately.",
+      "requirementSha256": "991329d10dc145828e1e48a43a54a4189311bbdd86472a8b035f2eee44ed9f1e",
+      "lane": 6,
       "status": "unverified",
-      "nextStep": "Restore an isolated fresh cluster and deployment; measure PITR RPO <=5m and RTO <=60m twice.",
-      "evidence": []
+      "nextStep": "Observe and report 30-day core-path availability at the agreed workload; separate provider availability.",
+      "evidence": [],
+      "verification": {
+        "test": "Observe core publishing canaries continuously for 30 days; compute availability from the documented denominator and report provider uptime separately.",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - Availability: core publishing path ≥99.5% across a 30-day observation; report provider availability separately.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "MATRIX-NFR-3",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "- Security scan: dependency audit, secret scan, RLS coverage, egress default-deny.",
-      "requirementSha256": "c9fc8f92ba36e2ee133fdb28d9d8e6846389bb632186f6a0000eb9b84c12df2d",
+      "requirement": "- Recovery: restart mid-publish ⇒ no dupes, no lost jobs (durability of PG queue).",
+      "requirementSha256": "b40852900a90adbe8bc60c51ecdf36692646792a5b8e9fb45d8bf6e63ed6d439",
       "lane": 3,
       "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "nextStep": "Interrupt a mid-publish worker and verify durable recovery without lost jobs or duplicate dispatch in the isolated runtime harness.",
+      "evidence": [],
+      "verification": {
+        "test": "Interrupt a mid-publish worker and verify durable recovery without lost jobs or duplicate dispatch.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - Recovery: restart mid-publish ⇒ no dupes, no lost jobs (durability of PG queue).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "MATRIX-NFR-4",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "- Security scan: dependency audit, secret scan, RLS coverage, egress default-deny.",
+      "requirementSha256": "c9fc8f92ba36e2ee133fdb28d9d8e6846389bb632186f6a0000eb9b84c12df2d",
+      "lane": 5,
+      "status": "unverified",
+      "nextStep": "Attach exact-SHA dependency/secret-scan, RLS, and egress-deny evidence.",
+      "evidence": [],
+      "verification": {
+        "test": "Run dependency audit, secret scan, isolated RLS catalog rehearsal, and fail-closed egress acceptance; review each result at the exact tested SHA.",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - Security scan: dependency audit, secret scan, RLS coverage, egress default-deny.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
+    },
+    {
+      "id": "MATRIX-NFR-5",
       "source": "L5-verification/L5.0-test-matrix.md",
       "requirement": "- Cost telemetry: monthly infra projection within the `A1` cost-model band (`appendices/A1`).",
       "requirementSha256": "309e1261ffa16bd7b5d95df5c59efaddfec1fe90a817c1ee549d647c3897f9e8",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
-      "evidence": []
+      "nextStep": "Record measured monthly cost against the approved infrastructure budget using existing free quotas only.",
+      "evidence": [],
+      "verification": {
+        "test": "Project monthly infrastructure cost from measured workload and current approved budget inputs, using existing free quotas only.",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - Cost telemetry: monthly infra projection within the `A1` cost-model band (`appendices/A1`).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "MATRIX-CI",
@@ -264,7 +663,22 @@
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Execute the criterion-specific acceptance assertion stated here: All of §1–§4 run in CI. Phase advancement (`L4`) requires the relevant subset green; release requires the full matrix green.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: All of §1–§4 run in CI. Phase advancement (`L4`) requires the relevant subset green; release requires the full matrix green.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-1",
@@ -274,7 +688,23 @@
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Start the clean single-box deployment and verify required services, persistence, readiness, and documented self-host boundaries.",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Runs on a **single box** (Hetzner + Coolify) with Cloudflare + R2; no per-service metered PaaS required.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-2",
@@ -284,17 +714,49 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "For every publishing platform, connect, validate permissions, exercise the declared publish or assisted capability, read back the outcome, and revoke the test connection.",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: All **10 publishing platforms** connect, validate, and publish (or assist honestly for Snapchat); creator/community integrations are evaluated under their own capability contracts.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-3",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] **Link-in-bio Native** works with zero external providers; Fanlynks, Linktree, and Beacons remain blocked until their real adapters and unified analytics are implemented.",
-      "requirementSha256": "ca4a83dc89bac24f5332ba90241012b0cb3417a79b3135f2e5a47d7028b842bc",
+      "requirement": "- [ ] **Link-in-bio** works with zero providers and with Native, Fanlynks, Linktree, and Beacons independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly.",
+      "requirementSha256": "3d9e7b26509d211c0ce84b417a72184286381fbcb14878444a64c1aeaaf7f975",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Exercise zero providers and each of the four link-in-bio providers alone and together; verify synchronization, available analytics, primary selection, disable, and teardown.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **Link-in-bio** works with zero providers and with Native, Fanlynks, Linktree, and Beacons independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-4",
@@ -304,7 +766,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Run approve, reject, edit, reschedule, and publish-now journeys through each supported Relay channel, with authorization and readback checks.",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **On-the-go control** from Telegram, iMessage, Signal, and Discord: approve / reject / edit / reschedule / publish-now.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-5",
@@ -314,7 +793,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Generate a test asset and verify the operator card contains the preview, platform copy, hashtags, and persisted ToS outcome.",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: On generation, a **card** with preview + per-platform mock captions + hashtags + ToS verdict is pushed to the operator's channel.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-6",
@@ -324,7 +820,23 @@
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Inject service faults and verify correlated incident capture, deduplication, structured logs, traces, and dashboard visibility.",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **Auto crash/bug reporting** captures injected faults; structured logs + traces + dashboards live.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-7",
@@ -334,7 +846,22 @@
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Record a performance outcome, then prove stored evidence changes exemplar retrieval and bandit selection in a later generation.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **Self-improving viral loop** turns performance into exemplars that measurably bias later generations; bandit explores + exploits.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-8",
@@ -344,7 +871,28 @@
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Run the feature inventory and execute the linked browser/API/worker journeys for each preserved v1 capability.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Every **v1 feature (F-01..F-88)** resolves in v2 — nothing removed.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-9",
@@ -354,7 +902,28 @@
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Verify locale persistence, fallback, catalog completeness, accessible language metadata, and dashboard/native-mobile parity in all six locales.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **F-89 localization**: six launch locales, persisted switch/fallback, catalog completeness, accessible language metadata and dashboard/native-mobile parity pass.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-10",
@@ -364,7 +933,28 @@
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Exercise affiliate attribution, commission ledger, reversal/fraud controls, owner-only UI, export, deletion, and test transactions without payouts.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **F-90 FanThynks platform affiliate/referral**: license/security decision, partner attribution and SaaS-conversion commission ledger, fraud/reversal/payout controls, partner UI, export/deletion and browser acceptance pass; tenant-owned affiliate/reseller features are out of scope and no live payout is implied by source tests.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "FUNCTIONAL-11",
@@ -374,7 +964,24 @@
       "lane": 4,
       "status": "unverified",
       "nextStep": "Verify the approved capability against dedicated real provider/channel test accounts; simulated endpoints do not close acceptance.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Exercise Patreon minimum-scope OAuth, cursor sync, signature validation, idempotency, reconciliation, read-only boundaries, and disconnect.",
+        "environment": "Dedicated provider sandbox or test accounts and permitted destinations; credentials entered directly into the test application secret store; CI receives synthetic fixtures only.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: **F-91 Patreon**: v2 OAuth/minimum scopes, campaign/member/tier/post sync, cursor/idempotency/reconciliation, signed webhook verification, truthful manual-assist/unsupported-publish UI, RLS and desktop/mobile/provider acceptance pass; no member mutation, DM, payout or unsupported analytics is implied.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-1",
@@ -384,13 +991,30 @@
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Measure actual provider token-cache hit telemetry over repeated generation requests and verify the >97 percent threshold.",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Prefix cache-hit **> 97%** on repeat generations (LBI-09).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-2",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Cross-tenant read returns **0 rows** under RLS (LBI-02).",
-      "requirementSha256": "ec51891904c25afdc2645f2fc56f1ee14df86d2b7e2b3de200ca76692eeabd5c",
+      "requirement": "- [ ] Cross-tenant read returns **0 rows** under RLS (LBI-01).",
+      "requirementSha256": "9b0700200de4f65dcf575423cc0c914b61b67a78195786074a3ebce3dfccee0d",
       "lane": 2,
       "status": "passed",
       "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
@@ -418,27 +1042,72 @@
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
-      ]
+      ],
+      "verification": {
+        "test": "Inspect effective migrated RLS and runtime-role grants, then prove cross-tenant reads and writes are rejected in a disposable database.",
+        "environment": "Owned disposable migrated PostgreSQL in a network-disabled local or GitHub Actions rehearsal on Node 22.23.3; never a shared or production database.",
+        "dependencies": [
+          1
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Cross-tenant read returns **0 rows** under RLS (LBI-01).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-3",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Egress **fail-closed** proven; kill-switch halts publishing (LBI-03, LBI-12).",
-      "requirementSha256": "0009962375bfdf64a6dead9f16aaf78e50b269c2e8e8509b1a6edc9232278c31",
+      "requirement": "- [ ] Egress **fail-closed** proven; kill-switch halts publishing within five seconds (LBI-02, LBI-11).",
+      "requirementSha256": "87809e8fc49feef54359063aa58ff1e405539bff0a3f413d3f954487a55b5e66",
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Inject tunnel, DNS, route, and proxy faults; prove default-deny, no host fallback, and global suspension within five seconds.",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Egress **fail-closed** proven; kill-switch halts publishing within five seconds (LBI-02, LBI-11).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-4",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Exactly-once publish under retry/double-tap (LBI-05).",
-      "requirementSha256": "1aed5bf7183df47069cc40614596efe6f283389cdd735982fa23510fda2e8ef4",
+      "requirement": "- [ ] Exactly-once publish under retry/double-tap (LBI-03).",
+      "requirementSha256": "532d9ce0a807f5664ed0c0a99882a4f055565c0444ccb3d7d462aefb233c28cf",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Double-approve and retry one deterministic publish intent; verify one remote outcome and no second provider call.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Exactly-once publish under retry/double-tap (LBI-03).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-5",
@@ -448,7 +1117,24 @@
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Measure the agreed workload and calculate monthly infrastructure spend against the approved cost model.",
+        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Monthly infra cost within the modeled band (`appendices/A1`), materially below v1.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "NONFUNCTIONAL-6",
@@ -458,23 +1144,55 @@
       "lane": 7,
       "status": "unverified",
       "nextStep": "Restore an isolated fresh cluster and deployment; measure PITR RPO <=5m and RTO <=60m twice.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Run two fresh-cluster restores and measure WAL-derived RPO and elapsed RTO; verify objects/keys and reconcile uncertain work before test dispatch.",
+        "environment": "Two owned fresh-cluster restore drills using synthetic PostgreSQL, object, and key material; egress disabled during recovery reconciliation.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: RPO ≤ 5 min, RTO ≤ 60 min in a rehearsed drill (`L5.1`).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-1",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] No plaintext credentials at rest or in logs (LBI-01); envelope encryption verified.",
-      "requirementSha256": "804f0a9a1657a3acd79c42bdc1e93f0c10e52e7fb07ac55ee1909d36b8818246",
+      "requirement": "- [ ] No plaintext credentials at rest or in logs (LBI-05); envelope encryption verified.",
+      "requirementSha256": "392cf44f5f17c5875b87106d791ccc6596304409a30b005751b13eba5de198f2",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Inspect synthetic credential persistence, dumps, API responses, Relay payloads, and logs for ciphertext-only storage and plaintext non-disclosure.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: No plaintext credentials at rest or in logs (LBI-05); envelope encryption verified.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-2",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Every org-scoped table has `org_isolation` RLS with `FORCE`; app role can't bypass (LBI-02).",
-      "requirementSha256": "7d10b2235f4e3f320dad2a2cffda91551bfcfabe8d6d27ef1077258d2a49518d",
+      "requirement": "- [ ] Every org-scoped table has `org_isolation` RLS with `FORCE`; app role can't bypass (LBI-01).",
+      "requirementSha256": "802746268a32f47e4ad07f79e1a70e673b5bafa35f3c32a2e93e6329508c1462",
       "lane": 2,
       "status": "passed",
       "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
@@ -502,57 +1220,153 @@
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
-      ]
+      ],
+      "verification": {
+        "test": "Check forced RLS catalog flags and runtime-role privileges for every schema-derived tenant table; execute negative read/write controls.",
+        "environment": "Owned disposable migrated PostgreSQL in a network-disabled local or GitHub Actions rehearsal on Node 22.23.3; never a shared or production database.",
+        "dependencies": [
+          1
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Every org-scoped table has `org_isolation` RLS with `FORCE`; app role can't bypass (LBI-01).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-3",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Egress default-deny; only whitelisted hosts reachable when enabled (LBI-03).",
-      "requirementSha256": "42a3b4b2f750d02b770b97abde4c23ad8d64fd2f79e173df37c5046c6a8cd8dc",
+      "requirement": "- [ ] Egress default-deny; only whitelisted hosts reachable when enabled (LBI-02).",
+      "requirementSha256": "ee33ced95f6162142def18dd1204f6506bcf937ad0e9ad6cd1e809ed14bd1b3b",
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Disable tunnel, DNS, proxy, and route components in turn and prove unapproved destinations and host-route fallback remain unreachable.",
+        "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Egress default-deny; only whitelisted hosts reachable when enabled (LBI-02).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-4",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Relay commands signed, single-use (nonce), expiring; replay + expiry rejected (LBI-06).",
-      "requirementSha256": "ad3ff99e3e09542bfb3a358e3a70cc6ad0681516195d9e81c254471f03bd82ee",
+      "requirement": "- [ ] Relay commands signed, single-use (nonce), expiring; replay + expiry rejected (LBI-04).",
+      "requirementSha256": "5f3f4c10059550454cc40ab38a78ae75deb2159e77939914339e40311201ec6f",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Submit valid, expired, forged, replayed, and unauthorized Relay commands; assert only the valid single-use command mutates state.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Relay commands signed, single-use (nonce), expiring; replay + expiry rejected (LBI-04).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-5",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Audit log hash chain verifies; tamper detectable (LBI-08).",
-      "requirementSha256": "8854bea613cc189c637a1f44117dbf55b4f75093911046d9c4df0b6dff791192",
+      "requirement": "- [ ] Audit log hash chain verifies; tamper detectable (LBI-06).",
+      "requirementSha256": "41bb1cb567ba15755c474c084039689bd7992f4934b88e5a57b947ff519d0d60",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Verify the audit chain end to end, alter a disposable audit row, and assert tamper detection and incident handling.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Audit log hash chain verifies; tamper detectable (LBI-06).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-6",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] ToS engine fails to **block**, never **pass** (LBI-11).",
-      "requirementSha256": "470cc4fa50e53fd6e70d7704643a35a320c1fab79c29306cbcfa6e4466d17bc8",
+      "requirement": "- [ ] ToS engine fails to **block**, never **pass** (LBI-07).",
+      "requirementSha256": "05a057ba36b5e198e571d23d6ba865db43b744dafb43108103767a4cc15c3c7c",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Exercise block, review, incomplete, and unavailable scanner results; prove no unsafe state reaches approval or dispatch.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: ToS engine fails to **block**, never **pass** (LBI-07).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-7",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Adult-content Consent & Records Vault populated + access-controlled (`L0.1`).",
-      "requirementSha256": "c4f1b3d51259dcdc6fbfbe5a6cc2198f54eccecbdfb0b84e61be02cf94f8e9f7",
+      "requirement": "- [ ] Adult-content Consent & Records Vault populated + access-controlled; missing/expired records block publishing (LBI-12, `L0.1`).",
+      "requirementSha256": "79fe244c16000716901c5559180049a5b9413e340acd3a4ea63e1cd49510d759",
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Use synthetic missing, expired, unauthorized, and valid consent records and verify model-scoped publishing enforcement.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Adult-content Consent & Records Vault populated + access-controlled; missing/expired records block publishing (LBI-12, `L0.1`).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-8",
@@ -562,7 +1376,22 @@
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Run repository secret scanning and dependency auditing; inspect secret-store references without exposing secret values.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Secrets in KMS/secret store, not git; dependency + secret scans clean.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "SECURITY-9",
@@ -572,7 +1401,22 @@
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Attempt direct publish through every approval-required agent tool and unauthorized role; assert rejection and audit evidence.",
+        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "dependencies": [
+          1,
+          2
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: Agent `requires_approval` tools cannot publish directly; RBAC + tier enforced (LBI-04).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
     },
     {
       "id": "HUMAN-SIGNOFF",
@@ -582,7 +1426,28 @@
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": []
+      "evidence": [],
+      "verification": {
+        "test": "Verify every release criterion is accepted at the final exact SHA, then obtain a separate owner consent-record attestation and release sign-off for that SHA.",
+        "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
+        ],
+        "completionCondition": "All other criteria pass at the final exact SHA and the owner attests to the consent records and signs that SHA."
+      }
     }
   ]
 }

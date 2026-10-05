@@ -28,7 +28,7 @@ function complete() {
   }
   return register;
 }
-const incrementalIds = new Set(['LBI-02', 'NONFUNCTIONAL-2', 'SECURITY-2']);
+const incrementalIds = new Set(['LBI-01', 'NONFUNCTIONAL-2', 'SECURITY-2']);
 function incremental() {
   const register = empty();
   for (const row of register.criteria) if (incrementalIds.has(row.id)) {
@@ -46,8 +46,31 @@ test('current register is structurally complete without implying release accepta
   assert.equal(validate(current, expected).passed, 3);
   assert.throws(() => validate(current, expected, { releaseSha: currentSha }), /Release blocked/);
 });
+test('L5 invariant rows use the canonical L0 property names and cover every invariant', () => {
+  const canonical = [...read('L0-governance/L0.0-governance-and-invariants.md').matchAll(/^\*\*LBI-(\d{2}) — ([^.]+)\./gm)]
+    .map(([, id, property]) => [`LBI-${id}`, property]);
+  const matrix = read('L5-verification/L5.0-test-matrix.md').split(/\r?\n/)
+    .map(line => /^\| (LBI-\d{2}) \| ([^|]+) \|/.exec(line))
+    .filter(Boolean)
+    .map(([, id, property]) => [id, property.trim()]);
+  assert.deepEqual(matrix, canonical);
+  const approval = expected.find(row => row.id === 'LBI-04').requirement;
+  assert.match(approval, /forged, expired, and replayed commands are rejected and logged/);
+});
 test('complete synthetic evidence is accepted by the structural release validator', () => {
   assert.equal(validate(complete(), expected, { releaseSha }).passed, expected.length);
+});
+test('every acceptance row has a test, environment, dependencies, evidence and completion condition', () => {
+  const register = empty();
+  assert.equal(validate(register, expected).criteria, expected.length);
+  for (const row of register.criteria) {
+    assert.ok(row.verification.test.length > 0, row.id);
+    assert.ok(row.verification.environment.length > 0, row.id);
+    assert.ok(Array.isArray(row.verification.dependencies), row.id);
+    assert.ok(row.verification.requiredEvidence.length > 0, row.id);
+    assert.ok(row.verification.completionCondition.length > 0, row.id);
+    assert.ok(row.verification.dependencies.every(lane => lane < row.lane), row.id);
+  }
 });
 test('incremental exact-SHA evidence validates without closing open release rows', () => {
   const register = incremental();
@@ -58,19 +81,19 @@ test('incremental exact-SHA evidence validates without closing open release rows
 });
 test('incremental verification rejects stale or skipped evidence', () => {
   const stale = incremental();
-  stale.criteria.find(row => row.id === 'LBI-02').evidence[0].sha = 'c'.repeat(40);
+  stale.criteria.find(row => row.id === 'LBI-01').evidence[0].sha = 'c'.repeat(40);
   assert.throws(() => validate(stale, expected, { verifySha: releaseSha }), /stale evidence SHA/);
   const skipped = incremental();
-  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].counts.skipped = 1;
-  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].counts.total = 21;
-  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].skips = ['not run'];
+  skipped.criteria.find(row => row.id === 'LBI-01').evidence[0].counts.skipped = 1;
+  skipped.criteria.find(row => row.id === 'LBI-01').evidence[0].counts.total = 21;
+  skipped.criteria.find(row => row.id === 'LBI-01').evidence[0].skips = ['not run'];
   assert.throws(() => validate(skipped, expected, { verifySha: releaseSha }), /skipped acceptance/);
 });
 test('incremental verification requires an accepted row and no evidence on open rows', () => {
   assert.throws(() => validate(empty(), expected, { verifySha: releaseSha }), /no passed criteria/);
   const register = incremental();
   const open = register.criteria.find(row => row.id === 'LBI-03');
-  open.evidence = [{ ...register.criteria.find(row => row.id === 'LBI-02').evidence[0], criterion: open.id }];
+  open.evidence = [{ ...register.criteria.find(row => row.id === 'LBI-01').evidence[0], criterion: open.id }];
   assert.throws(() => validate(register, expected, { verifySha: releaseSha }), /non-passed criterion/);
 });
 for (const value of ['', null, 'main', 'abcd123']) test(`release rejects invalid SHA ${JSON.stringify(value)}`, () => {
@@ -82,6 +105,11 @@ for (const [name, mutate] of [
   ['changed requirement', r => { r.criteria[0].requirement += ' relaxed'; }],
   ['changed source digest', r => { r.criteria[0].requirementSha256 = '0'.repeat(64); }],
   ['unknown status', r => { r.criteria[0].status = 'done'; }],
+  ['missing planned test', r => { delete r.criteria[0].verification.test; }],
+  ['missing planned environment', r => { delete r.criteria[0].verification.environment; }],
+  ['invalid lane dependency', r => { r.criteria[0].verification.dependencies = [r.criteria[0].lane]; }],
+  ['missing required evidence', r => { r.criteria[0].verification.requiredEvidence = []; }],
+  ['missing completion condition', r => { delete r.criteria[0].verification.completionCondition; }],
   ['evidence-free pass', r => { r.criteria[0].evidence = []; }],
   ['missing command', r => { delete r.criteria[0].evidence[0].command; }],
   ['missing scope', r => { delete r.criteria[0].evidence[0].scope; }],

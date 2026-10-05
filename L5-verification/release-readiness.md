@@ -30,6 +30,14 @@ typecheck, lint, build and dependency audit successfully. These commands are
 checks, not additional test counts. CI used Node 22.23.3, pnpm 9.14.0 and
 `API_ORIGIN=http://127.0.0.1:3001`.
 
+The implementation starting point was main SHA
+`08dbcc8a2adaa9071dac5cd41228d86ab6118e35`. The exact readback command
+`gh run view 37251590964 --json headSha,status,conclusion,url,jobs` confirmed
+[CI run 37251590964](https://github.com/dominator509/axiom/actions/runs/37251590964)
+at that SHA completed with 9 successful jobs, 0 failed and 0 cancelled. This
+current-main receipt supplements, and does not replace, the historical baseline
+receipts above.
+
 The [container job](https://github.com/dominator509/axiom/actions/runs/37161757957/job/111316474875)
 built all seven images using the commands in `.github/workflows/ci.yml`. Build
 output recorded these local image IDs (not published registry manifest digests):
@@ -88,12 +96,13 @@ database changes or migrations are permitted.
 
 ## Evidence format and gates
 
-`release-evidence.json` contains 51 rows extracted from the normative sections of
+`release-evidence.json` contains 52 rows extracted from the normative sections of
 L5.0 and L5.2. Dated checkpoint prose is excluded. Requirements are stored verbatim
-with SHA-256 hashes. Any addition, removal or textual change requires explicit
-reconciliation. Existing partial and historical tests are not blanket acceptance;
-rows without accepted lane receipts remain unverified with owning lanes and
-concrete next steps.
+with SHA-256 hashes. Each row also records its planned test, isolated environment,
+prior-lane dependencies, required receipt contents, and exact completion condition.
+Any addition, removal or textual change requires explicit reconciliation. Existing
+partial and historical tests are not blanket acceptance; rows without accepted
+lane receipts remain unverified with owning lanes and concrete next steps.
 
 `node scripts/check-release-evidence.mjs --check` validates coverage and receipt
 shape while permitting open rows. CI runs it and its negative-control suite.
