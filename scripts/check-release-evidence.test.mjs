@@ -89,6 +89,12 @@ test('incremental verification rejects stale or skipped evidence', () => {
   skipped.criteria.find(row => row.id === 'LBI-01').evidence[0].skips = ['not run'];
   assert.throws(() => validate(skipped, expected, { verifySha: releaseSha }), /skipped acceptance/);
 });
+test('exact-SHA verification preserves unrelated historical receipts', () => {
+  const register = incremental();
+  const row = register.criteria.find(item => item.id === 'LBI-01');
+  row.evidence.unshift({ ...row.evidence[0], sha: 'c'.repeat(40) });
+  assert.equal(validate(register, expected, { verifySha: releaseSha }).passed, incrementalIds.size);
+});
 test('incremental verification requires an accepted row and no evidence on open rows', () => {
   assert.throws(() => validate(empty(), expected, { verifySha: releaseSha }), /no passed criteria/);
   const register = incremental();
@@ -149,6 +155,22 @@ function hosted(endpoint) {
 }
 test('hosted readback accepts matching successful run and job', () => {
   verifyHosted(complete(), releaseSha, hosted, () => Buffer.from('test log'));
+});
+test('hosted readback selects target-SHA receipts while retaining other history', () => {
+  const register = complete();
+  const row = register.criteria.find(item => item.id === 'LBI-01');
+  row.evidence.unshift({ ...row.evidence[0], sha: 'c'.repeat(40),
+    ciUrl: 'https://github.com/dominator509/axiom/actions/runs/789',
+    jobUrl: 'https://github.com/dominator509/axiom/actions/runs/789/job/987' });
+  const requests = [];
+  verifyHosted(register, releaseSha, endpoint => {
+    requests.push(endpoint);
+    return hosted(endpoint);
+  }, () => Buffer.from('test log'));
+  assert.deepEqual(requests, [
+    'repos/dominator509/axiom/actions/runs/123',
+    'repos/dominator509/axiom/actions/jobs/456',
+  ]);
 });
 for (const [name, field, value] of [
   ['wrong source', 'head_sha', 'c'.repeat(40)],

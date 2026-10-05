@@ -78,6 +78,13 @@ The Windows local attempt did not run the fixture: its Node 24.14.1 failed the
 pinned-version guard before Docker or PostgreSQL started; it is not counted as
 an acceptance result.
 
+A refreshed post-merge receipt is available at main SHA
+`09824ea15e07dba159b09ee1675cd9d2c6214e0d`: [CI run 37339600690](https://github.com/dominator509/axiom/actions/runs/37339600690),
+[test job 111862985676](https://github.com/dominator509/axiom/actions/runs/37339600690/job/111862985676).
+The same isolated command reported **20 passed/0 failed/0 skipped**, `cleanup: true`,
+and the pinned Timescale image. The register preserves both hosted receipts and
+the latest job-log digest. This refresh is not the planned final-release-SHA replay.
+
 ## Limits
 
 Catalog flags and policy composition do not prove arbitrary policy-expression

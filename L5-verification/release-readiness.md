@@ -87,6 +87,13 @@ limited to its disposable migrated database and locale cross-tenant negative
 controls; it does not inspect a deployed database or prove exhaustive CRUD for
 every tenant table. The release register retains those exact-SHA receipts.
 
+The refreshed main-SHA rehearsal at `09824ea15e07dba159b09ee1675cd9d2c6214e0d`
+also passed 20/20 assertions with zero failures or skips and verified cleanup:
+[CI run 37339600690](https://github.com/dominator509/axiom/actions/runs/37339600690),
+[test job 111862985676](https://github.com/dominator509/axiom/actions/runs/37339600690/job/111862985676).
+Its receipt preserves the earlier SHA and records the pinned PostgreSQL image and
+raw-log digest. The required repeat on the eventual final release SHA remains open.
+
 Items 3-8 remain open, and this does not authorize release. A Docker deployment
 can establish isolated runtime proof. It cannot establish real provider
 entitlement, real channel delivery, customer consent, month-long availability,

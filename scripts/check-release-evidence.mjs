@@ -101,9 +101,12 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
       check(Array.isArray(receipt.skips) && receipt.skips.length === counts.skipped && receipt.skips.every(nonempty), `${row.id}: undocumented skips`);
       check(Array.isArray(receipt.images) && receipt.images.every(image => /^.+@sha256:[a-f0-9]{64}$/.test(image)), `${row.id}: invalid image provenance`);
       if (row.status === 'passed') check(counts.failed === 0 && counts.passed > 0, `${row.id}: failing pass receipt`);
-      if (receiptSha !== undefined && row.status === 'passed') {
-        check(receipt.sha === receiptSha, `${row.id}: stale evidence SHA`);
-        check(counts.skipped === 0, `${row.id}: skipped acceptance`);
+    }
+    if (receiptSha !== undefined && row.status === 'passed') {
+      const matchingReceipts = row.evidence.filter(receipt => receipt.sha === receiptSha);
+      check(matchingReceipts.length > 0, `${row.id}: stale evidence SHA`);
+      for (const receipt of matchingReceipts) {
+        check(receipt.counts.skipped === 0, `${row.id}: skipped acceptance`);
       }
     }
   }
@@ -121,7 +124,14 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
 }
 
 export function verifyHosted(register, releaseSha, gh, readLog) {
-  const receipts = register.criteria.flatMap(row => row.evidence);
+  const passedRows = register.criteria.filter(row => row.status === 'passed');
+  const receipts = passedRows.flatMap(row => {
+    const matching = row.evidence.filter(receipt => receipt.sha === releaseSha);
+    check(matching.length > 0, `${row.id}: stale evidence SHA`);
+    check(matching.every(receipt => receipt.counts?.failed === 0 && receipt.counts?.skipped === 0),
+      `${row.id}: failed or skipped acceptance`);
+    return matching;
+  });
   const runs = new Map();
   const jobs = new Map();
   for (const receipt of receipts) {
