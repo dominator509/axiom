@@ -615,8 +615,9 @@ UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = 
     }),
   });
   const firstCrashResponse = await reportCrash(randomUUID());
-  assert.equal(firstCrashResponse.status, 200, 'synthetic crash report must persist');
-  const firstCrash = await firstCrashResponse.json();
+  const firstCrashBody = await firstCrashResponse.text();
+  assert.equal(firstCrashResponse.status, 200, `synthetic crash report must persist: ${firstCrashBody}`);
+  const firstCrash = JSON.parse(firstCrashBody);
   assert.equal(firstCrash.isNew, true, 'first fingerprint occurrence must create an issue');
   const repeatedCrashResponse = await reportCrash(randomUUID());
   assert.equal(repeatedCrashResponse.status, 200, 'repeated synthetic crash must persist');

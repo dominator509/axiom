@@ -483,10 +483,39 @@ jobs:
           fi
 
           cleanup() {
+            rehearsal_status=$?
+            trap - EXIT
+            cleanup_status=0
             if (( db_stopped )); then
-              docker start "$POSTGRES_CONTAINER_ID" >/dev/null 2>&1 || true
+              if ! docker start "$POSTGRES_CONTAINER_ID" >/dev/null 2>&1; then
+                echo "deployment rehearsal cleanup: failed to restart its PostgreSQL service"
+                cleanup_status=1
+              fi
             fi
-            docker rm --force "$egress_container" "$media_container" "$vision_container" "$scraper_container" "$hono_container" "$dashboard_container" "$worker_container" >/dev/null 2>&1 || true
+            for container in "$egress_container" "$media_container" "$vision_container" "$scraper_container" "$hono_container" "$dashboard_container" "$worker_container"; do
+              if docker inspect "$container" >/dev/null 2>&1; then
+                owned_label="$(docker inspect --format '{{ index .Config.Labels "com.fanthynks.rehearsal-id" }}' "$container" 2>/dev/null || true)"
+                if [[ "$owned_label" != "$rehearsal_id" ]]; then
+                  echo "deployment rehearsal cleanup: refusing to remove a container without this rehearsal label: ${container}"
+                  cleanup_status=1
+                elif ! docker rm --force "$container" >/dev/null 2>&1; then
+                  echo "deployment rehearsal cleanup: could not remove owned container: ${container}"
+                  cleanup_status=1
+                fi
+              fi
+              if docker inspect "$container" >/dev/null 2>&1; then
+                echo "deployment rehearsal cleanup: owned container remains: ${container}"
+                cleanup_status=1
+              fi
+            done
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$POSTGRES_CONTAINER_ID" 2>/dev/null || true)" != "true" ]]; then
+              echo "deployment rehearsal cleanup: this job's PostgreSQL service is not running"
+              cleanup_status=1
+            fi
+            if (( rehearsal_status == 0 && cleanup_status != 0 )); then
+              exit 1
+            fi
+            exit "$rehearsal_status"
           }
           trap cleanup EXIT
 
