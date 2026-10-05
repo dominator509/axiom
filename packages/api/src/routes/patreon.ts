@@ -8,6 +8,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { randomBytes, createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import { z } from 'zod';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
@@ -32,7 +33,7 @@ import {
   resolveOAuthCookieSecret,
   setOAuthStateCookie,
 } from './oauth-state.js';
-import { persistOAuthConnection } from './oauth-connection.js';
+import { decryptOAuthCredentials, persistOAuthConnection, updateOAuthCredentials } from './oauth-connection.js';
 
 const APPLICATION_ORIGIN = normalizeAuthOrigin(
   process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
@@ -45,7 +46,6 @@ const PATREON_TOKEN_URL = 'https://www.patreon.com/api/oauth2/token';
 const PATREON_SCOPES = [
   'identity',
   'campaigns',
-  'identity.memberships',
   'campaigns.members',
   'campaigns.posts',
   'w:campaigns.webhook',
@@ -78,6 +78,31 @@ function browserConnectionRedirect(c: Context<AppBindings>, modelId: string, res
   destination.searchParams.set('oauth', result);
   destination.searchParams.set('platform', 'patreon');
   return c.redirect(destination.toString(), 303);
+}
+
+function patreonWebhookUri(orgId: string, connectionId: string): string | null {
+  try {
+    const configuredOrigin = process.env.PATREON_WEBHOOK_ORIGIN?.trim() || APPLICATION_ORIGIN;
+    const origin = new URL(configuredOrigin);
+    const hostname = origin.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (
+      origin.protocol !== 'https:' ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== '/' ||
+      origin.search ||
+      origin.hash ||
+      isIP(hostname) !== 0 ||
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.lan')
+    ) return null;
+    return new URL(`/webhooks/patreon/${encodeURIComponent(orgId)}/${encodeURIComponent(connectionId)}`, origin.origin).toString();
+  } catch {
+    return null;
+  }
 }
 
 async function loadPatreonConnection(orgId: string, connectionId: string) {
@@ -337,7 +362,10 @@ router.get('/connectors/patreon/callback', async (c) => {
     const egressFetch = buildEgressFetch(egressBinding);
     const response = await egressFetch(PATREON_TOKEN_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': 'FanThynks Creator OS',
+      },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
@@ -372,7 +400,6 @@ router.get('/connectors/patreon/callback', async (c) => {
         ...(refreshToken ? { refreshToken } : {}),
         ...(externalUserId ? { externalUserId } : {}),
         ...(expiresIn ? { expiresAt: Math.floor(Date.now() / 1000) + expiresIn } : {}),
-        extra: { patreonWebhookSecret: randomBytes(32).toString('hex') },
       },
       actorRef: 'oauth:patreon',
       capabilities: [...PATREON_CAPABILITY_NAMES],
@@ -404,6 +431,10 @@ router.get('/connectors/patreon/status', async (c) => {
   if (!connectionId) return apiError(c, 400, statusTitle(400), 'connectionId query required');
   const connection = await loadPatreonConnection(orgId, connectionId);
   if (!connection) return apiError(c, 404, statusTitle(404), 'Patreon connection not found');
+  const credentials = await decryptOAuthCredentials(connection).catch(() => null);
+  const webhookConfigured = typeof credentials?.extra?.patreonWebhookId === 'string' &&
+    typeof credentials.extra.patreonWebhookSecret === 'string' &&
+    typeof credentials.extra.patreonWebhookUri === 'string';
   const data = await withOrgContext(orgId, async (tx) => {
     const [campaigns, members, posts, sync, webhooks] = await Promise.all([
       tx
@@ -438,7 +469,18 @@ router.get('/connectors/patreon/status', async (c) => {
         posts: Number(posts[0]?.count ?? 0),
       },
       sync,
-      lastWebhook: webhooks[0] ?? null,
+      lastWebhook: webhooks[0]
+        ? {
+            eventType: webhooks[0].eventType,
+            receivedAt: webhooks[0].receivedAt,
+            deliveryFingerprint: webhooks[0].providerEventId,
+          }
+        : null,
+      webhook: {
+        status: credentials ? (webhookConfigured ? 'configured' : 'setup_required') : 'unavailable',
+        uri: webhookConfigured ? credentials!.extra!.patreonWebhookUri : null,
+        setupAvailable: credentials !== null && patreonWebhookUri(orgId, connectionId) !== null,
+      },
       deniedActions: [
         'publish',
         'media_upload',
@@ -557,12 +599,54 @@ router.post('/connectors/patreon/sync', zValidator('json', syncSchema), async (c
   }
 });
 
+/** Explicitly provision and read back the public, encrypted Patreon webhook binding. */
+router.post('/connectors/patreon/webhook', async (c) => {
+  const orgId = requireOrg(c);
+  const connectionId = c.req.query('connectionId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!connectionId) return apiError(c, 400, statusTitle(400), 'connectionId query required');
+  const connection = await loadPatreonConnection(orgId, connectionId);
+  if (!connection) return apiError(c, 404, statusTitle(404), 'Patreon connection not found');
+  const webhookUri = patreonWebhookUri(orgId, connectionId);
+  if (!webhookUri) {
+    return apiError(c, 503, statusTitle(503), 'Patreon webhook setup requires a configured public HTTPS application origin');
+  }
+
+  try {
+    const { connector } = await patreonConnectorForConnection(connection);
+    const campaign = await connector.syncCampaign();
+    await saveCampaign(connection, campaign);
+    const registration = await connector.ensureWebhooks(webhookUri);
+    const auth = connector.auth;
+    const updated = await updateOAuthCredentials(orgId, connectionId, {
+      accessToken: auth.accessToken,
+      ...(auth.refreshToken ? { refreshToken: auth.refreshToken } : {}),
+      ...(auth.externalUserId ? { externalUserId: auth.externalUserId } : {}),
+      ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}),
+      extra: {
+        ...(auth.extra ?? {}),
+        patreonWebhookId: registration.webhookId,
+        patreonWebhookSecret: registration.webhookSecret,
+        patreonWebhookUri: registration.webhookUri,
+        patreonWebhookVerifiedAt: new Date().toISOString(),
+      },
+    }, c.get('userId') ?? 'system', 'patreon.webhook.configure');
+    if (!updated) return apiError(c, 404, statusTitle(404), 'Patreon connection not found');
+    return c.json({ data: { status: 'configured', webhookUri: registration.webhookUri } });
+  } catch {
+    console.error('Patreon webhook setup or encrypted persistence failed');
+    return apiError(c, 502, statusTitle(502), 'Patreon webhook setup could not be confirmed; retry to reconcile provider state');
+  }
+});
+
 /** Public provider callback. HMAC is the authorization boundary; no session is required. */
 router.post('/webhooks/patreon/:orgId/:connectionId', async (c) => {
   const orgId = c.req.param('orgId');
   const connectionId = c.req.param('connectionId');
   const signature = c.req.header('x-patreon-signature');
+  const eventType = c.req.header('x-patreon-event');
   if (!signature) return apiError(c, 401, statusTitle(401), 'Patreon signature required');
+  if (!eventType) return apiError(c, 400, statusTitle(400), 'Patreon event type required');
   const connection = await loadPatreonConnection(orgId, connectionId);
   if (!connection) return apiError(c, 404, statusTitle(404), 'Patreon connection not found');
   let rawBody: string;
@@ -575,7 +659,7 @@ router.post('/webhooks/patreon/:orgId/:connectionId', async (c) => {
   }
   try {
     const { connector } = await patreonConnectorForConnection(connection);
-    const verified = await connector.handleWebhook(rawBody, signature);
+    const verified = await connector.handleWebhook(rawBody, signature, eventType);
     if (!verified.ok) {
       if (verified.reason === 'replay_rejected') return c.json({ accepted: false, replay: true });
       return apiError(c, 401, statusTitle(401), 'Patreon webhook verification failed');
@@ -588,9 +672,9 @@ router.post('/webhooks/patreon/:orgId/:connectionId', async (c) => {
           orgId,
           modelId: connection.modelId,
           connectionId,
-          providerEventId: event.eventId,
+          providerEventId: event.deliveryFingerprint,
           eventType: event.eventType || 'unknown',
-          occurredAt: new Date(event.occurredAt),
+          occurredAt: new Date(event.receivedAt),
           payloadDigest: event.payloadDigest,
           receivedAt: new Date(),
         })

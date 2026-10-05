@@ -81,9 +81,6 @@ export async function patreonConnectorForConnection(
   if (!binding) throw new Error(`model ${connection.modelId} has no healthy egress binding`);
   const auth = await decryptConnectorAuth(connection);
   const webhookSecret = auth.extra?.patreonWebhookSecret;
-  if (typeof webhookSecret !== 'string' || webhookSecret.length < 16) {
-    throw new Error('Patreon connection has no valid webhook secret');
-  }
   const egressFetch = buildEgressFetch(binding);
   const json = async (url: string, init?: RequestInit) => {
     const response = await egressFetch(url, {
@@ -99,14 +96,14 @@ export async function patreonConnectorForConnection(
     return { status: response.status, body };
   };
   const transport: PatreonTransport = {
-    getJson: (url) => json(url),
-    postJson: (url, body) =>
+    getJson: (url, headers) => json(url, { headers }),
+    postJson: (url, body, headers) =>
       json(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...headers },
         body: JSON.stringify(body),
       }),
-    delete: async (url) => ({ status: (await json(url, { method: 'DELETE' })).status }),
+    delete: async (url, headers) => ({ status: (await json(url, { method: 'DELETE', headers })).status }),
   };
   return {
     connection,
@@ -114,7 +111,7 @@ export async function patreonConnectorForConnection(
       auth,
       transport,
       ledger: createConnectionLedger(),
-      webhookSecret,
+      webhookSecret: typeof webhookSecret === 'string' ? webhookSecret : undefined,
     }),
   };
 }

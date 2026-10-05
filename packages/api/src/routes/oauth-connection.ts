@@ -195,6 +195,7 @@ export async function updateOAuthCredentials(
   connectionId: string,
   credentials: OAuthCredentialEnvelope,
   actorRef: string,
+  auditAction = 'social.oauth.refresh',
 ): Promise<boolean> {
   const envelope = await encryptOAuthCredentials(credentials);
   return withOrgContext(orgId, async (tx) => {
@@ -217,7 +218,7 @@ export async function updateOAuthCredentials(
         platform: schema.platformConnection.platform,
       });
     if (rows.length === 0) return false;
-    await writeAudit(tx, orgId, actorRef, 'social.oauth.refresh', connectionId, {
+    await writeAudit(tx, orgId, actorRef, auditAction, connectionId, {
       platform: rows[0].platform,
     });
     return true;
