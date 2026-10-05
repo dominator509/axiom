@@ -910,6 +910,12 @@ table {
   width: 100%;
   border-collapse: collapse;
 }
+
+table td:last-child > .btn {
+  flex: 0 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+}
 th,
 td {
   padding: 11px 12px;
