@@ -9,7 +9,8 @@ type Resource = 'campaign' | 'members' | 'posts';
 type Status = {
   counts: { campaigns: number; members: number; posts: number };
   sync: Array<{ resource: string; nextCursor: string | null; lastSyncedAt: string | null; lastError: string | null }>;
-  lastWebhook: { providerEventId: string; eventType: string; receivedAt: string } | null;
+  lastWebhook: { deliveryFingerprint: string; eventType: string; receivedAt: string } | null;
+  webhook: { status: 'configured' | 'setup_required' | 'unavailable'; uri: string | null; setupAvailable: boolean };
   deniedActions: string[];
 };
 
@@ -37,7 +38,7 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
   const [status, setStatus] = useState<Status | null>(null);
   const [records, setRecords] = useState<Record<Resource, Array<Record<string, unknown>>>>({ campaign: [], members: [], posts: [] });
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<Resource | null>(null);
+  const [busy, setBusy] = useState<Resource | 'webhook' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -73,6 +74,17 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
     finally { setBusy(null); }
   }
 
+  async function configureWebhook() {
+    setBusy('webhook'); setError(null); setMessage(null);
+    try {
+      const response = await mutationFetch(`/api/v1/connectors/patreon/webhook?connectionId=${encodeURIComponent(connectionId)}`, { method: 'POST' });
+      if (!response.ok) throw new Error('webhook setup failed');
+      await load();
+      setMessage(t('patreon.webhookConfigured'));
+    } catch { setError(t('patreon.webhookSetupFailed')); }
+    finally { setBusy(null); }
+  }
+
   if (error && !status) return <p role="alert" style={{ color: 'var(--bad)' }}>{error}</p>;
   if (!status) return <p role="status">{t('patreon.loading')}</p>;
 
@@ -102,6 +114,11 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
       </div>}
       <div className="card stack">
         <h3>{t('patreon.webhookHealth')}</h3>
+        <p className="subtle">{t('patreon.oauthGrantRevocationNote')}</p>
+        <p className="subtle">{!status.webhook.setupAvailable && status.webhook.status !== 'unavailable' ? t('patreon.webhookOriginRequired') : status.webhook.status === 'configured' ? t('patreon.webhookConfiguredStatus') : status.webhook.status === 'setup_required' ? t('patreon.webhookSetupRequired') : t('patreon.webhookUnavailable')}</p>
+        <button type="button" disabled={busy !== null || !status.webhook.setupAvailable} onClick={() => void configureWebhook()}>
+          {busy === 'webhook' ? t('patreon.webhookSettingUp') : t('patreon.webhookSetupAction')}
+        </button>
         <p className="subtle">{status.lastWebhook ? t('patreon.lastWebhook', status.lastWebhook) : t('patreon.noWebhook')}</p>
       </div>
       <div className="stack">

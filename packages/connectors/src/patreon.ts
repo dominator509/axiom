@@ -10,6 +10,7 @@
 // returns webhook secrets to a browser and it never uses undocumented API
 // defaults — every read requests explicit `fields`/`include` per L3.2 §3a.
 
+import { createHash, createHmac } from 'node:crypto';
 import type { ConnectorAuth } from './types.js';
 
 /** Capability declaration for the community (read/sync/event) contract. */
@@ -85,11 +86,12 @@ export interface PatreonPost {
 }
 
 export interface PatreonWebhookEvent {
-  /** Provider event id — used for replay protection. */
-  eventId: string;
-  /** Provider-declared event type, e.g. members:pledge:create. */
+  /** Stable local delivery fingerprint because Patreon does not document a delivery id. */
+  deliveryFingerprint: string;
+  /** Trigger supplied in Patreon’s X-Patreon-Event header. */
   eventType: string;
-  occurredAt: string;
+  /** Receipt time; Patreon does not document a delivery timestamp. */
+  receivedAt: string;
   payloadDigest: string;
 }
 
@@ -136,12 +138,20 @@ export function createMemoryLedger(): IdempotencyLedger {
  * (L2.3) without changing this contract.
  */
 export interface PatreonTransport {
-  getJson(url: string): Promise<{ status: number; body: unknown }>;
-  postJson(url: string, body: unknown): Promise<{ status: number; body: unknown }>;
-  delete(url: string): Promise<{ status: number }>;
+  getJson(url: string, headers?: Record<string, string>): Promise<{ status: number; body: unknown }>;
+  postJson(url: string, body: unknown, headers?: Record<string, string>): Promise<{ status: number; body: unknown }>;
+  delete(url: string, headers?: Record<string, string>): Promise<{ status: number }>;
 }
 
 const API_BASE = 'https://www.patreon.com/api/oauth2/v2';
+export const PATREON_WEBHOOK_TRIGGERS = [
+  'members:create',
+  'members:update',
+  'members:delete',
+  'posts:publish',
+  'posts:update',
+  'posts:delete',
+] as const;
 
 /** Explicit field sets — never rely on undocumented provider defaults (L3.2 §3a). */
 export const CAMPAIGN_FIELDS = [
@@ -154,7 +164,6 @@ export const CAMPAIGN_FIELDS = [
 
 export const MEMBER_FIELDS = [
   'full_name',
-  'email',
   'patron_status',
   'currently_entitled_amount_cents',
   'last_charge_status',
@@ -165,7 +174,6 @@ export const POST_FIELDS = [
   'is_public',
   'published_at',
   'url',
-  'content',
 ] as const;
 
 export const MEMBER_INCLUDES = ['currently_entitled_tiers'] as const;
@@ -174,8 +182,8 @@ export interface PatreonConnectorConfig {
   auth: ConnectorAuth;
   transport: PatreonTransport;
   ledger: IdempotencyLedger;
-  /** Webhook signing secret. Never returned or logged. */
-  webhookSecret: string;
+  /** Provider-issued signing secret. Absent until webhook setup is verified. */
+  webhookSecret?: string;
   /** Called for each newly-seen webhook event after verification. */
   onEvent?: (event: PatreonWebhookEvent) => Promise<void> | void;
 }
@@ -222,13 +230,13 @@ export class PatreonCommunityConnector {
 
   private readonly transport: PatreonTransport;
   private readonly ledger: IdempotencyLedger;
-  private readonly webhookSecret: string;
+  private readonly webhookSecret?: string;
   private readonly onEvent?: (event: PatreonWebhookEvent) => Promise<void> | void;
   private campaignId?: string;
 
   constructor(config: PatreonConnectorConfig) {
     requireAccessToken(config.auth);
-    if (!config.webhookSecret || config.webhookSecret.length < 16) {
+    if (config.webhookSecret !== undefined && config.webhookSecret.length < 16) {
       throw new Error('patreon: webhook secret must be at least 16 characters');
     }
     this.auth = config.auth;
@@ -273,7 +281,7 @@ export class PatreonCommunityConnector {
     const url = buildUrl('/campaigns', {
       'fields[campaign]': CAMPAIGN_FIELDS.join(','),
     });
-    const { status, body } = await this.transport.getJson(url);
+    const { status, body } = await this.transport.getJson(url, this.authorizationHeaders());
     if (status !== 200) {
       throw new Error(`patreon: syncCampaign failed with status ${status}`);
     }
@@ -323,7 +331,7 @@ export class PatreonCommunityConnector {
       }
     }
 
-    const { status, body } = await this.transport.getJson(url);
+    const { status, body } = await this.transport.getJson(url, this.authorizationHeaders());
     if (status !== 200) {
       throw new Error(`patreon: syncMembers failed with status ${status}`);
     }
@@ -347,41 +355,55 @@ export class PatreonCommunityConnector {
       }
     }
 
-    const { status, body } = await this.transport.getJson(url);
+    const { status, body } = await this.transport.getJson(url, this.authorizationHeaders());
     if (status !== 200) {
       throw new Error(`patreon: syncPosts failed with status ${status}`);
     }
     return this.parsePosts(body);
   }
 
-  /**
-   * Register the campaign webhook. Sends the secret to the provider but never
-   * returns it to any caller.
-   */
-  async ensureWebhooks(): Promise<{ registered: boolean; webhookUriConfigured: boolean }> {
+  /** Register or recover the provider webhook, then verify it by readback. */
+  async ensureWebhooks(webhookUri: string): Promise<{ webhookId: string; webhookSecret: string; webhookUri: string }> {
     const campaignId = this.requireCampaignId();
-    const url = buildUrl('/webhooks', {});
-    const { status } = await this.transport.postJson(url, {
+    const parsedUri = new URL(webhookUri);
+    if (parsedUri.protocol !== 'https:' || parsedUri.username || parsedUri.password || parsedUri.search || parsedUri.hash) {
+      throw new Error('patreon: webhook URI must be a clean HTTPS URL');
+    }
+    const uri = parsedUri.toString();
+    const listUrl = buildUrl('/webhooks', { 'fields[webhook]': 'uri,secret,triggers,paused' });
+    const existing = await this.transport.getJson(listUrl, this.authorizationHeaders());
+    if (existing.status !== 200) throw new Error(`patreon: webhook lookup failed with status ${existing.status}`);
+    const existingMatches = this.webhooksAtUri(existing.body, uri);
+    if (existingMatches.length > 1) throw new Error('patreon: duplicate webhook registrations require operator cleanup');
+    if (existingMatches.length === 1) return this.readWebhook(existingMatches[0], uri);
+
+    const created = await this.transport.postJson(buildUrl('/webhooks', {}), {
       data: {
         type: 'webhook',
-        attributes: {
-          triggers: ['members:pledge:create', 'members:pledge:update', 'members:pledge:delete', 'posts:publish'],
-          uri: `patreon://campaign/${campaignId}`,
-        },
-        relationships: {
-          campaign: { data: { type: 'campaign', id: campaignId } },
-        },
+        attributes: { triggers: [...PATREON_WEBHOOK_TRIGGERS], uri },
+        relationships: { campaign: { data: { type: 'campaign', id: campaignId } } },
       },
-    });
-    return { registered: status === 201 || status === 200, webhookUriConfigured: true };
+    }, this.authorizationHeaders());
+    if (created.status !== 201 && created.status !== 200) {
+      throw new Error(`patreon: webhook creation failed with status ${created.status}`);
+    }
+
+    // Recover safely if the provider accepted the POST but the response was
+    // lost: retries read the remote registration before attempting creation.
+    const readback = await this.transport.getJson(listUrl, this.authorizationHeaders());
+    if (readback.status !== 200) throw new Error(`patreon: webhook readback failed with status ${readback.status}`);
+    const matches = this.webhooksAtUri(readback.body, uri);
+    if (matches.length !== 1) throw new Error('patreon: webhook registration could not be confirmed');
+    return this.readWebhook(matches[0], uri);
   }
 
   /**
-   * Verify and admit a signed webhook. Replay protection is by provider event id;
-   * a repeated event id is rejected before any handler runs.
+   * Verify and admit a signed webhook. Replay protection uses a stable payload
+   * fingerprint because Patreon does not document a delivery-id header.
    */
-  async handleWebhook(rawBody: string, signature: string): Promise<WebhookVerification> {
-    const expected = await this.sign(rawBody);
+  async handleWebhook(rawBody: string, signature: string, eventTypeHeader: string): Promise<WebhookVerification> {
+    if (!this.webhookSecret) return { ok: false, reason: 'webhook_secret_unavailable' };
+    const expected = this.sign(rawBody);
     if (!timingSafeEqual(expected, signature)) {
       return { ok: false, reason: 'signature_mismatch' };
     }
@@ -395,35 +417,43 @@ export class PatreonCommunityConnector {
 
     const root = asRecord(parsed);
     const data = asRecord(root.data);
-    const eventId = asString(data.id);
-    if (!eventId) {
-      return { ok: false, reason: 'missing_event_id' };
+    if (!asString(data.id)) return { ok: false, reason: 'missing_resource_id' };
+    const eventType = eventTypeHeader.trim();
+    if (!(PATREON_WEBHOOK_TRIGGERS as readonly string[]).includes(eventType)) {
+      return { ok: false, reason: 'unsupported_event_type' };
     }
-    const eventType = asString(data.type, asString(root.type));
+    const payloadDigest = this.digest(rawBody);
+    const deliveryFingerprint = createHash('sha256').update(`${eventType}\n${rawBody}`, 'utf8').digest('hex');
 
-    if (this.ledger.seen(`patreon:event:${eventId}`)) {
+    if (this.ledger.seen(`patreon:event:${deliveryFingerprint}`)) {
       return { ok: false, reason: 'replay_rejected' };
     }
 
     const event: PatreonWebhookEvent = {
-      eventId,
+      deliveryFingerprint,
       eventType,
-      occurredAt: new Date().toISOString(),
-      payloadDigest: await this.digest(rawBody),
+      receivedAt: new Date().toISOString(),
+      payloadDigest,
     };
 
-    // Claim last so a failed handler can be retried; a claimed id is terminal.
-    this.ledger.claim(`patreon:event:${eventId}`);
+    // Claim before awaiting the handler so concurrent duplicate admissions are rejected locally.
+    this.ledger.claim(`patreon:event:${deliveryFingerprint}`);
     if (this.onEvent) {
       await this.onEvent(event);
     }
     return { ok: true, event };
   }
 
-  /** Revoke stored token material for this model, then drop local binding. */
+  /** Remove the documented provider webhook before the application deletes its local binding. */
   async revoke(): Promise<void> {
-    const url = buildUrl('/oauth2/token', {});
-    await this.transport.delete(url);
+    const webhookId = this.auth.extra?.patreonWebhookId;
+    if (typeof webhookId === 'string' && webhookId.trim()) {
+      const url = buildUrl(`/webhooks/${encodeURIComponent(webhookId)}`, {});
+      const { status } = await this.transport.delete(url, this.authorizationHeaders());
+      if (status !== 200 && status !== 204 && status !== 404) {
+        throw new Error(`patreon: webhook deletion failed with status ${status}`);
+      }
+    }
     this.campaignId = undefined;
   }
 
@@ -434,6 +464,33 @@ export class PatreonCommunityConnector {
       throw new Error('patreon: syncCampaign() must complete before member/post sync');
     }
     return this.campaignId;
+  }
+
+  private authorizationHeaders(): Record<string, string> {
+    return {
+      authorization: `Bearer ${requireAccessToken(this.auth)}`,
+      'user-agent': 'FanThynks Creator OS',
+    };
+  }
+
+  private webhooksAtUri(body: unknown, uri: string): Record<string, unknown>[] {
+    const root = asRecord(body);
+    const rows = Array.isArray(root.data) ? root.data : [];
+    return rows.map(asRecord).filter(webhook => asString(asRecord(webhook.attributes).uri) === uri);
+  }
+
+  private readWebhook(webhook: Record<string, unknown>, uri: string): { webhookId: string; webhookSecret: string; webhookUri: string } {
+    const attributes = asRecord(webhook.attributes);
+    const webhookId = asString(webhook.id);
+    const webhookSecret = asString(attributes.secret);
+    const triggers = Array.isArray(attributes.triggers)
+      ? attributes.triggers.filter((item): item is string => typeof item === 'string')
+      : [];
+    if (!webhookId || webhookSecret.length < 16 || attributes.paused === true ||
+      !PATREON_WEBHOOK_TRIGGERS.every(trigger => triggers.includes(trigger))) {
+      throw new Error('patreon: webhook readback is incomplete or paused');
+    }
+    return { webhookId, webhookSecret, webhookUri: uri };
   }
 
   private parseMembers(body: unknown): SyncPage<PatreonMembership> {
@@ -499,13 +556,13 @@ export class PatreonCommunityConnector {
     return nextCursor ? { items, nextCursor } : { items };
   }
 
-  /** HMAC-SHA256 over the raw body, hex-encoded. */
-  private async sign(rawBody: string): Promise<string> {
-    return hmacSha256Hex(this.webhookSecret, rawBody);
+  /** Patreon signs the exact raw body with HMAC-MD5 and sends a hex digest. */
+  private sign(rawBody: string): string {
+    return createHmac('md5', this.webhookSecret!).update(rawBody, 'utf8').digest('hex');
   }
 
-  private async digest(rawBody: string): Promise<string> {
-    return hmacSha256Hex('', rawBody);
+  private digest(rawBody: string): string {
+    return createHash('sha256').update(rawBody, 'utf8').digest('hex');
   }
 }
 
@@ -517,9 +574,4 @@ export function timingSafeEqual(a: string, b: string): boolean {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
-}
-
-async function hmacSha256Hex(secret: string, message: string): Promise<string> {
-  const { createHmac } = await import('node:crypto');
-  return createHmac('sha256', secret).update(message, 'utf8').digest('hex');
 }

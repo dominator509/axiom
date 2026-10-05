@@ -836,6 +836,7 @@ app.use('/api/v1/connectors/patreon/authorize', requireAuth);
 app.use('/api/v1/connectors/patreon/status', requireAuth);
 app.use('/api/v1/connectors/patreon/data', requireAuth);
 app.use('/api/v1/connectors/patreon/sync', requireAuth);
+app.use('/api/v1/connectors/patreon/webhook', requireAuth);
 // Card rendering is an operator surface. Signed relay commands, provider
 // webhooks, metrics, and health probes retain their protocol-specific access.
 app.use('/api/v1/relay/card', requireAuth);
@@ -913,6 +914,7 @@ app.use('/api/v1/connectors/:platform/refresh', operationalMutation);
 app.use('/api/v1/connectors/telegram/manual', operationalMutation);
 app.use('/api/v1/connectors/discord/manual', operationalMutation);
 app.use('/api/v1/connectors/patreon/sync', operationalMutation);
+app.use('/api/v1/connectors/patreon/webhook', operationalMutation);
 app.use('/api/v1/relay/card', operationalMutation);
 app.use('/api/v1/viral/ingest', operationalMutation);
 app.use('/api/v1/viral/exemplars', operationalMutation);
@@ -1026,6 +1028,7 @@ app.use('/api/v1/connectors/snapchat/manual', idempotency());
 app.use('/api/v1/connectors/telegram/manual', idempotency());
 app.use('/api/v1/connectors/discord/manual', idempotency());
 app.use('/api/v1/connectors/patreon/sync', idempotency());
+app.use('/api/v1/connectors/patreon/webhook', idempotency());
 app.use('/api/v1/viral/ingest', idempotency());
 app.use('/api/v1/platform/affiliate/partners', idempotency());
 app.use('/api/v1/platform/affiliate/partners/:partnerId', idempotency());

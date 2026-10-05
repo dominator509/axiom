@@ -129,8 +129,10 @@ describe('Patreon OAuth boundary', () => {
     const location = new URL(response.headers.get('location')!);
     expect(location.origin).toBe('https://www.patreon.com');
     expect(location.searchParams.get('scope')).toBe(
-      'identity campaigns identity.memberships campaigns.members campaigns.posts w:campaigns.webhook',
+      'identity campaigns campaigns.members campaigns.posts w:campaigns.webhook',
     );
+    expect(location.searchParams.get('scope')).not.toContain('email');
+    expect(location.searchParams.get('scope')).not.toContain('identity.memberships');
     expect(location.searchParams.get('code_challenge')).toBeTruthy();
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });
@@ -167,6 +169,8 @@ describe('Patreon OAuth boundary', () => {
     });
 
     const fetchMock = vi.mocked(globalThis.fetch);
+    const tokenRequest = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/oauth2/token'));
+    expect(tokenRequest?.[1]?.headers).toMatchObject({ 'user-agent': 'FanThynks Creator OS' });
     const encryptionRequest = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/egress/encrypt'),
     );
@@ -184,5 +188,86 @@ describe('Patreon sync route', () => {
       body: JSON.stringify({ resource: 'members' }),
     });
     expect(response.status).toBe(404);
+  });
+});
+
+describe('Patreon webhook setup route', () => {
+  it('does not try provider setup when the tenant connection is missing', async () => {
+    mockState.result = [];
+    const response = await app().request(`/connectors/patreon/webhook?connectionId=${CONNECTION_ID}`, { method: 'POST' });
+    expect(response.status).toBe(404);
+    expect(vi.mocked((await import('@axiom/worker')).patreonConnectorForConnection)).not.toHaveBeenCalled();
+  });
+
+  it('refuses local or credential-bearing callback origins before reaching the provider', async () => {
+    mockState.result = [{ ...modelConnection }];
+    const previousOrigin = process.env.PATREON_WEBHOOK_ORIGIN;
+    try {
+      for (const invalidOrigin of [
+        'http://127.0.0.1:3001',
+        'https://localhost:3001',
+        'https://[::1]:3001',
+        'https://user:password@fanthynks.example',
+      ]) {
+        process.env.PATREON_WEBHOOK_ORIGIN = invalidOrigin;
+        const response = await app().request(`/connectors/patreon/webhook?connectionId=${CONNECTION_ID}`, { method: 'POST' });
+        expect(response.status).toBe(503);
+      }
+      expect(vi.mocked((await import('@axiom/worker')).patreonConnectorForConnection)).not.toHaveBeenCalled();
+    } finally {
+      if (previousOrigin === undefined) delete process.env.PATREON_WEBHOOK_ORIGIN;
+      else process.env.PATREON_WEBHOOK_ORIGIN = previousOrigin;
+    }
+  });
+
+  it('persists a verified provider-issued secret only through encrypted credentials', async () => {
+    mockState.result = [{ ...modelConnection }];
+    const providerSecret = 'provider-issued-webhook-secret-0001';
+    const webhookUri = `https://fanthynks.example/webhooks/patreon/${ORG_ID}/${CONNECTION_ID}`;
+    const connector = {
+      auth: {
+        accessToken: 'patreon-access',
+        refreshToken: 'patreon-refresh',
+        externalUserId: 'creator-1',
+        expiresAt: 1_900_000_000,
+        extra: { grantedScopes: ['campaigns', 'w:campaigns.webhook'] },
+      },
+      syncCampaign: vi.fn(async () => ({
+        providerCampaignId: 'campaign-1',
+        creatorProviderId: 'creator-1',
+        name: 'Creator campaign',
+        createdAt: '2024-01-01T00:00:00.000Z',
+      })),
+      ensureWebhooks: vi.fn(async () => ({
+        webhookId: 'provider-webhook-1',
+        webhookSecret: providerSecret,
+        webhookUri,
+      })),
+    };
+    const worker = await import('@axiom/worker');
+    vi.mocked(worker.patreonConnectorForConnection).mockResolvedValue({
+      connector,
+      connection: modelConnection,
+    } as never);
+
+    const response = await app().request(`/connectors/patreon/webhook?connectionId=${CONNECTION_ID}`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    const publicBody = await response.text();
+    expect(publicBody).toContain(webhookUri);
+    expect(publicBody).not.toContain(providerSecret);
+    expect(publicBody).not.toContain('patreon-access');
+    expect(connector.ensureWebhooks).toHaveBeenCalledWith(webhookUri);
+
+    const encryptionRequest = vi.mocked(globalThis.fetch).mock.calls.find(([url]) => String(url).includes('/egress/encrypt'));
+    expect(encryptionRequest).toBeDefined();
+    const envelope = JSON.parse(String(encryptionRequest?.[1]?.body)) as { plaintext: string };
+    const encryptedPlaintext = Buffer.from(envelope.plaintext, 'base64').toString('utf8');
+    expect(encryptedPlaintext).toContain(providerSecret);
+    expect(encryptedPlaintext).toContain('patreonWebhookId');
+    expect(mockState.updates[0]).toMatchObject({
+      encToken: expect.any(Uint8Array),
+      encNonce: expect.any(Uint8Array),
+      dekId: 'test-dek',
+    });
   });
 });

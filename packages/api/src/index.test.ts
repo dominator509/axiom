@@ -150,11 +150,13 @@ describe('mounted route groups', () => {
     expect(res.status).toBe(401);
   });
 
-  it('Patreon and Snapchat authorize routes require an authenticated session', async () => {
+  it('Patreon, Snapchat, and Patreon webhook setup require an authenticated session', async () => {
     for (const platform of ['patreon', 'snapchat']) {
       const res = await app.request(`/api/v1/connectors/${platform}/authorize?modelId=22222222-2222-4222-8222-222222222222`);
       expect(res.status).toBe(401);
     }
+    const webhook = await app.request('/api/v1/connectors/patreon/webhook?connectionId=33333333-3333-4333-8333-333333333333', { method: 'POST' });
+    expect(webhook.status).toBe(401);
   });
 
   it('mounts Patreon OAuth before the generic provider matcher', () => {

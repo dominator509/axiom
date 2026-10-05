@@ -20,9 +20,10 @@ const WEBHOOK_SECRET = 'test-webhook-secret-value-0001';
 
 function makeTransport(
   responses: Array<{ status: number; body?: unknown }>,
-): { transport: PatreonTransport; calls: string[]; bodies: unknown[] } {
+): { transport: PatreonTransport; calls: string[]; bodies: unknown[]; headers: Array<Record<string, string> | undefined> } {
   const calls: string[] = [];
   const bodies: unknown[] = [];
+  const headers: Array<Record<string, string> | undefined> = [];
   let index = 0;
   const next = () => {
     const response = responses[Math.min(index, responses.length - 1)];
@@ -32,20 +33,24 @@ function makeTransport(
   return {
     calls,
     bodies,
+    headers,
     transport: {
-      async getJson(url: string) {
+      async getJson(url: string, requestHeaders?: Record<string, string>) {
         calls.push(url);
+        headers.push(requestHeaders);
         const r = next();
         return { status: r.status, body: r.body ?? {} };
       },
-      async postJson(url: string, body: unknown) {
+      async postJson(url: string, body: unknown, requestHeaders?: Record<string, string>) {
         calls.push(url);
         bodies.push(body);
+        headers.push(requestHeaders);
         const r = next();
         return { status: r.status, body: r.body ?? {} };
       },
-      async delete(url: string) {
+      async delete(url: string, requestHeaders?: Record<string, string>) {
         calls.push(url);
+        headers.push(requestHeaders);
         const r = next();
         return { status: r.status };
       },
@@ -147,19 +152,23 @@ describe('patreon OAuth binding and expiry', () => {
     expect(connector.auth.refreshToken).toBe('refresh-1');
   });
 
-  it('revokes access and clears the local campaign binding', async () => {
-    const { transport, calls } = makeTransport([CAMPAIGN_RESPONSE, { status: 204 }]);
-    const connector = makeConnector(transport);
+  it('deletes the documented webhook resource and clears the local campaign binding', async () => {
+    const { transport, calls, headers } = makeTransport([CAMPAIGN_RESPONSE, { status: 204 }]);
+    const connector = makeConnector(transport, {
+      auth: { accessToken: ACCESS_TOKEN, externalUserId: 'creator-1', extra: { patreonWebhookId: 'provider-webhook-1' } },
+    });
     await connector.syncCampaign();
     await connector.revoke();
-    expect(calls[calls.length - 1]).toContain('/oauth2/token');
+    expect(calls[calls.length - 1]).toContain('/webhooks/provider-webhook-1');
+    expect(calls[calls.length - 1]).not.toContain('/oauth2/token');
+    expect(headers.at(-1)).toMatchObject({ authorization: `Bearer ${ACCESS_TOKEN}` });
     await expect(connector.syncMembers()).rejects.toThrow(/syncCampaign\(\)/);
   });
 });
 
 describe('patreon campaign identity', () => {
   it('requests explicit campaign fields and normalizes identity', async () => {
-    const { transport, calls } = makeTransport([CAMPAIGN_RESPONSE]);
+    const { transport, calls, headers } = makeTransport([CAMPAIGN_RESPONSE]);
     const connector = makeConnector(transport);
     const campaign = await connector.syncCampaign();
     expect(campaign.providerCampaignId).toBe('camp-123');
@@ -167,6 +176,10 @@ describe('patreon campaign identity', () => {
     expect(campaign.name).toBe('Studio North');
     expect(campaign.patronCount).toBe(42);
     expect(calls[0]).toContain('fields%5Bcampaign%5D=');
+    expect(headers[0]).toMatchObject({
+      authorization: `Bearer ${ACCESS_TOKEN}`,
+      'user-agent': 'FanThynks Creator OS',
+    });
     for (const field of CAMPAIGN_FIELDS) {
       expect(decodeURIComponent(calls[0])).toContain(field);
     }
@@ -220,7 +233,7 @@ describe('patreon membership and tier sync', () => {
   };
 
   it('maps memberships and resolves included tier titles', async () => {
-    const { transport, calls } = makeTransport([CAMPAIGN_RESPONSE, membersResponse]);
+    const { transport, calls, headers } = makeTransport([CAMPAIGN_RESPONSE, membersResponse]);
     const connector = makeConnector(transport);
     await connector.syncCampaign();
     const page = await connector.syncMembers();
@@ -236,6 +249,11 @@ describe('patreon membership and tier sync', () => {
     expect(page.items[1].tierId).toBeUndefined();
     expect(page.nextCursor).toBe('CURSOR-M1');
     expect(calls[1]).toContain(encodeURIComponent('fields[member]'));
+    expect(decodeURIComponent(calls[1])).not.toContain('email');
+    expect(headers[1]).toMatchObject({
+      authorization: `Bearer ${ACCESS_TOKEN}`,
+      'user-agent': 'FanThynks Creator OS',
+    });
     for (const field of MEMBER_FIELDS) {
       expect(decodeURIComponent(calls[1])).toContain(field);
     }
@@ -274,7 +292,7 @@ describe('patreon post reads', () => {
   };
 
   it('maps posts, honors explicit fields and returns the cursor', async () => {
-    const { transport, calls } = makeTransport([CAMPAIGN_RESPONSE, postsResponse]);
+    const { transport, calls, headers } = makeTransport([CAMPAIGN_RESPONSE, postsResponse]);
     const connector = makeConnector(transport);
     await connector.syncCampaign();
     const page = await connector.syncPosts();
@@ -285,6 +303,10 @@ describe('patreon post reads', () => {
       isPublic: false,
     });
     expect(page.nextCursor).toBe('CURSOR-P1');
+    expect(headers[1]).toMatchObject({
+      authorization: `Bearer ${ACCESS_TOKEN}`,
+      'user-agent': 'FanThynks Creator OS',
+    });
     for (const field of POST_FIELDS) {
       expect(decodeURIComponent(calls[1])).toContain(field);
     }
@@ -303,20 +325,21 @@ describe('patreon webhook signature and replay protection', () => {
   async function signedBody(body: unknown, secret = WEBHOOK_SECRET): Promise<{ raw: string; sig: string }> {
     const raw = JSON.stringify(body);
     const { createHmac } = await import('node:crypto');
-    const sig = createHmac('sha256', secret).update(raw, 'utf8').digest('hex');
+    const sig = createHmac('md5', secret).update(raw, 'utf8').digest('hex');
     return { raw, sig };
   }
 
-  const event = { data: { id: 'evt-1', type: 'members:pledge:create' } };
+  const event = { data: { id: 'member-1', type: 'member' } };
 
   it('accepts a correctly signed event', async () => {
     const { transport } = makeTransport([]);
     const onEvent = vi.fn();
     const connector = makeConnector(transport, { onEvent });
     const { raw, sig } = await signedBody(event);
-    const result = await connector.handleWebhook(raw, sig);
+    const result = await connector.handleWebhook(raw, sig, 'members:update');
     expect(result.ok).toBe(true);
-    expect(result.event?.eventId).toBe('evt-1');
+    expect(result.event?.deliveryFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.event?.eventType).toBe('members:update');
     expect(onEvent).toHaveBeenCalledTimes(1);
   });
 
@@ -325,7 +348,7 @@ describe('patreon webhook signature and replay protection', () => {
     const onEvent = vi.fn();
     const connector = makeConnector(transport, { onEvent });
     const { raw } = await signedBody(event);
-    const result = await connector.handleWebhook(raw, 'deadbeef');
+    const result = await connector.handleWebhook(raw, 'deadbeef', 'members:update');
     expect(result).toEqual({ ok: false, reason: 'signature_mismatch' });
     expect(onEvent).not.toHaveBeenCalled();
   });
@@ -334,18 +357,18 @@ describe('patreon webhook signature and replay protection', () => {
     const { transport } = makeTransport([]);
     const connector = makeConnector(transport);
     const { raw, sig } = await signedBody(event, 'attacker-secret-value-xxxx');
-    const result = await connector.handleWebhook(raw, sig);
+    const result = await connector.handleWebhook(raw, sig, 'members:update');
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('signature_mismatch');
   });
 
-  it('rejects a replayed event id', async () => {
+  it('rejects a replayed delivery fingerprint', async () => {
     const { transport } = makeTransport([]);
     const onEvent = vi.fn();
     const connector = makeConnector(transport, { onEvent });
     const { raw, sig } = await signedBody(event);
-    await connector.handleWebhook(raw, sig);
-    const replay = await connector.handleWebhook(raw, sig);
+    await connector.handleWebhook(raw, sig, 'members:update');
+    const replay = await connector.handleWebhook(raw, sig, 'members:update');
     expect(replay).toEqual({ ok: false, reason: 'replay_rejected' });
     expect(onEvent).toHaveBeenCalledTimes(1);
   });
@@ -355,39 +378,121 @@ describe('patreon webhook signature and replay protection', () => {
     const connector = makeConnector(transport);
     const raw = '{not-json';
     const { createHmac } = await import('node:crypto');
-    const sig = createHmac('sha256', WEBHOOK_SECRET).update(raw, 'utf8').digest('hex');
-    const result = await connector.handleWebhook(raw, sig);
+    const sig = createHmac('md5', WEBHOOK_SECRET).update(raw, 'utf8').digest('hex');
+    const result = await connector.handleWebhook(raw, sig, 'members:update');
     expect(result).toEqual({ ok: false, reason: 'invalid_json' });
   });
 
   it('rejects an event with no id', async () => {
     const { transport } = makeTransport([]);
     const connector = makeConnector(transport);
-    const { raw, sig } = await signedBody({ data: { type: 'members:pledge:create' } });
-    const result = await connector.handleWebhook(raw, sig);
-    expect(result).toEqual({ ok: false, reason: 'missing_event_id' });
+    const { raw, sig } = await signedBody({ data: { type: 'member' } });
+    const result = await connector.handleWebhook(raw, sig, 'members:create');
+    expect(result).toEqual({ ok: false, reason: 'missing_resource_id' });
+  });
+
+  it('rejects unknown trigger names after validating the provider signature', async () => {
+    const { transport } = makeTransport([]);
+    const connector = makeConnector(transport);
+    const { raw, sig } = await signedBody(event);
+    expect(await connector.handleWebhook(raw, sig, 'unknown:event')).toEqual({ ok: false, reason: 'unsupported_event_type' });
+  });
+
+  it('fails closed before provider webhook setup has supplied a signing secret', async () => {
+    const { transport } = makeTransport([]);
+    const connector = new PatreonCommunityConnector({ auth: { accessToken: ACCESS_TOKEN }, transport, ledger: createMemoryLedger() });
+    const { raw, sig } = await signedBody(event);
+    expect(await connector.handleWebhook(raw, sig, 'members:update')).toEqual({ ok: false, reason: 'webhook_secret_unavailable' });
   });
 
   it('never returns the webhook secret on any surface', async () => {
     const { transport } = makeTransport([]);
     const connector = makeConnector(transport);
     expect(JSON.stringify(connector.capability())).not.toContain(WEBHOOK_SECRET);
-    await connector.ensureWebhooks().catch(() => undefined);
     expect(Object.keys(connector.manualAssist('publish'))).not.toContain('webhookSecret');
   });
 });
 
 describe('patreon webhook registration', () => {
-  it('registers triggers and keeps the secret out of the response', async () => {
-    const { transport, bodies } = makeTransport([CAMPAIGN_RESPONSE, { status: 201 }]);
+  it('registers current triggers at a public HTTPS URI and verifies the provider-issued secret by readback', async () => {
+    const uri = 'https://fanthynks.example/webhooks/patreon/org-1/connection-1';
+    const webhook = {
+      id: 'webhook-1',
+      type: 'webhook',
+      attributes: {
+        uri,
+        secret: 'provider-issued-webhook-secret-0001',
+        triggers: ['members:create', 'members:update', 'members:delete', 'posts:publish', 'posts:update', 'posts:delete'],
+        paused: false,
+      },
+    };
+    const { transport, bodies, calls, headers } = makeTransport([
+      CAMPAIGN_RESPONSE,
+      { status: 200, body: { data: [] } },
+      { status: 201 },
+      { status: 200, body: { data: [webhook] } },
+    ]);
     const connector = makeConnector(transport);
     await connector.syncCampaign();
-    const result = await connector.ensureWebhooks();
-    expect(result.registered).toBe(true);
-    const sent = JSON.stringify(bodies[0]);
-    expect(sent).toContain('members:pledge:create');
-    expect(sent).toContain('posts:publish');
-    expect(sent).not.toContain(WEBHOOK_SECRET);
+    const result = await connector.ensureWebhooks(uri);
+    expect(result).toEqual({ webhookId: 'webhook-1', webhookSecret: 'provider-issued-webhook-secret-0001', webhookUri: uri });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({ data: { attributes: { uri, triggers: ['members:create', 'members:update', 'members:delete', 'posts:publish', 'posts:update', 'posts:delete'] } } });
+    expect(calls.filter(call => call.includes('/webhooks')).length).toBe(3);
+    expect(headers.every(requestHeaders =>
+      requestHeaders?.authorization === `Bearer ${ACCESS_TOKEN}` &&
+      requestHeaders['user-agent'] === 'FanThynks Creator OS')).toBe(true);
+    expect(JSON.stringify(connector.capability())).not.toContain(result.webhookSecret);
+  });
+
+  it('rejects non-HTTPS callback endpoints before any provider write', async () => {
+    const { transport, bodies } = makeTransport([CAMPAIGN_RESPONSE]);
+    const connector = makeConnector(transport);
+    await connector.syncCampaign();
+    await expect(connector.ensureWebhooks('http://localhost/webhook')).rejects.toThrow(/clean HTTPS URL/);
+    expect(bodies).toHaveLength(0);
+  });
+
+  it('reconciles an uncertain create on retry instead of creating a duplicate', async () => {
+    const uri = 'https://fanthynks.example/webhooks/patreon/org-1/connection-1';
+    const webhook = {
+      id: 'webhook-1',
+      attributes: {
+        uri,
+        secret: 'provider-issued-webhook-secret-0001',
+        triggers: ['members:create', 'members:update', 'members:delete', 'posts:publish', 'posts:update', 'posts:delete'],
+        paused: false,
+      },
+    };
+    const { transport, calls, bodies } = makeTransport([
+      CAMPAIGN_RESPONSE,
+      { status: 200, body: { data: [] } },
+      { status: 503 },
+      { status: 200, body: { data: [webhook] } },
+    ]);
+    const connector = makeConnector(transport);
+    await connector.syncCampaign();
+    await expect(connector.ensureWebhooks(uri)).rejects.toThrow(/creation failed/);
+    await expect(connector.ensureWebhooks(uri)).resolves.toMatchObject({ webhookId: 'webhook-1', webhookUri: uri });
+    expect(calls.filter(call => call.includes('/webhooks')).length).toBe(3);
+    expect(bodies).toHaveLength(1);
+  });
+
+  it('rejects an existing paused or incomplete registration without persisting it', async () => {
+    const uri = 'https://fanthynks.example/webhooks/patreon/org-1/connection-1';
+    const { transport, bodies } = makeTransport([
+      CAMPAIGN_RESPONSE,
+      {
+        status: 200,
+        body: {
+          data: [{ id: 'webhook-1', attributes: { uri, secret: 'provider-issued-secret-0001', triggers: ['members:create'], paused: true } }],
+        },
+      },
+    ]);
+    const connector = makeConnector(transport);
+    await connector.syncCampaign();
+    await expect(connector.ensureWebhooks(uri)).rejects.toThrow(/incomplete or paused/);
+    expect(bodies).toHaveLength(0);
   });
 });
 

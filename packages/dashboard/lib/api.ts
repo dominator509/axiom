@@ -199,7 +199,8 @@ export interface PatreonStatus {
   connection: SocialConnection & { orgId: string };
   counts: { campaigns: number; members: number; posts: number };
   sync: Array<{ resource: string; lastCursor?: string | null; nextCursor: string | null; lastSyncedAt: string | null; lastError: string | null; updatedAt: string }>;
-  lastWebhook: { providerEventId: string; eventType: string; receivedAt: string } | null;
+  lastWebhook: { deliveryFingerprint: string; eventType: string; receivedAt: string } | null;
+  webhook: { status: 'configured' | 'setup_required' | 'unavailable'; uri: string | null; setupAvailable: boolean };
   deniedActions: string[];
 }
 
