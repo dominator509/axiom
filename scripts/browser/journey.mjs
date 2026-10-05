@@ -382,9 +382,19 @@ COMMIT;
     expect(await status('/api/v1/killswitch')).toBe(403);
   });
   await check('configured navigation and literal text', async () => {
-    await expect(page.locator('.sidebar .brand-wordmark')).toHaveText(name);
+    const brandWordmarks = page.locator('.brand-wordmark');
+    failureContext = {
+      viewportWidth: await page.evaluate(() => window.innerWidth),
+      brandWordmarks: await brandWordmarks.evaluateAll(nodes => nodes.map(node => ({
+        text: (node.textContent ?? '').slice(0, 100),
+        parentClass: node.parentElement?.className ?? null,
+        display: getComputedStyle(node.parentElement ?? node).display,
+      }))),
+    };
+    await expect(page.locator('.brand-wordmark:visible').first()).toHaveText(name);
     if (tagline) await expect(page.locator('.sidebar .brand-copy small')).toHaveText(tagline);
     expect(await page.locator('body').innerText()).not.toContain('Hidden other tenant talent');
+    failureContext = null;
   });
   await check('logout revokes browser access', async () => {
     await signOut();
