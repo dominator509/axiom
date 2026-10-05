@@ -46,3 +46,21 @@ Untruncated local outputs are retained under `C:/tmp/codex-security-artifacts-f7
 ## Decision
 
 Historical claim: **prior claim unverified**. Current clean-checkout assertion failure: **not reproduced**. Observed local suite-hook timeouts: recorded above, with isolation and same-commit comparison, cause unresolved. No speculative production fix or assertion relaxation is justified. The database-backed main CI receipt and this documentation PR's CI must remain green; no broader production-readiness claim follows from this API baseline.
+
+## Reverification on current main
+
+Baseline: `c9078b5d17ea8ad3265065b140f6815efb58da26` (PR #72 merge). The source checkout was clean. Local runs used Node `22.23.3`, pnpm `9.14.0` through Corepack, and `API_ORIGIN=http://127.0.0.1:3001`; no database URL was supplied.
+
+| Exact command | Passed | Failed | Skipped | Exit |
+| --- | ---: | --- | ---: | ---: |
+| `corepack pnpm --filter @axiom/api test` (first full local run) | 1,251 | 2 suite setup hooks | 124 | 1 |
+| `corepack pnpm --filter @axiom/api exec vitest run src/index.test.ts --reporter=verbose` | 72 | 0 | 0 | 0 |
+| `corepack pnpm --filter @axiom/api exec vitest run src/relay-webhooks.test.ts --reporter=verbose` | 2 | 0 | 0 | 0 |
+| `corepack pnpm --filter @axiom/api test` (repeat full local run) | 1,325 | 0 | 50 | 0 |
+| Hosted `pnpm --filter @axiom/api test` | 1,375 | 0 | 0 | 0 |
+
+The first local run reported 90 passed files, 2 failed files and 5 skipped files (97 total). Its only failures were 30-second `beforeAll` import-hook timeouts in `src/index.test.ts:14` and `src/relay-webhooks.test.ts:5`; no test assertion failed. Both exact files passed in isolation, and the repeated full run passed. The 50 local skips are database-dependent tests because no database URL was configured. Parallel import contention remains a plausible contributor, not a proven root cause.
+
+The [post-merge CI run](https://github.com/dominator509/axiom/actions/runs/37244223902) is green at the exact baseline SHA: **9 jobs passed, 0 failed, 0 cancelled**. Its [test job](https://github.com/dominator509/axiom/actions/runs/37244223902/job/111558796412) ran the direct API command on the pinned CI runtime with its disposable database and reports 97 passed files and 1,375 passed tests, with 0 failures and 0 skips. This also passes the two suites that timed out in the first local run.
+
+The historical two-failure claim remains **unverified**. PR #53's [run 36973015092](https://github.com/dominator509/axiom/actions/runs/36973015092) has a failed security job and a cancelled API test job; it provides no failing API test output. The first local timeout pair on `c9078b5` is a separate observation and does not identify the historical claim's source. No tests, timeouts, skips, dependencies, assertions or product code were changed.
