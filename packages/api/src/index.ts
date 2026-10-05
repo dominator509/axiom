@@ -746,7 +746,16 @@ app.route('/affiliate', publicPlatformAffiliateRouter);
 // its own anonymous budget rather than inheriting only the /api/v1 limiter.
 // Keep this before the handler so every auth method, including future ones,
 // receives the same abuse-control boundary and Retry-After response.
-app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 }));
+// Server-rendered dashboard routes read the session repeatedly while users
+// move between pages. Give that read-only endpoint the ordinary API budget,
+// while keeping credential-changing and other auth operations on the stricter
+// password/account-processing budget.
+const authRequestRateLimit = rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 });
+const authSessionReadRateLimit = rateLimit({ capacity: 60, refillPerSec: 5, maxBuckets: 100_000 });
+app.use('/api/auth/*', (c, next) => {
+  const isSessionRead = c.req.method === 'GET' && c.req.path === '/api/auth/get-session';
+  return (isSessionRead ? authSessionReadRateLimit : authRequestRateLimit)(c, next);
+});
 
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
