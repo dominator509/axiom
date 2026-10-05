@@ -42,6 +42,18 @@ const probes = [];
 const redirects = [];
 let currentCheck = 'browser launch';
 let faultObserved = false;
+const diagnosticRedactions = new Set([process.env.BROWSER_SECRET_SENTINEL].filter(Boolean));
+const safeDiagnostic = error => {
+  let message = `${error?.name ?? 'Error'}: ${error?.message ?? ''}`;
+  for (const secret of diagnosticRedactions) message = message.replaceAll(secret, '[redacted]');
+  return message
+    .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted database URL]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, value => safePath(value))
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted email]')
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
+    .split('\n').slice(0, 4).join('\n').slice(0, 1200);
+};
 const check = async (label, work) => {
   currentCheck = label;
   await work();
@@ -74,6 +86,7 @@ try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
   const pendingEmail = `pending-${randomUUID()}@example.invalid`;
+  for (const secret of [password, email, pendingEmail]) diagnosticRedactions.add(secret);
   const otherOrg = randomUUID();
   const org = randomUUID();
   const ownModel = randomUUID();
@@ -248,7 +261,8 @@ COMMIT;
     await page.getByRole('button', { name: 'Enable provider' }).click();
     const row = page.getByRole('row').filter({ hasText: 'native' });
     await expect(row).toContainText('Configured');
-    await expect(page.getByText('Synthetic destination', { exact: true })).toBeVisible();
+    const savedLink = page.getByRole('listitem').filter({ hasText: 'Synthetic destination' });
+    await expect(savedLink).toContainText('https://example.invalid/synthetic-destination');
     expect(await status(`/linkbio/${ownModel}`)).toBe(200);
   });
   await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
@@ -367,7 +381,7 @@ COMMIT;
   });
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
-} catch {
+} catch (error) {
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
@@ -375,7 +389,7 @@ COMMIT;
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
-      currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
+      failureDetail: safeDiagnostic(error), currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
     process.exitCode = 1;
   }
 } finally {
