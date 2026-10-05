@@ -28,6 +28,14 @@ assert.ok(!waitForToS || tenantFixture, 'Worker handoff probe requires the dispo
 let fixtureDatabase;
 if (tenantFixture) {
   assert.equal(process.env.CI, 'true', 'Tenant fixture requires explicit CI mode');
+  const testedSha = process.env.GITHUB_SHA;
+  if (testedSha) {
+    assert.match(testedSha, /^[a-f0-9]{40}$/i, 'CI source SHA must be a full commit hash');
+    const checkout = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5_000 });
+    assert.equal(checkout.status, 0, 'CI checkout SHA must be readable');
+    assert.equal(checkout.stdout.trim(), testedSha, 'CI smoke must execute against the event SHA');
+    console.log(`auth smoke source SHA: ${testedSha}`);
+  }
   fixtureDatabase = new URL(process.env.MIGRATOR_DATABASE_URL ?? '');
   assert.ok(['postgres:', 'postgresql:'].includes(fixtureDatabase.protocol));
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(fixtureDatabase.hostname));
@@ -547,6 +555,87 @@ UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = 
   assert.equal(resumed.status, 200, 'owner resume must receive egress-plane readback');
   assert.equal((await (await request('/api/v1/killswitch', { headers: { cookie } })).json()).data.enabled, false);
   console.log(`organization kill-switch HTTP smoke: plane drain/readback and release/readback passed in ${Date.now() - pauseStarted}ms`);
+
+  const apiContainer = process.env.AXIOM_CI_API_CONTAINER;
+  if (apiContainer) {
+    const rehearsalId = process.env.AXIOM_CI_REHEARSAL_ID ?? '';
+    assert.equal(process.env.CI, 'true', 'API restart probe is CI-only');
+    assert.match(rehearsalId, /^\d+-\d+-[a-f0-9]{12}$/, 'API restart probe requires its unique rehearsal id');
+    assert.equal(apiContainer, `axiom-ci-${rehearsalId}-hono`, 'API restart target must be this rehearsal container');
+    const ownedLabel = spawnSync('docker', [
+      'inspect', '--format={{ index .Config.Labels "com.fanthynks.rehearsal-id" }}', apiContainer,
+    ], { encoding: 'utf8', timeout: 5_000 });
+    assert.equal(ownedLabel.status, 0, 'API restart target must exist');
+    assert.equal(ownedLabel.stdout.trim(), rehearsalId, 'API restart target must carry this rehearsal label');
+    const restart = spawnSync('docker', ['restart', '--timeout', '10', apiContainer], {
+      encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(restart.status, 0, 'owned API container must restart successfully');
+
+    let persistedSession = false;
+    for (let attempt = 0; attempt < 45; attempt++) {
+      try {
+        const ready = await request('/api/v1/ready');
+        if (ready.ok) {
+          const restored = await request('/api/auth/get-session', { headers: { cookie } });
+          if (restored.ok) {
+            const body = await restored.json();
+            if (body?.user?.email === email) {
+              persistedSession = true;
+              break;
+            }
+          }
+        }
+      } catch {
+        // The dashboard rewrite can briefly return a transport error as the
+        // API container restarts; retry only this read-only readiness/session probe.
+      }
+      await delay(1_000);
+    }
+    assert.ok(persistedSession, 'signed-in session must survive API restart through the dashboard rewrite');
+    console.log('deployment restart smoke: API readiness and database-backed session survived restart');
+  }
+
+  const crashCorrelationId = randomUUID();
+  const crashFingerprint = `deployment-smoke-${randomUUID()}`;
+  const crashMessage = 'Synthetic deployment fault control';
+  const reportCrash = (eventId) => request('/api/v1/crash-reports', {
+    method: 'POST',
+    headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({
+      eventId,
+      service: 'deployment-smoke',
+      release: process.env.GITHUB_SHA ?? 'local-smoke',
+      environment: 'ci',
+      message: crashMessage,
+      stacktrace: [{ frame: 0, function: 'deploymentFaultControl' }],
+      correlationId: crashCorrelationId,
+      severity: 'sev-2',
+      fingerprint: crashFingerprint,
+    }),
+  });
+  const firstCrashResponse = await reportCrash(randomUUID());
+  assert.equal(firstCrashResponse.status, 200, 'synthetic crash report must persist');
+  const firstCrash = await firstCrashResponse.json();
+  assert.equal(firstCrash.isNew, true, 'first fingerprint occurrence must create an issue');
+  const repeatedCrashResponse = await reportCrash(randomUUID());
+  assert.equal(repeatedCrashResponse.status, 200, 'repeated synthetic crash must persist');
+  const repeatedCrash = await repeatedCrashResponse.json();
+  assert.equal(repeatedCrash.isNew, false, 'repeated fingerprint must deduplicate');
+  assert.equal(repeatedCrash.data.id, firstCrash.data.id, 'deduplicated report must retain its issue id');
+  assert.equal(repeatedCrash.data.count, 2, 'deduplicated report must increment its occurrence count');
+  assert.equal(repeatedCrash.data.correlationId, crashCorrelationId, 'correlation id must survive the upsert');
+  const crashListResponse = await request('/api/v1/crash-reports?status=open', { headers: { cookie } });
+  assert.equal(crashListResponse.status, 200);
+  const crashList = await crashListResponse.json();
+  assert.ok(crashList.data.some((row) => row.id === firstCrash.data.id && row.correlationId === crashCorrelationId));
+  const incidentsPage = await request('/incidents', { headers: { cookie } });
+  assert.equal(incidentsPage.status, 200, 'owner must be able to open crash reports in the dashboard');
+  const incidentsHtml = await incidentsPage.text();
+  assert.ok(incidentsHtml.includes('deployment-smoke') && incidentsHtml.includes(crashMessage),
+    'deduplicated crash report must be visible on the incidents page');
+  console.log('crash-report smoke: correlation, fingerprint deduplication, count readback and incident dashboard visibility passed (synthetic report)');
+
   for (const values of [
     { proxyAddr: '127.0.0.1:1080', expectedEgressIp: '203.0.113.7' },
     { proxyAddr: null, expectedEgressIp: null },
