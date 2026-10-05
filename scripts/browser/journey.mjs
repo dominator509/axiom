@@ -350,12 +350,25 @@ COMMIT;
     const relayBindings = await linkbioRequest(`/api/v1/models/${ownModel}/relay-bindings`);
     const disableAction = page.getByRole('button', { name: 'Disable', exact: true });
     const actionButtons = page.locator('table tbody tr td:last-child > button');
+    const sessionSummary = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/get-session', { cache: 'no-store' });
+      let body = null;
+      try { body = await response.json(); } catch { body = null; }
+      return {
+        status: response.status,
+        role: typeof body?.user?.role === 'string' ? body.user.role : null,
+      };
+    });
     failureContext = {
       pageStatus: response?.status() ?? null,
       apiStatus: relayBindings.status,
       apiBindingCount: Array.isArray(relayBindings.data?.data) ? relayBindings.data.data.length : null,
+      sessionSummary,
+      viewportWidth: await page.evaluate(() => window.innerWidth),
       tableCount: await page.locator('table').count(),
+      tableHeaderCount: await page.locator('table thead th').count(),
       rowCount: await page.locator('table tbody tr').count(),
+      editableFieldsetCount: await page.locator('table + fieldset').count(),
       actionButtonCount: await actionButtons.count(),
       exactDisableTextCount: await actionButtons.evaluateAll(buttons => buttons.filter(button => button.textContent?.replace(/\s+/g, ' ').trim() === 'Disable').length),
       accessibleDisableCount: await disableAction.count(),
