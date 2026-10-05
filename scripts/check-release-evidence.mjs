@@ -30,8 +30,8 @@ export function requirements(read) {
       if (/^## Current checkpoint/.test(line)) section = '';
       let id;
       if (file === documents[0]) {
-        const row = /^\| (\d{2}|A\d+) \|/.exec(line);
-        if (row && ['1', '2'].includes(section)) id = row[1].startsWith('A') ? row[1] : `LBI-${row[1]}`;
+        const row = /^\| (LBI-\d{2}|A\d+) \|/.exec(line);
+        if (row && ['1', '2'].includes(section)) id = row[1];
         if (section === '3' && line.startsWith('A checklist test')) id = 'FEATURE-PRESERVATION';
         if (section === '4' && line.startsWith('- ')) id = `MATRIX-NFR-${++ordinal}`;
         if (section === '5' && line.startsWith('All of')) id = 'MATRIX-CI';
@@ -71,6 +71,16 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
     check(['passed', 'failed', 'blocked', 'unverified'].includes(row.status), `${row.id}: invalid status`);
     check(nonempty(row.nextStep), `${row.id}: missing next step`);
     check(Number.isInteger(row.lane) && row.lane >= 1 && row.lane <= 8, `${row.id}: invalid lane`);
+    const verification = row.verification;
+    check(nonempty(verification?.test), `${row.id}: missing planned test`);
+    check(nonempty(verification?.environment), `${row.id}: missing planned environment`);
+    check(Array.isArray(verification?.dependencies)
+      && verification.dependencies.every(lane => Number.isInteger(lane) && lane >= 1 && lane < row.lane),
+    `${row.id}: invalid lane dependencies`);
+    check(Array.isArray(verification?.requiredEvidence)
+      && verification.requiredEvidence.length > 0 && verification.requiredEvidence.every(nonempty),
+    `${row.id}: missing required evidence`);
+    check(nonempty(verification?.completionCondition), `${row.id}: missing completion condition`);
     check(Array.isArray(row.evidence), `${row.id}: missing evidence array`);
     if (row.status === 'passed') check(row.evidence.length > 0, `${row.id}: evidence-free pass`);
     for (const receipt of row.evidence) {

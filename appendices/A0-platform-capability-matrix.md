@@ -1,6 +1,6 @@
 # Appendix A0 — Platform Capability Matrix (Full Detail)
 
-> Per-platform reference for all 10 socials + Fanvue. This is the authoritative source the connector declarations (`L3.2`) and scheduler read. Where a platform lacks an open API for an action, the matrix says so honestly (LBI-07) and routes through the Relay assisted flow rather than faking success.
+> Per-platform reference for all 10 socials + Fanvue. This is the authoritative source the connector declarations (`L3.2`) and scheduler read. Where a platform lacks an open API for an action, the matrix says so honestly (LBI-08) and routes through the Relay assisted flow rather than faking success.
 
 ## Legend
 - **Publish:** `api` (programmatic), `link_share` (post a content link), `assisted` (prepared package, human taps post).
