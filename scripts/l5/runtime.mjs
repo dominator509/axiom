@@ -1,10 +1,10 @@
 // Runs only inside the owned network-disabled fixture, against real production code.
 import assert from 'node:assert/strict';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { db, pool, schema } from '@axiom/db';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import { processJob, defaultExecutors, readKillSwitch } from '@axiom/worker';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
@@ -69,6 +69,26 @@ async function relayDispatchFixture() {
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0] };
+}
+async function blockedPublishFixture(tosReport) {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
+  await scoped(org, async tx => {
+    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'approved', captions: { instagram: 'Synthetic blocked publish fixture.' }, hashtags: [], tosReport });
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'instagram', state: 'pending', idemKey: randomBytes(32) });
+    await tx.insert(schema.job).values([
+      { id: randomUUID(), orgId: org, queue: 'media', kind: 'tos.scan', state: 'done',
+        payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1 },
+      { id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: target }, attempts: 0, maxAttempts: 1,
+        lockedBy: 'l5-worker', lockedAt: new Date() },
+    ]);
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, target, job: result.rows[0] };
 }
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
@@ -148,6 +168,27 @@ try {
         assert.equal(records.job.state, 'ready'); assert.equal(records.job.lockedBy, null);
         assert.match(records.job.lastError, /kill switch/i);
       }
+    });
+  }
+  for (const [name, tosReport] of [
+    ['block verdict', { verdict: 'block', scores: [{ platform: 'instagram', verdict: 'block' }] }],
+    ['review verdict', { verdict: 'review', scores: [{ platform: 'instagram', verdict: 'review' }] }],
+    ['missing platform score', { verdict: 'pass', scores: [] }],
+  ]) {
+    await check(`publish.target: ${name} refuses provider dispatch`, async () => {
+      const fixture = await blockedPublishFixture(tosReport);
+      assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'dead');
+      const records = await scoped(fixture.org, async tx => ({
+        job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
+        target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+        dispatchMarkers: await tx.select().from(schema.prePostRun).where(and(
+          eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')),
+        ),
+      }));
+      assert.equal(records.job.state, 'dead');
+      assert.match(records.job.lastError, /ToS check unavailable or not passing/);
+      assert.equal(records.target.state, 'pending');
+      assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
