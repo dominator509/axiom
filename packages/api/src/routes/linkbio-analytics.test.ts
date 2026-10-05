@@ -20,8 +20,8 @@ vi.mock('@axiom/llm-gateway', () => ({
   resolveEgressBinding: mocks.resolveEgressBinding,
   buildEgressFetch: mocks.buildEgressFetch,
 }));
-vi.mock('../linkbio-integrations.js', () => ({
-  LINKBIO_PROVIDER_KINDS: ['native', 'fanlynks', 'linktree', 'beacons'],
+vi.mock('../linkbio-integrations.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../linkbio-integrations.js')>(),
   fetchGa4LinkbioMetrics: mocks.fetchGa4LinkbioMetrics,
 }));
 
@@ -92,7 +92,7 @@ describe('GA4 provider credentials', () => {
 
   it('keeps encrypted key material out of the connection readback', async () => {
     mockState.results = [[], [{ orgId: ORG_ID }], [{
-      id: PROVIDER_ID, enabled: true, status: 'connected', config: { ga4PropertyId: '12345678' },
+      id: PROVIDER_ID, enabled: true, status: 'connected', kind: 'linktree', config: { ga4PropertyId: '12345678' },
       credentialsEnc: Buffer.from('secret-private-key'), lastSyncedAt: new Date('2026-09-22T00:00:00.000Z'),
     }]];
     const response = await appWithRole().request(`/models/${MODEL_ID}/linkbio/linktree/analytics-connection`);
@@ -100,7 +100,23 @@ describe('GA4 provider credentials', () => {
     const body = await response.text();
     expect(body).toContain('12345678');
     expect(body).toContain('analyticsConnected');
+    expect(body).toContain('"analyticsState":"verified"');
+    expect(body).toContain('"state":"unavailable"');
     expect(body).not.toContain('secret-private-key');
+  });
+
+  it('reports absent analytics credentials as unavailable without implying a provider failure', async () => {
+    mockState.results = [[], [{ orgId: ORG_ID }], [{
+      id: PROVIDER_ID, enabled: true, kind: 'beacons', status: 'configured', config: {},
+      credentialsEnc: null, fanlynksTokenEnc: null, fanlynksAnalyticsStatus: 'disconnected',
+      fanlynksLastSyncedAt: null, profileUrl: 'https://creator.beacons.ai', lastSyncedAt: null,
+    }]];
+    const response = await appWithRole().request(`/models/${MODEL_ID}/linkbio/beacons/analytics-connection`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: {
+      kind: 'beacons', analyticsConnected: false, analyticsState: 'unavailable',
+      integration: { state: 'unavailable', reason: 'beacons_api_endpoints_unavailable' },
+    } });
   });
 
   it('requires owner or manager to save credentials', async () => {

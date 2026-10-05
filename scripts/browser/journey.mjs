@@ -111,6 +111,20 @@ COMMIT;
     probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: value });
     return value;
   };
+  const linkbioRequest = async (path, method = 'GET', body = undefined) => page.evaluate(async args => {
+    const response = await fetch(args.path, {
+      method: args.method,
+      cache: 'no-store',
+      headers: {
+        ...(args.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(args.method === 'GET' ? {} : { 'Idempotency-Key': args.key }),
+      },
+      ...(args.body === undefined ? {} : { body: JSON.stringify(args.body) }),
+    });
+    let data;
+    try { data = await response.json(); } catch { data = null; }
+    return { status: response.status, data };
+  }, { path, method, body, key: randomUUID() });
   const signIn = async (identity, suppliedPassword) => {
     // These are separate user scenarios, not a rate-limit load test. Let the
     // unchanged auth bucket (20 tokens, 1/sec) fully refill and Better Auth's
@@ -220,6 +234,98 @@ COMMIT;
   });
   await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
+  });
+  await check('link-in-bio starts with zero configured providers', async () => {
+    await page.goto(`/models/${ownModel}/linkbio`);
+    const response = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
+    expect(response.status).toBe(200);
+    expect(response.data.data.providers.filter(provider => provider.enabled)).toEqual([]);
+  });
+  await check('Native provider and tracked destination can be configured from the dashboard', async () => {
+    await page.getByLabel('Link label').fill('Synthetic destination');
+    await page.getByLabel('Link URL').fill('https://example.invalid/synthetic-destination');
+    await page.getByRole('button', { name: 'Add link' }).click();
+    await page.getByRole('button', { name: 'Enable provider' }).click();
+    const row = page.getByRole('row').filter({ hasText: 'native' });
+    await expect(row).toContainText('Configured');
+    await expect(page.getByText('Synthetic destination', { exact: true })).toBeVisible();
+    expect(await status(`/linkbio/${ownModel}`)).toBe(200);
+  });
+  await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
+    const path = `/api/v1/models/${ownModel}/linkbio`;
+    const nativeDisabled = await linkbioRequest(`${path}/native`, 'DELETE');
+    expect(nativeDisabled.status).toBe(200);
+    const independent = [
+      { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
+      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
+      { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] } },
+    ];
+    for (const provider of independent) {
+      const saved = await linkbioRequest(path, 'POST', { ...provider, isPrimary: true });
+      expect(saved.status).toBe(201);
+      const current = await linkbioRequest(path);
+      const active = current.data.data.providers.filter(entry => entry.enabled);
+      expect(active.map(entry => entry.kind)).toEqual([provider.kind]);
+      expect(active[0].config.links.length).toBe(1);
+      expect(active[0].config.links[0].path).toContain(`/linkbio/${provider.kind}/`);
+      if (provider.kind === 'fanlynks') {
+        expect(active[0].integration).toMatchObject({ state: 'configured', linkManagement: 'first_party' });
+        expect(await status(`/linkbio/fanlynks/${ownModel}`)).toBe(200);
+      } else {
+        expect(active[0].integration).toMatchObject({ state: 'unavailable', linkManagement: 'manual', revocation: 'manual' });
+      }
+      const disabled = await linkbioRequest(`${path}/${provider.kind}`, 'DELETE');
+      expect(disabled.status).toBe(200);
+      expect(disabled.data.data.enabled).toBe(false);
+    }
+    const empty = await linkbioRequest(path);
+    expect(empty.data.data.providers.filter(entry => entry.enabled)).toEqual([]);
+  });
+  await check('all four providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
+    const path = `/api/v1/models/${ownModel}/linkbio`;
+    const native = await linkbioRequest(path, 'POST', {
+      kind: 'native', isPrimary: false,
+      config: { links: [{ label: 'Synthetic destination', url: 'https://example.invalid/synthetic-destination' }] },
+    });
+    expect(native.status).toBe(201);
+    const providers = [
+      { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
+      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
+      { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] }, isPrimary: true },
+    ];
+    for (const provider of providers) {
+      const response = await linkbioRequest(path, 'POST', { isPrimary: false, ...provider });
+      expect(response.status).toBe(201);
+    }
+    const configured = await linkbioRequest(path, 'POST', {
+      kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', isPrimary: true,
+      config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] },
+    });
+    expect(configured.status).toBe(201);
+    const readback = await linkbioRequest(path);
+    expect(readback.status).toBe(200);
+    const active = readback.data.data.providers.filter(provider => provider.enabled);
+    expect(active.map(provider => provider.kind).sort()).toEqual(['beacons', 'fanlynks', 'linktree', 'native']);
+    expect(readback.data.data.primary.kind).toBe('linktree');
+    expect(active.find(provider => provider.kind === 'linktree').integration).toMatchObject({
+      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(active.find(provider => provider.kind === 'beacons').integration).toMatchObject({
+      state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(active.filter(provider => ['native', 'fanlynks'].includes(provider.kind))
+      .every(provider => provider.integration.state === 'configured')).toBe(true);
+    expect(active.every(provider => provider.config.links.every(link => typeof link.path === 'string'))).toBe(true);
+  });
+  await check('disabling one provider preserves the other pages and native public link', async () => {
+    const response = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio/beacons`, 'DELETE');
+    expect(response.status).toBe(200);
+    expect(response.data.data.integration).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
+    const readback = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
+    expect(readback.data.data.providers.filter(provider => provider.enabled).map(provider => provider.kind).sort())
+      .toEqual(['fanlynks', 'linktree', 'native']);
+    const nativePage = await status(`/linkbio/${ownModel}`);
+    expect(nativePage).toBe(200);
   });
   await check('Relay destination action label stays readable on mobile', async () => {
     await page.goto(`/models/${ownModel}/relay`);

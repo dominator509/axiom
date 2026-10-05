@@ -3,11 +3,36 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createGoogleServiceAccountAssertion,
   fetchGa4LinkbioMetrics,
+  linkbioAnalyticsConnectionState,
+  linkbioIntegrationContract,
   normalizeGa4Reports,
   safeExternalProfileUrl,
 } from './linkbio-integrations.js';
 
 describe('link-in-bio provider integrations', () => {
+  it('reports only capabilities the deployment can provide for each link page', () => {
+    expect(linkbioIntegrationContract('native', true)).toEqual({
+      state: 'configured', reason: null, linkManagement: 'first_party', analytics: 'first_party', revocation: 'local',
+    });
+    expect(linkbioIntegrationContract('fanlynks', true)).toMatchObject({
+      state: 'configured', reason: null, linkManagement: 'first_party', revocation: 'local',
+    });
+    expect(linkbioIntegrationContract('linktree', true)).toMatchObject({
+      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(linkbioIntegrationContract('beacons', true)).toMatchObject({
+      state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(linkbioIntegrationContract('native', false)).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
+  });
+
+  it('distinguishes unavailable, saved, verified, and failed analytics credentials without leaking them', () => {
+    expect(linkbioAnalyticsConnectionState({ configured: false })).toBe('unavailable');
+    expect(linkbioAnalyticsConnectionState({ configured: true })).toBe('configured');
+    expect(linkbioAnalyticsConnectionState({ configured: true, syncStatus: 'connected' })).toBe('verified');
+    expect(linkbioAnalyticsConnectionState({ configured: true, syncStatus: 'sync_error' })).toBe('failed');
+  });
+
   it('accepts only HTTPS profile URLs on the selected provider host', () => {
     expect(safeExternalProfileUrl('https://linktr.ee/creator', 'linktree')).toBe('https://linktr.ee/creator');
     expect(safeExternalProfileUrl('https://creator.beacons.ai', 'beacons')).toBe('https://creator.beacons.ai/');

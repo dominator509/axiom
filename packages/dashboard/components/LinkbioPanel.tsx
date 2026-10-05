@@ -12,13 +12,23 @@ type ProviderKind = (typeof KINDS)[number];
 
 interface ProviderAnalyticsConnection {
   analyticsConnected: boolean;
+  analyticsState?: 'configured' | 'verified' | 'unavailable' | 'failed';
   fanlynksConnected?: boolean;
   fanlynksStatus?: string;
+  fanlynksAnalyticsState?: 'configured' | 'verified' | 'unavailable' | 'failed';
   fanlynksLastSyncedAt?: string | null;
   propertyId: string | null;
   profileUrl?: string | null;
   status: string;
   lastSyncedAt: string | null;
+}
+
+interface ProviderIntegration {
+  state: 'configured' | 'verified' | 'unavailable' | 'failed';
+  reason: string | null;
+  linkManagement: 'first_party' | 'manual';
+  analytics: 'first_party' | 'ga4_import';
+  revocation: 'local' | 'manual';
 }
 
 interface ProviderRow {
@@ -27,6 +37,7 @@ interface ProviderRow {
   enabled: boolean;
   isPrimary: boolean;
   status?: string;
+  integration?: ProviderIntegration;
   lastSyncedAt?: string | null;
   profileUrl?: string | null;
   clicks?: number;
@@ -278,9 +289,13 @@ export default function LinkbioPanel({
             <tr key={provider.id}>
               <td>{provider.kind}</td><td>{provider.isPrimary ? '★' : '—'}</td>
               <td>{formatNumber(provider.clicks ?? 0, locale)}</td>
-              <td>{provider.status === 'connected' ? t('linkbio.statusConnected')
-                : provider.status === 'sync_error' ? t('linkbio.statusSyncError')
-                  : provider.status === 'disabled' ? t('linkbio.statusDisabled') : t('linkbio.statusConfigured')}</td>
+              <td>
+                {provider.integration?.state === 'verified' ? t('linkbio.statusConnected')
+                  : provider.integration?.state === 'failed' ? t('linkbio.statusSyncError')
+                    : provider.integration?.state === 'unavailable' ? t('linkbio.statusUnavailable')
+                      : provider.integration?.state === 'configured' ? t('linkbio.statusConfigured') : t('linkbio.statusUnavailable')}
+                {provider.integration?.reason && <p className="subtle">{t(`linkbio.reason.${provider.integration.reason}`)}</p>}
+              </td>
               <td><button className="btn danger" type="button" disabled={busy || pending || !canEdit}
                 onClick={() => runMutation({
                   path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(provider.kind)}`,
@@ -360,9 +375,9 @@ export default function LinkbioPanel({
           {activeProvider.analyticsConnectionUnavailable ? <p role="alert">{t('linkbio.ga4.connectionUnavailable')}</p>
             : analyticsConnection?.fanlynksConnected ? (
             <>
-              <p className="subtle">{analyticsConnection.fanlynksStatus === 'connected'
+              <p className="subtle">{analyticsConnection.fanlynksAnalyticsState === 'verified'
                 ? t('linkbio.ga4.lastSynced', { date: analyticsConnection.fanlynksLastSyncedAt ?? t('linkbio.ga4.neverSynced') })
-                : analyticsConnection.fanlynksStatus === 'sync_error' ? t('linkbio.ga4.syncError') : t('linkbio.fanlynks.savedUnverified')}</p>
+                : analyticsConnection.fanlynksAnalyticsState === 'failed' ? t('linkbio.ga4.syncError') : t('linkbio.fanlynks.savedUnverified')}</p>
               <div className="row">
                 <label>{t('linkbio.ga4.startDate')}<input aria-label={t('linkbio.ga4.startDate')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
                 <label>{t('linkbio.ga4.endDate')}<input aria-label={t('linkbio.ga4.endDate')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
@@ -397,9 +412,9 @@ export default function LinkbioPanel({
           {activeProvider.analyticsConnectionUnavailable ? <p role="alert">{t('linkbio.ga4.connectionUnavailable')}</p>
             : analyticsConnection?.analyticsConnected ? (
             <>
-              <p className="subtle">{analyticsConnection.status === 'connected'
+              <p className="subtle">{analyticsConnection.analyticsState === 'verified'
                 ? t('linkbio.ga4.lastSynced', { date: analyticsConnection.lastSyncedAt ?? t('linkbio.ga4.neverSynced') })
-                : analyticsConnection.status === 'sync_error' ? t('linkbio.ga4.syncError') : t('linkbio.ga4.savedUnverified')}</p>
+                : analyticsConnection.analyticsState === 'failed' ? t('linkbio.ga4.syncError') : t('linkbio.ga4.savedUnverified')}</p>
               <div className="row">
                 <label>{t('linkbio.ga4.startDate')}<input aria-label={t('linkbio.ga4.startDate')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
                 <label>{t('linkbio.ga4.endDate')}<input aria-label={t('linkbio.ga4.endDate')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
