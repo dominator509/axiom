@@ -66,6 +66,23 @@ describe('GET /models/:modelId/linkbio', () => {
     expect(body.data.providers).toHaveLength(1);
     expect(body.data.nativeEnabled).toBe(true);
     expect(body.data.primary.kind).toBe('native');
+    expect(body.data.providers[0].integration).toEqual({
+      state: 'configured', reason: null, linkManagement: 'first_party', analytics: 'first_party', revocation: 'local',
+    });
+  });
+
+  it('does not misreport an analytics sync status as a verified external provider connection', async () => {
+    mockState.result = [
+      { id: PROVIDER_ID, kind: 'linktree', enabled: true, isPrimary: true, status: 'connected', config: { links: [] } },
+      { id: '44444444-4444-4444-8444-444444444444', kind: 'beacons', enabled: true, isPrimary: false, status: 'sync_error', config: { links: [] } },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(body.data.providers.map((provider: any) => provider.integration)).toEqual([
+      { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+      { state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+    ]);
   });
 
   it('returns empty provider list when none configured', async () => {
@@ -300,7 +317,10 @@ describe('POST /models/:modelId/linkbio', () => {
       config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
     });
     expect(mockState.updates[0]).toMatchObject({ isPrimary: false });
-    expect(await res.json()).toMatchObject({ data: { kind: 'linktree', profileUrl: 'https://linktr.ee/luna', enabled: true } });
+    expect(await res.json()).toMatchObject({ data: {
+      kind: 'linktree', profileUrl: 'https://linktr.ee/luna', enabled: true,
+      integration: { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual' },
+    } });
   });
 
   it('rejects an external profile URL on the wrong provider host', async () => {
@@ -341,6 +361,7 @@ describe('DELETE /models/:modelId/linkbio/:kind', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.enabled).toBe(false);
+    expect(body.data.integration).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
   });
 
   it('returns 404 when the provider is not enabled', async () => {
@@ -391,6 +412,9 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
     const body = (await response.json()) as any;
     expect(body.data.totalClicks).toBe(5);
     expect(body.data.totals).toEqual({ trackedClicks: 5 });
+    expect(body.data.providers.find((provider: any) => provider.kind === 'linktree').integration).toMatchObject({
+      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual',
+    });
     expect(body.data.providers).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'native-provider', clicks: 2 }),
       expect.objectContaining({ id: 'linktree-provider', clicks: 3 }),

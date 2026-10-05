@@ -19,7 +19,7 @@ import {
   statusTitle,
 } from './helpers.js';
 import { rateLimit } from '../contract.js';
-import { LINKBIO_PROVIDER_KINDS, safeExternalProfileUrl, type LinkbioProviderKind } from '../linkbio-integrations.js';
+import { LINKBIO_PROVIDER_KINDS, linkbioIntegrationContract, safeExternalProfileUrl, type LinkbioProviderKind } from '../linkbio-integrations.js';
 
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
@@ -446,7 +446,7 @@ router.get('/models/:modelId/linkbio', async (c) => {
         : `/linkbio/${encodeURIComponent(row.kind)}/${encodeURIComponent(modelId)}/s/${encodeURIComponent(slug)}`;
       return { ...link, slug, path };
     });
-    return { ...row, config };
+    return { ...row, config, integration: linkbioIntegrationContract(row.kind as LinkbioProviderKind, row.enabled) };
   });
   return c.json({
     data: {
@@ -641,7 +641,13 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
     return row;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
-  return c.json({ data: { ...saved, config: safeProviderConfig(saved.config) } }, 201);
+  return c.json({
+    data: {
+      ...saved,
+      config: safeProviderConfig(saved.config),
+      integration: linkbioIntegrationContract(saved.kind as LinkbioProviderKind, saved.enabled),
+    },
+  }, 201);
 });
 
 // DELETE /models/:id/linkbio/:kind — disable provider
@@ -683,7 +689,13 @@ router.delete('/models/:modelId/linkbio/:kind', async (c) => {
     return rows;
   });
   if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'provider not configured');
-  return c.json({ data: { ...updated[0], config: safeProviderConfig(updated[0].config) } });
+  return c.json({
+    data: {
+      ...updated[0],
+      config: safeProviderConfig(updated[0].config),
+      integration: linkbioIntegrationContract(updated[0].kind as LinkbioProviderKind, updated[0].enabled),
+    },
+  });
 });
 
 // GET /models/:id/linkbio/analytics — normalized cross-provider analytics (F-53)
@@ -818,11 +830,12 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       targets.set(targetKey, target);
     }
     const publicProviders = (providers as Array<{
-      id: string; hasGa4?: boolean;
+      id: string; kind: LinkbioProviderKind; enabled: boolean; hasGa4?: boolean;
     }>).map((provider) => {
       const { hasGa4: _hasGa4, ...publicProvider } = provider;
       return {
         ...publicProvider,
+        integration: linkbioIntegrationContract(provider.kind, provider.enabled),
         clicks: (clickRows as Array<{ providerId: string; count: number }>)
           .filter((row) => row.providerId === provider.id)
           .reduce((sum, row) => sum + (Number(row.count) || 0), 0),

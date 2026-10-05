@@ -3,7 +3,13 @@ import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { fetchGa4LinkbioMetrics, LINKBIO_PROVIDER_KINDS, type LinkbioProviderKind } from '../linkbio-integrations.js';
+import {
+  fetchGa4LinkbioMetrics,
+  LINKBIO_PROVIDER_KINDS,
+  linkbioAnalyticsConnectionState,
+  linkbioIntegrationContract,
+  type LinkbioProviderKind,
+} from '../linkbio-integrations.js';
 import { buildEgressFetch, resolveEgressBinding } from '@axiom/llm-gateway';
 import { readBoundedResponseJson } from '@axiom/core';
 import { schema } from '@axiom/db';
@@ -152,10 +158,21 @@ router.get('/models/:modelId/linkbio/:kind/analytics-connection', async (c) => {
     kind,
     enabled: provider.enabled,
     status: provider.status,
+    integration: linkbioIntegrationContract(kind, provider.enabled),
     analyticsConnected: Boolean(provider.credentialsEnc),
+    analyticsState: linkbioAnalyticsConnectionState({
+      configured: Boolean(provider.credentialsEnc),
+      syncStatus: provider.status,
+      lastSyncedAt: provider.lastSyncedAt,
+    }),
     ...(kind === 'fanlynks' ? {
       fanlynksConnected: Boolean(provider.fanlynksTokenEnc),
       fanlynksStatus: provider.fanlynksAnalyticsStatus,
+      fanlynksAnalyticsState: linkbioAnalyticsConnectionState({
+        configured: Boolean(provider.fanlynksTokenEnc),
+        syncStatus: provider.fanlynksAnalyticsStatus,
+        lastSyncedAt: provider.fanlynksLastSyncedAt,
+      }),
       fanlynksLastSyncedAt: provider.fanlynksLastSyncedAt,
       profileUrl: provider.profileUrl,
     } : {}),
@@ -215,7 +232,14 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
         return rows.length > 0;
       });
       if (!updated) return apiError(c, 409, statusTitle(409), 'provider changed while connecting analytics');
-      return c.json({ data: { kind, fanlynksConnected: true, fanlynksStatus: 'configured', profileUrl: fanlynksBody.data.profileUrl } });
+      return c.json({ data: {
+        kind,
+        integration: linkbioIntegrationContract(kind, true),
+        fanlynksConnected: true,
+        fanlynksStatus: 'configured',
+        fanlynksAnalyticsState: 'configured',
+        profileUrl: fanlynksBody.data.profileUrl,
+      } });
     }
   }
 
@@ -255,7 +279,14 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
     return rows.length > 0;
   });
   if (!updated) return apiError(c, 409, statusTitle(409), 'provider changed while connecting analytics');
-  return c.json({ data: { kind, analyticsConnected: true, status: 'configured', propertyId: ga4Body.data.propertyId } });
+  return c.json({ data: {
+    kind,
+    integration: linkbioIntegrationContract(kind, true),
+    analyticsConnected: true,
+    status: 'configured',
+    analyticsState: 'configured',
+    propertyId: ga4Body.data.propertyId,
+  } });
 });
 
 router.delete('/models/:modelId/linkbio/:kind/analytics-connection', async (c) => {
@@ -308,8 +339,8 @@ router.delete('/models/:modelId/linkbio/:kind/analytics-connection', async (c) =
   });
   if (!updated) return apiError(c, 404, statusTitle(404), 'analytics connection not found');
   return c.json({ data: kind === 'fanlynks' && c.req.query('source') === 'fanlynks'
-    ? { kind, fanlynksConnected: false, fanlynksStatus: 'disconnected' }
-    : { kind, analyticsConnected: false } });
+    ? { kind, fanlynksConnected: false, fanlynksStatus: 'disconnected', fanlynksAnalyticsState: 'unavailable' }
+    : { kind, analyticsConnected: false, analyticsState: 'unavailable' } });
 });
 
 router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', syncSchema), async (c) => {
@@ -413,6 +444,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', 
       });
       return c.json({ data: {
         kind, importedRows: metrics.length, startDate, endDate,
+        analyticsState: 'verified',
         metricCoverage: { pageViews: true, clicks: true, uniqueVisitors: false, conversions: false },
       } });
     }
@@ -465,7 +497,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', 
         .where(eq(schema.linkbioProvider.id, provider.id));
       await writeAudit(tx, orgId, userId, 'linkbio.analytics.sync', modelId, { kind, rows: metrics.length, startDate, endDate });
     });
-    return c.json({ data: { kind, importedRows: metrics.length, startDate, endDate } });
+    return c.json({ data: { kind, importedRows: metrics.length, startDate, endDate, analyticsState: 'verified' } });
   } catch {
     await withOrgContext(orgId, tx => tx.update(schema.linkbioProvider)
       .set(useFanlynks ? { fanlynksAnalyticsStatus: 'sync_error', updatedAt: new Date() } : { status: 'sync_error', updatedAt: new Date() })

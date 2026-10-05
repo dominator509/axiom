@@ -40,8 +40,21 @@ await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
 const redirects = [];
+let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
+const diagnosticRedactions = new Set([process.env.BROWSER_SECRET_SENTINEL].filter(Boolean));
+const safeDiagnostic = error => {
+  let message = `${error?.name ?? 'Error'}: ${error?.message ?? ''}`;
+  for (const secret of diagnosticRedactions) message = message.replaceAll(secret, '[redacted]');
+  return message
+    .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted database URL]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, value => safePath(value))
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted email]')
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
+    .split('\n').slice(0, 4).join('\n').slice(0, 1200);
+};
 const check = async (label, work) => {
   currentCheck = label;
   await work();
@@ -74,6 +87,7 @@ try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
   const pendingEmail = `pending-${randomUUID()}@example.invalid`;
+  for (const secret of [password, email, pendingEmail]) diagnosticRedactions.add(secret);
   const otherOrg = randomUUID();
   const org = randomUUID();
   const ownModel = randomUUID();
@@ -111,6 +125,21 @@ COMMIT;
     probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: value });
     return value;
   };
+  const linkbioRequest = async (path, method = 'GET', body = undefined) => page.evaluate(async args => {
+    const response = await fetch(args.path, {
+      method: args.method,
+      cache: 'no-store',
+      headers: {
+        ...(args.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(args.method === 'GET' ? {} : { 'Idempotency-Key': args.key }),
+      },
+      ...(args.body === undefined ? {} : { body: JSON.stringify(args.body) }),
+    });
+    let data;
+    try { data = await response.json(); } catch { data = null; }
+    return { status: response.status, data };
+  }, { path, method, body, key: randomUUID() });
+  let relayRouteStatus = null;
   const signIn = async (identity, suppliedPassword) => {
     // These are separate user scenarios, not a rate-limit load test. Let the
     // unchanged auth bucket (20 tokens, 1/sec) fully refill and Better Auth's
@@ -221,9 +250,132 @@ COMMIT;
   await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
+  await check('link-in-bio starts with zero configured providers', async () => {
+    await page.goto(`/models/${ownModel}/linkbio`);
+    const response = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
+    expect(response.status).toBe(200);
+    expect(response.data.data.providers.filter(provider => provider.enabled)).toEqual([]);
+  });
+  await check('Native provider and tracked destination can be configured from the dashboard', async () => {
+    await page.getByLabel('Link label').fill('Synthetic destination');
+    await page.getByLabel('Link URL').fill('https://example.invalid/synthetic-destination');
+    await page.getByRole('button', { name: 'Add link' }).click();
+    await page.getByRole('button', { name: 'Enable provider' }).click();
+    const row = page.getByRole('row').filter({ hasText: 'native' });
+    await expect(row).toContainText('Configured');
+    const savedLink = page.getByRole('listitem').filter({ hasText: 'Synthetic destination' });
+    await expect(savedLink).toContainText('https://example.invalid/synthetic-destination');
+    expect(await status(`/linkbio/${ownModel}`)).toBe(200);
+  });
+  await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
+    const path = `/api/v1/models/${ownModel}/linkbio`;
+    const nativeDisabled = await linkbioRequest(`${path}/native`, 'DELETE');
+    expect(nativeDisabled.status).toBe(200);
+    const independent = [
+      { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
+      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
+      { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] } },
+    ];
+    for (const provider of independent) {
+      const saved = await linkbioRequest(path, 'POST', { ...provider, isPrimary: true });
+      expect(saved.status).toBe(201);
+      const current = await linkbioRequest(path);
+      const active = current.data.data.providers.filter(entry => entry.enabled);
+      expect(active.map(entry => entry.kind)).toEqual([provider.kind]);
+      expect(active[0].config.links.length).toBe(1);
+      expect(active[0].config.links[0].path).toContain(`/linkbio/${provider.kind}/`);
+      if (provider.kind === 'fanlynks') {
+        expect(active[0].integration).toMatchObject({ state: 'configured', linkManagement: 'first_party' });
+        expect(await status(`/linkbio/fanlynks/${ownModel}`)).toBe(200);
+      } else {
+        expect(active[0].integration).toMatchObject({ state: 'unavailable', linkManagement: 'manual', revocation: 'manual' });
+      }
+      const disabled = await linkbioRequest(`${path}/${provider.kind}`, 'DELETE');
+      expect(disabled.status).toBe(200);
+      expect(disabled.data.data.enabled).toBe(false);
+    }
+    const empty = await linkbioRequest(path);
+    expect(empty.data.data.providers.filter(entry => entry.enabled)).toEqual([]);
+  });
+  await check('all four providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
+    const path = `/api/v1/models/${ownModel}/linkbio`;
+    const native = await linkbioRequest(path, 'POST', {
+      kind: 'native', isPrimary: false,
+      config: { links: [{ label: 'Synthetic destination', url: 'https://example.invalid/synthetic-destination' }] },
+    });
+    expect(native.status).toBe(201);
+    const providers = [
+      { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
+      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
+      { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] }, isPrimary: true },
+    ];
+    for (const provider of providers) {
+      const response = await linkbioRequest(path, 'POST', { isPrimary: false, ...provider });
+      expect(response.status).toBe(201);
+    }
+    const configured = await linkbioRequest(path, 'POST', {
+      kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', isPrimary: true,
+      config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] },
+    });
+    expect(configured.status).toBe(201);
+    const readback = await linkbioRequest(path);
+    expect(readback.status).toBe(200);
+    const active = readback.data.data.providers.filter(provider => provider.enabled);
+    expect(active.map(provider => provider.kind).sort()).toEqual(['beacons', 'fanlynks', 'linktree', 'native']);
+    expect(readback.data.data.primary.kind).toBe('linktree');
+    expect(active.find(provider => provider.kind === 'linktree').integration).toMatchObject({
+      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(active.find(provider => provider.kind === 'beacons').integration).toMatchObject({
+      state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
+    });
+    expect(active.filter(provider => ['native', 'fanlynks'].includes(provider.kind))
+      .every(provider => provider.integration.state === 'configured')).toBe(true);
+    expect(active.every(provider => provider.config.links.every(link => typeof link.path === 'string'))).toBe(true);
+  });
+  await check('disabling one provider preserves the other pages and native public link', async () => {
+    const response = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio/beacons`, 'DELETE');
+    expect(response.status).toBe(200);
+    expect(response.data.data.integration).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
+    const readback = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
+    expect(readback.data.data.providers.filter(provider => provider.enabled).map(provider => provider.kind).sort())
+      .toEqual(['fanlynks', 'linktree', 'native']);
+    const nativePage = await status(`/linkbio/${ownModel}`);
+    expect(nativePage).toBe(200);
+  });
   await check('Relay destination action label stays readable on mobile', async () => {
-    await page.goto(`/models/${ownModel}/relay`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const response = await page.goto(`/models/${ownModel}/relay`);
+    relayRouteStatus = response?.status() ?? null;
+    const relayBindings = await linkbioRequest(`/api/v1/models/${ownModel}/relay-bindings`);
     const disableAction = page.getByRole('button', { name: 'Disable', exact: true });
+    const actionButtons = page.locator('table tbody tr td:last-child > button');
+    const sessionSummary = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/get-session', { cache: 'no-store' });
+      let body = null;
+      try { body = await response.json(); } catch { body = null; }
+      return {
+        status: response.status,
+        role: typeof body?.user?.role === 'string' ? body.user.role : null,
+      };
+    });
+    failureContext = {
+      pageStatus: response?.status() ?? null,
+      apiStatus: relayBindings.status,
+      apiBindingCount: Array.isArray(relayBindings.data?.data) ? relayBindings.data.data.length : null,
+      sessionSummary,
+      viewportWidth: await page.evaluate(() => window.innerWidth),
+      tableCount: await page.locator('table').count(),
+      tableHeaderCount: await page.locator('table thead th').count(),
+      rowCount: await page.locator('table tbody tr').count(),
+      editableFieldsetCount: await page.locator('table + fieldset').count(),
+      actionButtonCount: await actionButtons.count(),
+      exactDisableTextCount: await actionButtons.evaluateAll(buttons => buttons.filter(button => button.textContent?.replace(/\s+/g, ' ').trim() === 'Disable').length),
+      accessibleDisableCount: await disableAction.count(),
+    };
+    expect(relayBindings.status).toBe(200);
+    expect(relayBindings.data?.data).toHaveLength(1);
+    expect(relayBindings.data.data[0]).toMatchObject({ channel: 'telegram', enabled: true });
     await expect(disableAction).toBeVisible();
     const renderedLines = await disableAction.evaluate(button => {
       const range = document.createRange();
@@ -231,6 +383,8 @@ COMMIT;
       return range.getClientRects().length;
     });
     expect(renderedLines).toBe(1);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    failureContext = null;
   });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
@@ -243,9 +397,34 @@ COMMIT;
     expect(await status('/api/v1/killswitch')).toBe(403);
   });
   await check('configured navigation and literal text', async () => {
-    await expect(page.locator('.sidebar .brand-wordmark')).toHaveText(name);
+    const brandWordmarks = page.locator('.brand-wordmark');
+    failureContext = {
+      viewportWidth: await page.evaluate(() => window.innerWidth),
+      relayRouteStatus,
+      pageStructure: await page.evaluate(() => {
+        const bodyText = document.body?.innerText ?? '';
+        return {
+          appShellCount: document.querySelectorAll('.app-shell').length,
+          sidebarCount: document.querySelectorAll('.sidebar').length,
+          mobileBarCount: document.querySelectorAll('.mobile-bar').length,
+          authShellCount: document.querySelectorAll('.auth-shell').length,
+          mainCount: document.querySelectorAll('main').length,
+          loginFormCount: document.querySelectorAll('form').length,
+          hasRelayContent: /relay/i.test(bodyText),
+          hasApplicationError: bodyText.includes('Application error: a server-side exception has occurred'),
+          hasWorkspacePending: bodyText.includes('Workspace access pending'),
+        };
+      }),
+      brandWordmarks: await brandWordmarks.evaluateAll(nodes => nodes.map(node => ({
+        text: (node.textContent ?? '').slice(0, 100),
+        parentClass: node.parentElement?.className ?? null,
+        display: getComputedStyle(node.parentElement ?? node).display,
+      }))),
+    };
+    await expect(page.locator('.brand-wordmark:visible').first()).toHaveText(name);
     if (tagline) await expect(page.locator('.sidebar .brand-copy small')).toHaveText(tagline);
     expect(await page.locator('body').innerText()).not.toContain('Hidden other tenant talent');
+    failureContext = null;
   });
   await check('logout revokes browser access', async () => {
     await signOut();
@@ -261,7 +440,7 @@ COMMIT;
   });
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
-} catch {
+} catch (error) {
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
@@ -269,7 +448,7 @@ COMMIT;
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
-      currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
+      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
     process.exitCode = 1;
   }
 } finally {

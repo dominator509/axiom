@@ -13,14 +13,23 @@ interface ProviderRow {
   enabled: boolean;
   isPrimary: boolean;
   status?: string;
+  integration?: {
+    state: 'configured' | 'verified' | 'unavailable' | 'failed';
+    reason: string | null;
+    linkManagement: 'first_party' | 'manual';
+    analytics: 'first_party' | 'ga4_import';
+    revocation: 'local' | 'manual';
+  };
   lastSyncedAt?: string | null;
   profileUrl?: string | null;
   clicks?: number;
   config?: Record<string, unknown> | null;
   analyticsConnection?: {
     analyticsConnected: boolean;
+    analyticsState?: 'configured' | 'verified' | 'unavailable' | 'failed';
     fanlynksConnected?: boolean;
     fanlynksStatus?: string;
+    fanlynksAnalyticsState?: 'configured' | 'verified' | 'unavailable' | 'failed';
     fanlynksLastSyncedAt?: string | null;
     propertyId: string | null;
     status: string;

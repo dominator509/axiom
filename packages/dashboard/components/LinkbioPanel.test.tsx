@@ -22,7 +22,10 @@ vi.mock('./LocaleProvider', () => ({
       const text = ({
         'linkbio.kind': 'Kind', 'linkbio.primary': 'Primary', 'linkbio.clicks': 'Clicks',
         'linkbio.status': 'Status', 'linkbio.statusConfigured': 'Configured',
-        'linkbio.statusConnected': 'Sync verified', 'linkbio.statusSyncError': 'Sync failed',
+        'linkbio.statusConnected': 'Integration verified', 'linkbio.statusSyncError': 'Connection failed',
+        'linkbio.statusUnavailable': 'Manual setup only',
+        'linkbio.reason.linktree_partner_access_required': 'Linktree partner API access is unavailable.',
+        'linkbio.reason.beacons_api_endpoints_unavailable': 'Beacons link API is unavailable.',
         'linkbio.statusDisabled': 'Disabled', 'linkbio.disable': 'Disable',
         'linkbio.trackedLinks': 'Tracked destination links', 'linkbio.noLinks': 'No links configured.',
         'linkbio.remove': 'Remove', 'linkbio.linkLabel': 'Link label', 'linkbio.linkUrl': 'Link URL',
@@ -76,6 +79,7 @@ function panel(enabled: boolean, canEdit = true) {
   hooks.index = 0;
   return LinkbioPanel({ modelId: 'model', canEdit, providers: [{
     id: 'native', kind: 'native', enabled, isPrimary: false, status: 'configured', clicks: 1234,
+    integration: { state: 'configured', reason: null, linkManagement: 'first_party', analytics: 'first_party', revocation: 'local' },
     config: { metadata: { source: 'saved-configuration' }, links: [{
       label: 'Saved destination', url: 'https://example.com/saved', path: '/linkbio/model/s/saved-link',
     }] },
@@ -86,10 +90,12 @@ function fanlynksPanel(connected = false, canConnectAnalytics = true) {
   hooks.index = 0;
   return LinkbioPanel({ modelId: 'model', canEdit: true, canConnectAnalytics, providers: [{
     id: 'fanlynks', kind: 'fanlynks', enabled: true, isPrimary: false, status: 'configured',
+    integration: { state: 'configured', reason: null, linkManagement: 'first_party', analytics: 'first_party', revocation: 'local' },
     profileUrl: 'https://links.example/creator', config: { links: [] },
     analyticsConnection: {
       analyticsConnected: false, fanlynksConnected: connected,
-      fanlynksStatus: connected ? 'connected' : 'configured', propertyId: null, status: 'configured', lastSyncedAt: null,
+      fanlynksStatus: connected ? 'connected' : 'configured', fanlynksAnalyticsState: connected ? 'verified' : 'configured',
+      propertyId: null, status: 'configured', analyticsState: 'unavailable', lastSyncedAt: null,
     },
   }] });
 }
@@ -111,6 +117,18 @@ it('does not offer an enable action while the native page is already active', ()
 
 it('formats provider click counts in the selected locale', () => {
   expect(renderToStaticMarkup(panel(true))).toContain('1.234');
+});
+
+it('shows external provider API unavailability instead of treating analytics sync as provider verification', () => {
+  hooks.index = 0;
+  const html = renderToStaticMarkup(LinkbioPanel({ modelId: 'model', canEdit: false, providers: [{
+    id: 'linktree', kind: 'linktree', enabled: true, isPrimary: true, status: 'connected',
+    integration: { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+    profileUrl: 'https://linktr.ee/creator', config: { links: [] },
+  }] }));
+  expect(html).toContain('Manual setup only');
+  expect(html).toContain('Linktree partner API access is unavailable.');
+  expect(html).not.toContain('Integration verified');
 });
 
 it('does not expose provider mutations to read-only users', () => {

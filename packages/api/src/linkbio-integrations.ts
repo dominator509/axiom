@@ -4,6 +4,43 @@ import { readBoundedResponseJson } from '@axiom/core';
 export const LINKBIO_PROVIDER_KINDS = ['native', 'fanlynks', 'linktree', 'beacons'] as const;
 export type LinkbioProviderKind = typeof LINKBIO_PROVIDER_KINDS[number];
 
+export type LinkbioConnectionState = 'configured' | 'verified' | 'unavailable' | 'failed';
+export type LinkbioIntegrationReason = 'provider_disabled' | 'linktree_partner_access_required' | 'beacons_api_endpoints_unavailable';
+
+/**
+ * Describes capabilities this deployment can actually provide. External link
+ * editors remain manual until those services expose an approved API to us.
+ * This is deliberately independent of analytics sync status.
+ */
+export function linkbioIntegrationContract(kind: LinkbioProviderKind, enabled: boolean) {
+  const linkManagement = kind === 'linktree' || kind === 'beacons' ? 'manual' as const : 'first_party' as const;
+  const analytics = kind === 'native' ? 'first_party' as const
+    : kind === 'fanlynks' ? 'first_party' as const : 'ga4_import' as const;
+  const revocation = kind === 'linktree' || kind === 'beacons' ? 'manual' as const : 'local' as const;
+
+  if (!enabled) {
+    return { state: 'unavailable' as const, reason: 'provider_disabled' as const, linkManagement, analytics, revocation };
+  }
+  if (kind === 'linktree') {
+    return { state: 'unavailable' as const, reason: 'linktree_partner_access_required' as const, linkManagement, analytics, revocation };
+  }
+  if (kind === 'beacons') {
+    return { state: 'unavailable' as const, reason: 'beacons_api_endpoints_unavailable' as const, linkManagement, analytics, revocation };
+  }
+  return { state: 'configured' as const, reason: null, linkManagement, analytics, revocation };
+}
+
+export function linkbioAnalyticsConnectionState(args: {
+  configured: boolean;
+  syncStatus?: string | null;
+  lastSyncedAt?: Date | string | null;
+}): LinkbioConnectionState {
+  if (!args.configured) return 'unavailable';
+  if (args.syncStatus === 'sync_error') return 'failed';
+  if (args.syncStatus === 'connected' || args.lastSyncedAt) return 'verified';
+  return 'configured';
+}
+
 export type LinkbioMetric = {
   externalEventId: string;
   ts: Date;

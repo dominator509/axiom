@@ -67,11 +67,19 @@ describe('better-auth mounted at /api/auth/*', () => {
     expect([200, 401]).toContain(res.status);
   });
 
-  it('rate-limits repeated auth requests', async () => {
+  it('allows dashboard session reads within a normal page-navigation burst', async () => {
+    const headers = { 'X-API-Key': 'auth-session-load-test' };
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await app.request('/api/auth/get-session', { headers });
+      expect([200, 401]).toContain(response.status);
+    }
+  });
+
+  it('keeps strict rate limits on auth mutations', async () => {
     const headers = { 'X-API-Key': 'auth-rate-limit-test' };
     let last: Response | undefined;
     for (let attempt = 0; attempt < 21; attempt += 1) {
-      last = await app.request('/api/auth/get-session', { headers });
+      last = await app.request('/api/auth/sign-out', { method: 'POST', headers });
     }
     expect(last?.status).toBe(429);
     expect(last?.headers.get('Retry-After')).toBeTruthy();
