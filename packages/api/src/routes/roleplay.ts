@@ -16,6 +16,7 @@ import {
   type RoleplayHandoff,
   type RoleplayMemoryTurn,
   type RoleplayPersonaSnapshot,
+  validateRoleplayHandoff,
 } from '@axiom/llm-gateway';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -568,9 +569,11 @@ router.put('/models/:modelId/roleplay/handoff', async (c) => {
       Array.isArray(parsed.data.handoff)
     )
       throw new Error('handoff must be an object');
-    handoff = parseRoleplayHandoff(
-      JSON.stringify({ ...(parsed.data.handoff as Record<string, unknown>), orgId, modelId }),
-    );
+    handoff = validateRoleplayHandoff({
+      ...(parsed.data.handoff as Record<string, unknown>),
+      orgId,
+      modelId,
+    });
   } catch {
     return apiError(c, 400, statusTitle(400), 'handoff failed bounded schema validation');
   }

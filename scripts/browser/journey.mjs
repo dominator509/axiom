@@ -390,7 +390,9 @@ SELECT count(*) FROM team_shift WHERE id = :'shift';
       const handoffSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/handoff`
         && response.request().method() === 'PUT');
       await page.getByRole('button', { name: 'Save handoff' }).click();
-      expect([200, 201]).toContain((await handoffSave).status());
+      const handoffResponse = await handoffSave;
+      const handoffBody = await handoffResponse.json();
+      expect([200, 201], `Handoff save rejected: ${JSON.stringify(handoffBody)}`).toContain(handoffResponse.status());
       const contextReadback = await page.evaluate(async args => {
         const query = new URLSearchParams({ actorType: 'llm', actorRef: args.actorRef });
         const response = await fetch(`/api/v1/models/${args.modelId}/roleplay?${query}`, { cache: 'no-store' });

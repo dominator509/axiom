@@ -147,6 +147,52 @@ describe('roleplay persistence contract', () => {
     expect(mockState.insertValues).toHaveLength(0);
   });
 
+  it('persists a valid dashboard handoff object within the authenticated model scope', async () => {
+    const shiftId = '33333333-3333-4333-8333-333333333333';
+    const handoff = {
+      currentOwner: { type: 'llm', ref: 'grok-roleplayer' },
+      actor: { type: 'llm', ref: 'grok-roleplayer' },
+      orgId: '',
+      modelId: MODEL_ID,
+      shiftId,
+      queue: 'chatter',
+      conversationCursor: null,
+      lastSafeSummary: 'Continue the bounded conversation.',
+      pendingIntentId: null,
+      memoryPolicy: { maxTurns: 20, maxCharacters: 8_000 },
+      personaSource: null,
+      allowedNextAction: 'Generate one bounded roleplay turn',
+      terminal: false,
+      unresolvedUncertainty: null,
+      evidenceReferences: [],
+    };
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: shiftId, queue: 'chatter', actorType: 'llm', actorRef: 'grok-roleplayer' }],
+      [{ id: 'permission-1' }],
+      [],
+      [{ id: 'handoff-1', revision: 1, payload: { ...handoff, orgId: ORG_ID } }],
+    ];
+
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/handoff`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedRevision: 0, conversationKey: 'default', handoff }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues).toContainEqual(expect.objectContaining({
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      conversationKey: 'default',
+      actorType: 'llm',
+      actorRef: 'grok-roleplayer',
+      revision: 1,
+      payload: expect.objectContaining({ orgId: ORG_ID, modelId: MODEL_ID }),
+    }));
+  });
+
   it('returns persisted provider receipts in the reloadable roleplay context', async () => {
     mockState.results = [
       [],
