@@ -212,6 +212,76 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await tx.update(schema.postTarget).set({ error: 'Status metadata may still change' }).where(eq(schema.postTarget.id, targetId));
     });
   });
+  it('moves worker-written exemplars and learned guidance when provider performance changes', async () => {
+    await fixture(async (tx, modelId) => {
+      const records = [
+        { caption: 'A steady creator update.' },
+        { caption: 'A second steady update.' },
+        { caption: 'A third steady update.' },
+        { caption: 'Could this help your next post?' },
+        { caption: 'Would you try this approach?' },
+      ].map(row => ({ ...row, bundleId: randomUUID(), targetId: randomUUID() }));
+
+      await tx.insert(schema.contentBundle).values(records.map(row => ({
+        id: row.bundleId, orgId, modelId, captions: { threads: row.caption },
+      })));
+      await tx.insert(schema.postTarget).values(records.map(row => ({
+        id: row.targetId, orgId, bundleId: row.bundleId, platform: 'threads', state: 'published',
+        remoteId: row.targetId, idemKey: Buffer.from(row.targetId), publishedAt: sql`now()`,
+        publicationSnapshot: { caption: row.caption, hashtags: [], modelId, assetId: null, scheduledFor: null },
+      })));
+
+      let latestMetricAt = 0;
+      const evaluateProviderSnapshot = async (highPerformer: number) => {
+        const firstSampleAt = Math.max(Date.now() - 5_000, latestMetricAt + 1_000);
+        latestMetricAt = firstSampleAt + records.length;
+        await tx.insert(schema.postMetric).values(records.map((row, index) => ({
+          postTargetId: row.targetId, platform: 'threads' as const, remoteId: row.targetId,
+          source: 'provider' as const, views: 1_000, likes: 100, shares: 10, comments: 5,
+          engagementRate: index === highPerformer ? 0.6 : 0.1,
+          collectedAt: new Date(firstSampleAt + index),
+        })));
+        for (const row of records) {
+          const job: JobRow = {
+            id: randomUUID(), org_id: orgId, queue: 'viral', kind: 'viral.label', payload: { targetId: row.targetId },
+            state: 'running', attempts: 1, max_attempts: 3, last_error: null, run_after: new Date(),
+            locked_by: 'retrieval-test', locked_at: new Date(), dedupe_key: null, scheduled_for: null,
+            started_at: new Date(), completed_at: null, created_at: new Date(),
+          };
+          await viralLabel({ tx, job, workerId: 'retrieval-test', killSwitchEnabled: false });
+        }
+      };
+      const posterior = async () => new Map((await tx.select({
+        arm: schema.banditState.arm, alpha: schema.banditState.alpha, beta: schema.banditState.beta,
+      }).from(schema.banditState).where(eq(schema.banditState.modelId, modelId))).map(row => [row.arm, row]));
+
+      await evaluateProviderSnapshot(0);
+      const statementWinner = await retrieveCaptionGuidance(tx, orgId, modelId, 'threads', 10, 'creator update');
+      expect(statementWinner.exemplars).toHaveLength(1);
+      expect(statementWinner.exemplars[0].caption).toBe(records[0].caption);
+      expect(statementWinner.selectedArm).toBe('short:statement');
+      const firstPosterior = await posterior();
+      const firstStatement = firstPosterior.get('short:statement');
+      const firstQuestion = firstPosterior.get('short:question');
+      expect(firstStatement).toBeDefined();
+      expect(firstQuestion).toBeDefined();
+      expect(firstStatement!.alpha / (firstStatement!.alpha + firstStatement!.beta))
+        .toBeGreaterThan(firstQuestion!.alpha / (firstQuestion!.alpha + firstQuestion!.beta));
+
+      await evaluateProviderSnapshot(3);
+      const questionWinner = await retrieveCaptionGuidance(tx, orgId, modelId, 'threads', 10, 'creator update');
+      expect(questionWinner.exemplars).toHaveLength(1);
+      expect(questionWinner.exemplars[0].caption).toBe(records[3].caption);
+      expect(questionWinner.selectedArm).toBe('short:question');
+      const secondPosterior = await posterior();
+      const secondStatement = secondPosterior.get('short:statement');
+      const secondQuestion = secondPosterior.get('short:question');
+      expect(secondStatement).toBeDefined();
+      expect(secondQuestion).toBeDefined();
+      expect(secondQuestion!.alpha / (secondQuestion!.alpha + secondQuestion!.beta))
+        .toBeGreaterThan(secondStatement!.alpha / (secondStatement!.alpha + secondStatement!.beta));
+    });
+  });
   it('rewards the contextual learner from post-link clicks and net attributed conversions', async () => {
     await fixture(async (tx, modelId) => {
       const bundleId = randomUUID(), targetId = randomUUID(), providerId = randomUUID(), shortLinkId = randomUUID();
