@@ -70,7 +70,7 @@ async function relayDispatchFixture() {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0] };
 }
-async function blockedPublishFixture(tosReport) {
+async function blockedPublishFixture(tosReport, scheduledFor = null) {
   const { org, model } = await tenant();
   const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
   await scoped(org, async tx => {
@@ -78,7 +78,7 @@ async function blockedPublishFixture(tosReport) {
     await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
       state: 'approved', captions: { instagram: 'Synthetic blocked publish fixture.' }, hashtags: [], tosReport });
     await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
-      platform: 'instagram', state: 'pending', idemKey: randomBytes(32) });
+      platform: 'instagram', state: 'pending', idemKey: randomBytes(32), scheduledFor });
     await tx.insert(schema.job).values([
       { id: randomUUID(), orgId: org, queue: 'media', kind: 'tos.scan', state: 'done',
         payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1 },
@@ -230,6 +230,28 @@ try {
     assert.match(records.job.lastError, /platform_consent:instagram/);
     assert.equal(records.target.state, 'pending');
     assert.equal(records.dispatchMarkers.length, 0, 'Expired consent must stop before the provider dispatch marker');
+  });
+  await check('publish.target: a claimed target rescheduled into the future parks before dispatch', async () => {
+    const scheduledFor = new Date(Date.now() + 5 * 60_000);
+    const fixture = await blockedPublishFixture(
+      { verdict: 'pass', scores: [{ platform: 'instagram', score: 0, verdict: 'pass' }] }, scheduledFor,
+    );
+    const observedAt = Date.now();
+    assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'parked');
+    const records = await scoped(fixture.org, async tx => ({
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      dispatchMarkers: await tx.select().from(schema.prePostRun).where(and(
+        eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')),
+      ),
+    }));
+    assert.equal(records.job.state, 'ready');
+    assert.equal(records.job.lockedBy, null);
+    assert.match(records.job.lastError, /rescheduled into the future/);
+    assert.ok(new Date(records.job.runAfter).getTime() > observedAt, 'The retry must follow the authoritative scheduled time');
+    assert.equal(new Date(records.target.scheduledFor).getTime(), scheduledFor.getTime());
+    assert.equal(records.target.state, 'pending');
+    assert.equal(records.dispatchMarkers.length, 0, 'A future schedule must stop before the provider dispatch marker');
   });
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
     const fixture = await relayDispatchFixture();
