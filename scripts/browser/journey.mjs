@@ -168,11 +168,22 @@ SELECT id FROM team_shift WHERE id = :'shift';
   };
   const removeRoleplayActor = ({ actorRef, shiftId }) => {
     const remaining = fixtureSql(`
-DELETE FROM team_shift WHERE id = :'shift';
+BEGIN;
+DELETE FROM roleplay_turn
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+  AND actor_type = 'llm' AND actor_ref = :'agent';
+DELETE FROM roleplay_handoff
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+  AND actor_type = 'llm' AND actor_ref = :'agent';
+DELETE FROM team_shift WHERE id = :'shift' AND org_id = :'org' AND model_id = :'model';
 DELETE FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent';
-SELECT count(*) FROM team_shift WHERE id = :'shift';
+SELECT (SELECT count(*) FROM team_shift WHERE id = :'shift')::text || '|'
+  || (SELECT count(*) FROM roleplay_handoff WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+  || (SELECT count(*) FROM roleplay_turn WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+  || (SELECT count(*) FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent')::text;
+COMMIT;
 `, { org, model: ownModel, agent: actorRef, shift: shiftId });
-    if (remaining !== '0') throw new Error('Disposable roleplay actor cleanup was not verified');
+    if (remaining !== '0|0|0|0') throw new Error('Disposable roleplay actor cleanup was not verified');
   };
   let relayRouteStatus = null;
   const signIn = async (identity, suppliedPassword) => {
