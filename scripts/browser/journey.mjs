@@ -203,11 +203,40 @@ COMMIT;
     // Workspace navigation/prefetch also resolves sessions through the auth
     // routes. Test revocation after the unchanged auth budget has recovered.
     await delay(21_000);
-    const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
-      && response.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
-    expect((await response).status()).toBe(200);
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    const buttonStates = await page.locator('.signout-button').evaluateAll(buttons => buttons.map(button => ({
+      label: button.getAttribute('aria-label'),
+      disabled: button.disabled,
+      visible: button.getClientRects().length > 0,
+    })));
+    const signOutContext = { pagePath: safePath(page.url()), buttonStates, requestObserved: false, requestFailure: null, responseStatus: null };
+    failureContext = signOutContext;
+    const isSignOutRequest = request => new URL(request.url()).pathname === '/api/auth/sign-out'
+      && request.method() === 'POST';
+    const onRequest = request => {
+      if (isSignOutRequest(request)) signOutContext.requestObserved = true;
+    };
+    const onRequestFailed = request => {
+      if (isSignOutRequest(request)) {
+        signOutContext.requestFailure = safeDiagnostic(new Error(request.failure()?.errorText ?? 'request failed'));
+      }
+    };
+    page.on('request', onRequest);
+    page.on('requestfailed', onRequestFailed);
+    try {
+      const [response] = await Promise.all([
+        page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
+          && response.request().method() === 'POST', { timeout: 15_000 }),
+        page.getByRole('button', { name: 'Sign out', exact: true }).first().click({ timeout: 15_000 }),
+      ]);
+      signOutContext.responseStatus = response.status();
+      expect(response.status()).toBe(200);
+      await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+      failureContext = null;
+      return response;
+    } finally {
+      page.off('request', onRequest);
+      page.off('requestfailed', onRequestFailed);
+    }
   };
   await page.goto('/login');
   await check('public brand projection', async () => {
