@@ -143,7 +143,14 @@ COMMIT;
     const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
       ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
     { encoding: 'utf8', timeout: 15000, input });
-    if (result.status !== 0) throw new Error('Disposable browser fixture SQL failed');
+    if (result.status !== 0) {
+      const detail = safeDiagnostic(new Error([
+        result.stderr?.trim(),
+        result.error?.message,
+        `psql exited ${result.status}`,
+      ].filter(Boolean).join('\n')));
+      throw new Error(`Disposable browser fixture SQL failed: ${detail}`);
+    }
     return result.stdout.trim();
   };
   const createRoleplayActor = () => {
