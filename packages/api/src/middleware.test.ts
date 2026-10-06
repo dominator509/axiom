@@ -27,7 +27,14 @@ type MiddlewareTestApp = Hono<{
 }>;
 
 function makeApp(
-  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
+  opts: {
+    rate?: {
+      capacity?: number;
+      sessionCapacity?: number;
+      refillPerSec?: number;
+      maxBuckets?: number;
+    };
+  } = {},
 ) {
   const app = new Hono<{
     Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
@@ -427,6 +434,35 @@ describe('idempotency middleware (durable, M-2)', () => {
 });
 
 describe('rateLimit middleware (L3.0)', () => {
+  it('allows a larger session burst without increasing API-key or anonymous limits', async () => {
+    vi.stubEnv('BETTER_AUTH_URL', 'http://127.0.0.1:3001');
+    const app = makeApp({ rate: { capacity: 2, sessionCapacity: 3, refillPerSec: 0 } });
+    app.get('/x', c => c.json({ ok: true }));
+
+    const session = randomUUID();
+    const sessionHit = () => app.request('/x', { headers: { Cookie: `axiom.session_token=${session}` } });
+    expect((await sessionHit()).status).toBe(200);
+    expect((await sessionHit()).status).toBe(200);
+    expect((await sessionHit()).status).toBe(200);
+    expect((await sessionHit()).status).toBe(429);
+
+    const apiKey = `session-burst-${randomUUID()}`;
+    const apiHit = () => app.request('/x', { headers: { 'X-API-Key': apiKey } });
+    expect((await apiHit()).status).toBe(200);
+    expect((await apiHit()).status).toBe(200);
+    expect((await apiHit()).status).toBe(429);
+
+    const bearerToken = randomUUID();
+    const bearerHit = () => app.request('/x', { headers: { Authorization: `Bearer ${bearerToken}` } });
+    expect((await bearerHit()).status).toBe(200);
+    expect((await bearerHit()).status).toBe(200);
+    expect((await bearerHit()).status).toBe(429);
+
+    expect((await app.request('/x')).status).toBe(200);
+    expect((await app.request('/x')).status).toBe(200);
+    expect((await app.request('/x')).status).toBe(429);
+  });
+
   it('gives cookie-authenticated dashboard sessions independent budgets behind one proxy', async () => {
     vi.stubEnv('BETTER_AUTH_URL', 'http://127.0.0.1:3001');
     const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });

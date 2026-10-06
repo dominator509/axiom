@@ -547,16 +547,22 @@ function sessionCookieCredential(c: Context): string | undefined {
  * Per-credential rate limiter: API tokens and browser sessions get separate
  * budgets; requests without a credential share the caller-IP budget. Session
  * cookies are opaque credentials and are hashed before their bucket key is
- * retained. This keeps dashboard users behind one proxy from consuming each
- * other's burst budget without relaxing the existing per-credential limits.
+ * retained. A route may allow a larger browser-session burst without changing
+ * the stricter API-token or anonymous limits.
  */
 export function rateLimit(
-  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
+  opts: {
+    capacity?: number;
+    sessionCapacity?: number;
+    refillPerSec?: number;
+    maxBuckets?: number;
+  } = {},
 ) {
   const capacity = opts.capacity ?? DEFAULT_CAPACITY;
+  const sessionCapacity = opts.sessionCapacity ?? capacity;
   const refillPerSec = opts.refillPerSec ?? DEFAULT_REFILL;
   const maxBuckets = Math.max(1, opts.maxBuckets ?? 10_000);
-  const policy = JSON.stringify([capacity, refillPerSec, maxBuckets]);
+  const policy = JSON.stringify([capacity, sessionCapacity, refillPerSec, maxBuckets]);
   let buckets = RATE_POLICIES.get(policy);
   if (!buckets) {
     buckets = new Map<string, Bucket>();
@@ -566,6 +572,7 @@ export function rateLimit(
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
     const sessionCookie = sessionCookieCredential(c);
+    const isSessionCredential = !credential && !apiKey && Boolean(sessionCookie);
     const peerAddress = transportPeerAddress(c);
     const forwardedFor = c.req
       .header('x-forwarded-for')
@@ -583,7 +590,13 @@ export function rateLimit(
         : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
-    const bucket = getBucket(buckets, bucketKey, capacity, refillPerSec, maxBuckets);
+    const bucket = getBucket(
+      buckets,
+      bucketKey,
+      isSessionCredential ? sessionCapacity : capacity,
+      refillPerSec,
+      maxBuckets,
+    );
 
     if (bucket.tokens < 1) {
       const retryAfter =
