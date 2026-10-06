@@ -12,10 +12,26 @@ export const pool = new pg.Pool({
   application_name: 'axiom',
 });
 
+function observeIdlePoolErrors(databasePool: pg.Pool, poolName: 'application' | 'readiness'): void {
+  databasePool.on('error', (error) => {
+    const candidateCode = 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+    const code = candidateCode && /^[A-Z0-9_]{1,32}$/.test(candidateCode) ? candidateCode : undefined;
+    console.error(JSON.stringify({
+      event: 'database_pool_idle_client_error',
+      pool: poolName,
+      errorClass: error instanceof Error ? 'Error' : 'UnknownError',
+      ...(code ? { code } : {}),
+    }));
+  });
+}
+
+observeIdlePoolErrors(pool, 'application');
+
 // Keep readiness checks on a single isolated connection with bounded connect
 // and query timeouts so a dead/stale shared application socket cannot hang the
 // liveness/readiness endpoint or consume the application pool.
 const readinessPool = new pg.Pool(databaseReadinessPoolOptions(process.env.DATABASE_URL));
+observeIdlePoolErrors(readinessPool, 'readiness');
 
 export const db = drizzle({
   client: pool,

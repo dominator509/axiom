@@ -48,6 +48,50 @@ describe('@axiom/db index', () => {
     });
   });
 
+  it('observes idle errors from both pools without logging error messages', () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const sentinel = 'private database diagnostic sentinel';
+      const listeners = pgMock.FakePool.instances.map((instance) => {
+        const errorRegistration = instance.on.mock.calls.find(([event]) => event === 'error');
+        expect(errorRegistration).toBeDefined();
+        return errorRegistration?.[1] as (error: Error & { code?: string }) => void;
+      });
+
+      listeners.forEach((listener) => listener(Object.assign(new Error(sentinel), { code: 'ECONNRESET' })));
+      listeners.forEach((listener) => listener(Object.assign(new Error(sentinel), { code: sentinel })));
+
+      const entries = errorLog.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+      expect(entries).toEqual([
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'application',
+          errorClass: 'Error',
+          code: 'ECONNRESET',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'readiness',
+          errorClass: 'Error',
+          code: 'ECONNRESET',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'application',
+          errorClass: 'Error',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'readiness',
+          errorClass: 'Error',
+        },
+      ]);
+      expect(JSON.stringify(entries)).not.toContain(sentinel);
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it('re-exports the full schema object', () => {
     expect(schema.org).toBeDefined();
     expect(schema.appUser).toBeDefined();
