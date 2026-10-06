@@ -684,6 +684,16 @@ jobs:
           # then prove readiness recovers after that same service returns.
           docker stop --time 2 "$POSTGRES_CONTAINER_ID" >/dev/null
           db_stopped=1
+          if [[ "$(docker inspect --format '{{.State.Status}}' "$hono_container")" != "running" ]]; then
+            echo "${hono_container}: API process stopped during the database outage"
+            docker inspect --format 'state={{.State.Status}} exit_code={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$hono_container"
+            exit 1
+          fi
+          if [[ "$(curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/v1/health || true)" != "200" ]]; then
+            echo "${hono_container}: liveness did not remain available during the database outage"
+            docker inspect --format 'state={{.State.Status}} exit_code={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$hono_container"
+            exit 1
+          fi
           outage_ready_status=""
           for _ in $(seq 1 30); do
             outage_ready_status="$(curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/v1/ready || true)"

@@ -33,22 +33,24 @@ export const databaseReadinessSql = `
 export const databaseReadinessQueryTimeoutMs = 2_000;
 
 export interface ReadinessQuery {
-  query(config: {
-    text: string;
-    values: string[];
-    query_timeout: number;
-  }): Promise<{ rows: { ready: boolean }[] }>;
+  query(text: string, values: string[]): Promise<{ rows: { ready: boolean }[] }>;
+}
+
+export function databaseReadinessPoolOptions(connectionString: string | undefined) {
+  return {
+    connectionString,
+    max: 1,
+    connectionTimeoutMillis: databaseReadinessQueryTimeoutMs,
+    query_timeout: databaseReadinessQueryTimeoutMs,
+    application_name: 'axiom-readiness',
+  };
 }
 
 /** Connectivity plus required tables/columns and runtime read privileges.
  * Not a backup-integrity, full migration-checksum, RLS, or provider acceptance gate.
  */
 export async function assertDatabaseReady(database: ReadinessQuery): Promise<void> {
-  const result = await database.query({
-    text: databaseReadinessSql,
-    values: [JSON.stringify(databaseReadinessColumns)],
-    query_timeout: databaseReadinessQueryTimeoutMs,
-  });
+  const result = await database.query(databaseReadinessSql, [JSON.stringify(databaseReadinessColumns)]);
   if (result.rows.length !== 1 || result.rows[0]?.ready !== true) {
     throw new Error('Database schema is not ready');
   }

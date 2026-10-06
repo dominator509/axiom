@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   assertDatabaseReady,
   databaseReadinessColumns,
+  databaseReadinessPoolOptions,
   databaseReadinessQueryTimeoutMs,
   databaseReadinessSql,
   type ReadinessQuery,
@@ -23,10 +24,16 @@ describe('database readiness', () => {
   it('requires an affirmative catalog/privilege result, not just connectivity', async () => {
     const query = mockQuery().mockResolvedValue({ rows: [{ ready: true }] });
     await expect(assertDatabaseReady({ query })).resolves.toBeUndefined();
-    expect(query).toHaveBeenCalledWith({
-      text: databaseReadinessSql,
-      values: [JSON.stringify(databaseReadinessColumns)],
+    expect(query).toHaveBeenCalledWith(databaseReadinessSql, [JSON.stringify(databaseReadinessColumns)]);
+  });
+
+  it('bounds connection and query waits on the isolated readiness pool', () => {
+    expect(databaseReadinessPoolOptions('postgresql://fixture@127.0.0.1/axiom')).toEqual({
+      connectionString: 'postgresql://fixture@127.0.0.1/axiom',
+      max: 1,
+      connectionTimeoutMillis: databaseReadinessQueryTimeoutMs,
       query_timeout: databaseReadinessQueryTimeoutMs,
+      application_name: 'axiom-readiness',
     });
   });
 
