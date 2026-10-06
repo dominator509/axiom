@@ -227,7 +227,11 @@ export default function LinkbioPanel({
           },
         }));
       }
-      router.refresh();
+      // Provider state is already confirmed by this response and rendered from
+      // confirmedProviders. Refreshing the full server tree here repeats the
+      // model lookup in the parent layout and can replace a successful save
+      // with a transient rate-limit page.
+      if (request.action !== 'provider') router.refresh();
     } catch {
       setError(t('linkbio.error.notConfirmed'));
     } finally {
