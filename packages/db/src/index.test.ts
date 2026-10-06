@@ -11,12 +11,12 @@ const env = vi.hoisted(() => {
 const pgMock = vi.hoisted(() => {
   class FakePool {
     static instances: FakePool[] = [];
-    config: { connectionString?: string } | undefined;
+    config: Record<string, unknown> | undefined;
     query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
     connect = vi.fn();
     end = vi.fn(async () => {});
     on = vi.fn();
-    constructor(config?: { connectionString?: string }) {
+    constructor(config?: Record<string, unknown>) {
       this.config = config;
       FakePool.instances.push(this);
     }
@@ -33,8 +33,63 @@ import { db, schema } from './index.js';
 
 describe('@axiom/db index', () => {
   it('constructs a pg.Pool from DATABASE_URL', () => {
-    expect(pgMock.FakePool.instances).toHaveLength(1);
-    expect(pgMock.FakePool.instances[0].config?.connectionString).toBe(env.url);
+    expect(pgMock.FakePool.instances).toHaveLength(2);
+    expect(pgMock.FakePool.instances[0].config).toMatchObject({
+      connectionString: env.url,
+      max: 20,
+      application_name: 'axiom',
+    });
+    expect(pgMock.FakePool.instances[1].config).toMatchObject({
+      connectionString: env.url,
+      max: 1,
+      connectionTimeoutMillis: 2_000,
+      query_timeout: 2_000,
+      application_name: 'axiom-readiness',
+    });
+  });
+
+  it('observes idle errors from both pools without logging error messages', () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const sentinel = 'private database diagnostic sentinel';
+      const listeners = pgMock.FakePool.instances.map((instance) => {
+        const errorRegistration = instance.on.mock.calls.find(([event]) => event === 'error');
+        expect(errorRegistration).toBeDefined();
+        return errorRegistration?.[1] as (error: Error & { code?: string }) => void;
+      });
+
+      listeners.forEach((listener) => listener(Object.assign(new Error(sentinel), { code: 'ECONNRESET' })));
+      listeners.forEach((listener) => listener(Object.assign(new Error(sentinel), { code: sentinel })));
+
+      const entries = errorLog.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+      expect(entries).toEqual([
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'application',
+          errorClass: 'Error',
+          code: 'ECONNRESET',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'readiness',
+          errorClass: 'Error',
+          code: 'ECONNRESET',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'application',
+          errorClass: 'Error',
+        },
+        {
+          event: 'database_pool_idle_client_error',
+          pool: 'readiness',
+          errorClass: 'Error',
+        },
+      ]);
+      expect(JSON.stringify(entries)).not.toContain(sentinel);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('re-exports the full schema object', () => {

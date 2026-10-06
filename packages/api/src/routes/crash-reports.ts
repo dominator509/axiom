@@ -11,7 +11,11 @@ import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { recordCrashReport } from '../crash-reporter.js';
-import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import {
+  readBoundedJson,
+  RELAY_WEBHOOK_MAX_BODY_BYTES,
+  RequestBodyTooLargeError,
+} from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
@@ -35,7 +39,20 @@ router.post('/crash-reports', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   let payload: unknown = {};
   try {
-    payload = await readBoundedJson(c.req.raw);
+    // The durable idempotency middleware consumes the raw stream first and
+    // places its bounded bytes in Hono's request cache. Read from that cache
+    // when available; reopening c.req.raw would parse an empty stream and
+    // reject every real authenticated crash report as an invalid body.
+    const cachedBody = c.req.bodyCache.arrayBuffer;
+    if (cachedBody) {
+      const bytes = await cachedBody;
+      if (bytes.byteLength > RELAY_WEBHOOK_MAX_BODY_BYTES) {
+        throw new RequestBodyTooLargeError(RELAY_WEBHOOK_MAX_BODY_BYTES);
+      }
+      payload = JSON.parse(new TextDecoder().decode(bytes));
+    } else {
+      payload = await readBoundedJson(c.req.raw);
+    }
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
       return apiError(c, 413, statusTitle(413), 'crash report body too large');

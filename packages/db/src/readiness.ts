@@ -27,8 +27,23 @@ export const databaseReadinessSql = `
     AND a.attname = required.column_name AND a.attnum > 0 AND NOT a.attisdropped
 `;
 
+// A dead database connection must not leave the readiness probe hanging until
+// the operating system expires the socket. Bound this dependency check so the
+// API can promptly report unavailable and recover when PostgreSQL returns.
+export const databaseReadinessQueryTimeoutMs = 2_000;
+
 export interface ReadinessQuery {
   query(text: string, values: string[]): Promise<{ rows: { ready: boolean }[] }>;
+}
+
+export function databaseReadinessPoolOptions(connectionString: string | undefined) {
+  return {
+    connectionString,
+    max: 1,
+    connectionTimeoutMillis: databaseReadinessQueryTimeoutMs,
+    query_timeout: databaseReadinessQueryTimeoutMs,
+    application_name: 'axiom-readiness',
+  };
 }
 
 /** Connectivity plus required tables/columns and runtime read privileges.

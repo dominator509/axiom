@@ -387,7 +387,11 @@ async fn test_org_kill_switch_drains_only_target_and_requires_explicit_release()
     let base = start_test_server(format!("http://{echo_addr}/ip")).await;
     let client = reqwest::Client::new();
 
-    for (model_id, org_id) in [("org_a_model", ORG_A), ("org_b_model", ORG_B)] {
+    for (model_id, org_id) in [
+        ("org_a_model_one", ORG_A),
+        ("org_a_model_two", ORG_A),
+        ("org_b_model", ORG_B),
+    ] {
         let response = client
             .post(format!("{base}/egress/bind"))
             .json(&bind_json(
@@ -416,7 +420,7 @@ async fn test_org_kill_switch_drains_only_target_and_requires_explicit_release()
     let drain_body: serde_json::Value = drain.json().await.expect("drain JSON");
     assert_eq!(drain_body["org_id"], ORG_A);
     assert_eq!(drain_body["org_blocked"], true);
-    assert_eq!(drain_body["drained"], 1);
+    assert_eq!(drain_body["drained"], 2);
     let gate_status: serde_json::Value = client
         .get(format!("{base}/kill-switch/org/status"))
         .query(&[("org_id", ORG_A)])
@@ -443,7 +447,8 @@ async fn test_org_kill_switch_drains_only_target_and_requires_explicit_release()
         .iter()
         .filter_map(|model| model["model_id"].as_str())
         .collect();
-    assert!(!model_ids.contains(&"org_a_model"));
+    assert!(!model_ids.contains(&"org_a_model_one"));
+    assert!(!model_ids.contains(&"org_a_model_two"));
     assert!(
         model_ids.contains(&"org_b_model"),
         "other tenant binding remains live"

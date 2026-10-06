@@ -14,9 +14,13 @@ import { crashReportsRouter, crashFingerprint } from './crash-reports.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, consumeRequestBody = false) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
+    if (consumeRequestBody) {
+      const body = await c.req.raw.arrayBuffer();
+      c.req.bodyCache.arrayBuffer = Promise.resolve(body) as unknown as ArrayBuffer;
+    }
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
     await next();
@@ -108,6 +112,25 @@ describe('POST /crash-reports', () => {
     expect(body.success).toBe(true);
     expect(body.isNew).toBe(true);
     expect(body.data.id).toBe('crash-1');
+  });
+
+  it('parses the bounded cached body after idempotency has consumed the raw stream', async () => {
+    mockState.result = [
+      { id: 'crash-cached', orgId: ORG_ID, fingerprint: 'abc', count: 1, status: 'open' },
+    ];
+    mockState.insertValues = [];
+    const res = await appWithOrg(ORG_ID, true).request('/crash-reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(reportBody),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.id).toBe('crash-cached');
+    expect(mockState.insertValues.at(-1)).toMatchObject({
+      orgId: ORG_ID,
+      correlationId: reportBody.correlationId,
+    });
   });
 
   it('marks a recurring crash as existing (count > 1 → isNew false)', async () => {

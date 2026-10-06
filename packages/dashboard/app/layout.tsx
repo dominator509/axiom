@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Montserrat } from 'next/font/google';
+import '@fontsource-variable/montserrat/wght.css';
 import Link from 'next/link';
 import './globals.css';
 import { api, getSession } from '@/lib/api';
@@ -11,15 +11,6 @@ import LocaleProvider from '@/components/LocaleProvider';
 import BrandMark, { BrandWordmark } from '@/components/BrandMark';
 import { getPublicBrand } from '@/lib/brand';
 import { brandCopy } from '@/lib/brand-copy';
-
-// Montserrat is the FanLynks family typeface. next/font downloads it at build
-// time and serves it from this app, so browsers never call Google Fonts.
-const montserrat = Montserrat({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  display: 'swap',
-  variable: '--font-montserrat',
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getPublicBrand();
@@ -62,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const roleLabel = t(roleKeys[role ?? ''] ?? 'role.member');
 
   return (
-    <html lang={locale} className={montserrat.variable}>
+    <html lang={locale}>
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>

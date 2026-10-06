@@ -3,8 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { resolveTitle } from 'next/dist/lib/metadata/resolvers/resolve-title';
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }), headers: async () => new Headers() }));
-// next/font is compiled by Next; outside it the loader is a plain stub.
-vi.mock('next/font/google', () => ({ Montserrat: () => ({ variable: 'font-montserrat', className: 'font-montserrat' }) }));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -106,7 +104,7 @@ describe('dashboard session presentation', () => {
   );
   it('localizes the authenticated shell and role label', async () => {
     const html = await render({ id: 'user', email: 'miembro@example.invalid', orgId: 'org', role: 'content_creator' }, 'es');
-    expect(html).toContain('<html lang="es" class="font-montserrat">');
+    expect(html).toContain('<html lang="es">');
     expect(html).toContain('Espacio de trabajo');
     expect(html).toContain('Creador de contenido');
     expect(html).toContain('Estado del sistema');

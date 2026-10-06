@@ -287,6 +287,10 @@ jobs:
           TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
         run: cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_publishing_gate_is_rls_scoped -- --exact
 
+      - name: Run focused crash-report body-cache regression
+        if: matrix.task == 'test'
+        run: pnpm --filter @axiom/api exec vitest run src/routes/crash-reports.test.ts
+
       - name: Run JS/TS tests
         if: matrix.task == 'test'
         env:
@@ -445,13 +449,77 @@ jobs:
           docker build --file infra/Dockerfile.vision --tag axiom-vision-engine:ci .
           docker build --file infra/Dockerfile.scraper --tag axiom-scraper:ci .
 
-      - name: Smoke-test deployment containers
+      - name: Record immutable deployment image IDs
         if: matrix.task == 'container'
         run: |
           set -euo pipefail
+          for image in axiom-hono:ci axiom-dashboard:ci axiom-worker:ci axiom-egress-plane:ci axiom-media-plane:ci axiom-vision-engine:ci axiom-scraper:ci; do
+            image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+            if [[ ! "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "${image}: expected an immutable image ID"
+              exit 1
+            fi
+            printf '%s %s\n' "$image" "$image_id"
+          done
+
+      - name: Smoke-test deployment containers
+        if: matrix.task == 'container'
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+
+          rehearsal_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(openssl rand -hex 6)"
+          rehearsal_label="com.fanthynks.rehearsal-id=${rehearsal_id}"
+          container_prefix="axiom-ci-${rehearsal_id}"
+          egress_container="${container_prefix}-egress"
+          media_container="${container_prefix}-media"
+          vision_container="${container_prefix}-vision"
+          scraper_container="${container_prefix}-scraper"
+          hono_container="${container_prefix}-hono"
+          dashboard_container="${container_prefix}-dashboard"
+          worker_container="${container_prefix}-worker"
+          db_stopped=0
+
+          if [[ ! "${POSTGRES_CONTAINER_ID:-}" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "deployment rehearsal: expected this job's disposable PostgreSQL service id"
+            exit 1
+          fi
 
           cleanup() {
-            docker rm --force axiom-egress-ci axiom-media-ci axiom-vision-ci axiom-scraper-ci axiom-hono-ci axiom-dashboard-ci axiom-worker-ci >/dev/null 2>&1 || true
+            rehearsal_status=$?
+            trap - EXIT
+            cleanup_status=0
+            if (( db_stopped )); then
+              if ! docker start "$POSTGRES_CONTAINER_ID" >/dev/null 2>&1; then
+                echo "deployment rehearsal cleanup: failed to restart its PostgreSQL service"
+                cleanup_status=1
+              fi
+            fi
+            for container in "$egress_container" "$media_container" "$vision_container" "$scraper_container" "$hono_container" "$dashboard_container" "$worker_container"; do
+              if docker inspect "$container" >/dev/null 2>&1; then
+                owned_label="$(docker inspect --format '{{ index .Config.Labels "com.fanthynks.rehearsal-id" }}' "$container" 2>/dev/null || true)"
+                if [[ "$owned_label" != "$rehearsal_id" ]]; then
+                  echo "deployment rehearsal cleanup: refusing to remove a container without this rehearsal label: ${container}"
+                  cleanup_status=1
+                elif ! docker rm --force "$container" >/dev/null 2>&1; then
+                  echo "deployment rehearsal cleanup: could not remove owned container: ${container}"
+                  cleanup_status=1
+                fi
+              fi
+              if docker inspect "$container" >/dev/null 2>&1; then
+                echo "deployment rehearsal cleanup: owned container remains: ${container}"
+                cleanup_status=1
+              fi
+            done
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$POSTGRES_CONTAINER_ID" 2>/dev/null || true)" != "true" ]]; then
+              echo "deployment rehearsal cleanup: this job's PostgreSQL service is not running"
+              cleanup_status=1
+            fi
+            if (( rehearsal_status == 0 && cleanup_status != 0 )); then
+              exit 1
+            fi
+            exit "$rehearsal_status"
           }
           trap cleanup EXIT
 
@@ -482,59 +550,61 @@ jobs:
             return 1
           }
 
-          ci_auth_value='ci-authentication-value-012345678901'
-          ci_relay_value='ci-relay-value-012345678901234567'
-          ci_egress_value='ci-egress-plane-012345678901234567890123'
-          ci_media_value='ci-media-plane-012345678901234567890123'
-          ci_vision_value='ci-vision-sidecar-012345678901234567890123'
-          ci_scraper_value='ci-scraper-sidecar-012345678901234567890123'
+          ci_auth_value="$(openssl rand -hex 32)"
+          ci_relay_value="$(openssl rand -hex 32)"
+          ci_egress_value="$(openssl rand -hex 32)"
+          ci_media_value="$(openssl rand -hex 32)"
+          ci_vision_value="$(openssl rand -hex 32)"
+          ci_scraper_value="$(openssl rand -hex 32)"
+          ci_database_app_password="$(openssl rand -hex 32)"
+          ci_egress_dek="$(openssl rand -hex 32)"
 
           export MIGRATOR_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test
           export PGPASSWORD=changeme
           pnpm migrate
           psql -h 127.0.0.1 -U axiom -d axiom_test -v ON_ERROR_STOP=1 \
-            -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app'"
+            -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD '${ci_database_app_password}'"
 
-          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN \
+          docker run --detach --name "$egress_container" --label "$rehearsal_label" --network host --cap-add=NET_ADMIN \
             --env NODE_ENV=production \
-            --env EGRESS_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env EGRESS_DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
-            --env EGRESS_DEK=0000000000000000000000000000000000000000000000000000000000000000 \
+            --env EGRESS_DEK="$ci_egress_dek" \
             axiom-egress-plane:ci
-          docker run --detach --name axiom-media-ci --network host \
+          docker run --detach --name "$media_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env AXIOM_MEDIA_ADDR=0.0.0.0:8100 \
             --env AXIOM_MEDIA_AUTH_TOKEN="$ci_media_value" \
             axiom-media-plane:ci
-          docker run --detach --name axiom-vision-ci --network host \
+          docker run --detach --name "$vision_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env AXIOM_VISION_ADDR=0.0.0.0:8101 \
             --env AXIOM_VISION_AUTH_TOKEN="$ci_vision_value" \
             --env AXIOM_VISION_MODEL=/opt/axiom/models/nsfw-vit.onnx \
             axiom-vision-engine:ci
-          docker run --detach --name axiom-scraper-ci --network host \
+          docker run --detach --name "$scraper_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env AXIOM_SCRAPER_ADDR=0.0.0.0:8102 \
             --env AXIOM_SCRAPER_AUTH_TOKEN="$ci_scraper_value" \
             axiom-scraper:ci
-          docker run --detach --name axiom-hono-ci --network host \
+          docker run --detach --name "$hono_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env API_HOST=0.0.0.0 \
-            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
+            --env DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
             --env BETTER_AUTH_SECRET="$ci_auth_value" \
             --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
             --env RELAY_SECRET="$ci_relay_value" \
             --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             axiom-hono:ci
-          docker run --detach --name axiom-dashboard-ci --network host \
+          docker run --detach --name "$dashboard_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env PORT=3000 \
             --env HOSTNAME=0.0.0.0 \
             axiom-dashboard:ci
-          docker run --detach --name axiom-worker-ci --network host \
+          docker run --detach --name "$worker_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
-            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
+            --env DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
             --env RELAY_SECRET="$ci_relay_value" \
             --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
@@ -543,16 +613,17 @@ jobs:
             --env AXIOM_SERVICE_NAME=worker-ci \
             axiom-worker:ci
 
-          wait_for_health axiom-egress-ci
-          wait_for_health axiom-media-ci
-          wait_for_health axiom-scraper-ci
-          wait_for_health axiom-hono-ci
-          wait_for_health axiom-dashboard-ci
-          wait_for_health axiom-worker-ci
+          wait_for_health "$egress_container"
+          wait_for_health "$media_container"
+          wait_for_health "$scraper_container"
+          wait_for_health "$hono_container"
+          wait_for_health "$dashboard_container"
+          wait_for_health "$worker_container"
 
           # Exercise real identity persistence through the dashboard rewrite,
           # with the API running as the non-owner application database role.
-          node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos
+          AXIOM_CI_API_CONTAINER="$hono_container" AXIOM_CI_REHEARSAL_ID="$rehearsal_id" \
+            node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos
 
           # Vision readiness is model-backed. The CI image intentionally does
           # not bundle the 343 MB external model artifact; verify that the
@@ -564,26 +635,26 @@ jobs:
             sleep 2
           done
           if ! curl --silent --show-error http://127.0.0.1:8101/health | grep -q 'model_loaded'; then
-            echo "axiom-vision-ci: health response missing model status"
-            docker logs axiom-vision-ci
+            echo "${vision_container}: health response missing model status"
+            docker logs "$vision_container"
             exit 1
           fi
           if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8101/vision/nsfw-detect)" != "401" ]; then
             echo "axiom-vision-ci: unauthenticated inference route was not rejected"
             exit 1
           fi
-          echo "axiom-vision-ci: public health metadata and unauthenticated inference denial passed (model inference not exercised)"
+          echo "${vision_container}: public health metadata and unauthenticated inference denial passed (model inference not exercised)"
 
           curl --fail --silent --show-error \
             -H "x-egress-plane-token: $ci_egress_value" \
             http://127.0.0.1:9090/kill-switch/status >/dev/null
-          echo "axiom-egress-ci: authenticated control-plane probe passed"
+          echo "${egress_container}: authenticated control-plane probe passed"
 
           if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             --request POST http://127.0.0.1:8100/media/video/probe \
             --header 'content-type: application/json' \
             --data '{"video_path":"missing.mp4"}')" != "401" ]; then
-            echo "axiom-media-ci: unauthenticated media route was not rejected"
+            echo "${media_container}: unauthenticated media route was not rejected"
             exit 1
           fi
           curl --fail --silent --show-error \
@@ -591,20 +662,88 @@ jobs:
             --header "authorization: Bearer $ci_media_value" \
             --header 'content-type: application/json' \
             --data '{"video_path":"missing.mp4"}' >/dev/null
-          echo "axiom-media-ci: authenticated media boundary probe passed"
+          echo "${media_container}: authenticated media boundary probe passed"
 
           # Liveness only proves that the Hono process is serving HTTP. The
           # readiness endpoint performs the real database dependency check;
           # require it before declaring the deployment image healthy.
           for _ in $(seq 1 45); do
             if curl --fail --silent --show-error http://127.0.0.1:3001/api/v1/ready >/dev/null; then
-              echo "axiom-hono-ci: ready"
+              echo "${hono_container}: ready"
               break
             fi
             sleep 2
           done
           if ! curl --fail --silent --show-error http://127.0.0.1:3001/api/v1/ready >/dev/null; then
-            echo "axiom-hono-ci: readiness check failed"
-            docker logs axiom-hono-ci
+            echo "${hono_container}: readiness check failed"
+            docker logs "$hono_container"
             exit 1
           fi
+
+          # Fail readiness while the exact job-owned PostgreSQL service is down,
+          # then prove readiness recovers after that same service returns.
+          docker stop --time 2 "$POSTGRES_CONTAINER_ID" >/dev/null
+          db_stopped=1
+          if [[ "$(docker inspect --format '{{.State.Status}}' "$hono_container")" != "running" ]]; then
+            echo "${hono_container}: API process stopped during the database outage"
+            docker inspect --format 'state={{.State.Status}} exit_code={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$hono_container"
+            exit 1
+          fi
+          if [[ "$(curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/v1/health || true)" != "200" ]]; then
+            echo "${hono_container}: liveness did not remain available during the database outage"
+            docker inspect --format 'state={{.State.Status}} exit_code={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$hono_container"
+            exit 1
+          fi
+          outage_ready_status=""
+          for _ in $(seq 1 30); do
+            outage_ready_status="$(curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/v1/ready || true)"
+            if [[ "$outage_ready_status" == "503" ]]; then break; fi
+            sleep 1
+          done
+          if [[ "$outage_ready_status" != "503" ]]; then
+            echo "${hono_container}: readiness did not fail closed during the PostgreSQL outage (HTTP ${outage_ready_status:-no-response})"
+            exit 1
+          fi
+          docker start "$POSTGRES_CONTAINER_ID" >/dev/null
+          db_stopped=0
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3001/api/v1/ready >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3001/api/v1/ready >/dev/null
+          echo "${hono_container}: readiness failed closed during database outage and recovered after database restart"
+
+          # Exercise scanner-sidecar loss and recovery without sending any
+          # media to an external service or relying on a bundled model artifact.
+          docker stop --time 2 "$vision_container" >/dev/null
+          if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8101/health >/dev/null 2>&1; then
+            echo "${vision_container}: health remained available after the scanner container stopped"
+            exit 1
+          fi
+          docker start "$vision_container" >/dev/null
+          scanner_recovered=false
+          scanner_health_status=
+          for _ in $(seq 1 45); do
+            scanner_health_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 3 http://127.0.0.1:8101/health 2>/dev/null || true)"
+            scanner_running="$(docker inspect --format '{{.State.Running}}' "$vision_container")"
+            if [[ "$scanner_running" == "true" && "$scanner_health_status" == "503" ]]; then
+              scanner_recovered=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$scanner_recovered" != "true" ]]; then
+            echo "${vision_container}: scanner process did not recover with its expected model-unavailable readiness response"
+            docker logs "$vision_container"
+            exit 1
+          fi
+          scanner_health_body="$(curl --silent --show-error --max-time 3 http://127.0.0.1:8101/health)"
+          if ! printf '%s' "$scanner_health_body" | grep -q '"model_loaded":false'; then
+            echo "${vision_container}: scanner recovery did not retain the expected model-unavailable health state"
+            exit 1
+          fi
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8101/vision/nsfw-detect)" != "401" ]; then
+            echo "${vision_container}: unauthenticated inference route was not rejected after restart"
+            exit 1
+          fi
+          echo "${vision_container}: scanner process recovered; model readiness remains unavailable without the external artifact and inference remains protected"
