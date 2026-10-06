@@ -528,10 +528,11 @@ COMMIT;
                 : typeof body?.error?.message === 'string' ? body.error.message.slice(0, 300) : null,
             };
           };
-          const [sessionResponse, rules, social] = await Promise.all([
+          const [sessionResponse, rules, social, modelProfile] = await Promise.all([
             fetch('/api/auth/get-session', { cache: 'no-store' }),
             read('trigger-rules', `/api/v1/models/${encodeURIComponent(modelId)}/trigger-rules`),
             read('social-accounts', `/api/v1/social-accounts?modelId=${encodeURIComponent(modelId)}`),
+            read('model-profile', `/api/v1/models/${encodeURIComponent(modelId)}`),
           ]);
           const session = await sessionResponse.json().catch(() => null);
           return {
@@ -540,6 +541,7 @@ COMMIT;
             hasWorkspace: Boolean(session?.user?.orgId),
             rules,
             social,
+            modelProfile,
           };
         }, ownModel)
       : null;
@@ -553,6 +555,7 @@ COMMIT;
           ...routeDiagnostics,
           rules: { ...routeDiagnostics.rules, detail: routeDiagnostics.rules.detail ? safeDiagnostic(new Error(routeDiagnostics.rules.detail)) : null },
           social: { ...routeDiagnostics.social, detail: routeDiagnostics.social.detail ? safeDiagnostic(new Error(routeDiagnostics.social.detail)) : null },
+          modelProfile: { ...routeDiagnostics.modelProfile, detail: routeDiagnostics.modelProfile.detail ? safeDiagnostic(new Error(routeDiagnostics.modelProfile.detail)) : null },
         },
       } : {}),
     };
