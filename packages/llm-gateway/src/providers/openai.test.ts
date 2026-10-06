@@ -203,6 +203,28 @@ describe('OpenAIProvider', () => {
     expect(res.cost).toBeCloseTo(0.0075, 8);
   });
 
+  it('surfaces provider-reported cached prompt tokens without inferring a cache hit', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        ...completion,
+        usage: {
+          prompt_tokens: 1000,
+          completion_tokens: 500,
+          total_tokens: 1500,
+          prompt_tokens_details: { cached_tokens: 975 },
+        },
+      }),
+    );
+    const result = await new OpenAIProvider('sk-test-456').chat([
+      { role: 'user', content: 'same prompt' },
+    ]);
+    expect(result.providerCacheUsage).toEqual({
+      promptTokens: 1000,
+      cachedPromptTokens: 975,
+      cacheCreationPromptTokens: 0,
+    });
+  });
+
   it('chat maps camelCase options to snake_case request fields', async () => {
     const p = new OpenAIProvider('sk-test-456');
     await p.chat([{ role: 'user', content: 'x' }], {

@@ -273,6 +273,91 @@ describe('official subscription auth command lifecycle', () => {
     expect(child.kill).toHaveBeenCalled();
   });
 
+  it('returns provider-reported OpenAI cached input tokens from a completed CLI turn', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat({
+      provider: 'openai', userId: 'user-1', model: 'openai-default',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    child.stdout.end([
+      { type: 'item.completed', item: { type: 'agent_message', text: 'reply' } },
+      { type: 'turn.completed', usage: {
+        input_tokens: 1000, cached_input_tokens: 980, cache_write_input_tokens: 20, output_tokens: 12,
+      } },
+    ].map(event => JSON.stringify(event)).join('\n') + '\n');
+    child.emit('exit', 0);
+
+    await expect(pending).resolves.toMatchObject({
+      content: 'reply',
+      usage: {
+        promptTokens: 1000,
+        completionTokens: 12,
+        providerCacheUsage: {
+          promptTokens: 1000, cachedPromptTokens: 980, cacheCreationPromptTokens: 20,
+        },
+      },
+    });
+  });
+
+  it('normalizes Anthropic cache reads and writes against total input tokens', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat({
+      provider: 'anthropic', userId: 'user-1', model: 'anthropic-default',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    child.stdout.end([
+      { type: 'stream_event', event: { type: 'message_start', message: { usage: {
+        input_tokens: 20, cache_read_input_tokens: 900, cache_creation_input_tokens: 80,
+      } } } },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { text: 'reply' } } },
+      { type: 'stream_event', event: { type: 'message_delta', usage: { output_tokens: 5 } } },
+    ].map(event => JSON.stringify(event)).join('\n') + '\n');
+    child.emit('exit', 0);
+
+    await expect(pending).resolves.toMatchObject({
+      content: 'reply',
+      usage: {
+        promptTokens: 20,
+        completionTokens: 5,
+        providerCacheUsage: {
+          promptTokens: 1000, cachedPromptTokens: 900, cacheCreationPromptTokens: 80,
+        },
+      },
+    });
+  });
+
+  it('returns provider-reported cache tokens after a completed OpenAI CLI stream', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const reportUsage = vi.fn();
+    const pending = (async () => {
+      let content = '';
+      for await (const chunk of transport.stream({
+        provider: 'openai', userId: 'user-1', model: 'openai-default',
+        messages: [{ role: 'user', content: 'hello' }],
+      }, reportUsage)) content += chunk;
+      return content;
+    })();
+
+    child.stdout.end([
+      { type: 'item.completed', item: { type: 'agent_message', text: 'reply' } },
+      { type: 'turn.completed', usage: {
+        input_tokens: 1000, cached_input_tokens: 980, cache_write_input_tokens: 20, output_tokens: 12,
+      } },
+    ].map(event => JSON.stringify(event)).join('\n') + '\n');
+    child.emit('exit', 0);
+
+    await expect(pending).resolves.toBe('reply');
+    expect(reportUsage).toHaveBeenCalledOnce();
+    expect(reportUsage).toHaveBeenCalledWith({
+      promptTokens: 1000, cachedPromptTokens: 980, cacheCreationPromptTokens: 20,
+    });
+  });
+
   const completionRequest = () => ({
     provider: 'grok' as const, userId: 'user-1', model: 'grok-default',
     messages: [{ role: 'user' as const, content: 'hello' }],

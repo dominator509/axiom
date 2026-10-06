@@ -170,6 +170,28 @@ describe('AnthropicProvider', () => {
     expect(body.max_tokens).toBe(4096);
   });
 
+  it('normalizes cache reads and cache writes from provider usage', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        ...messageResponse,
+        usage: {
+          input_tokens: 900,
+          output_tokens: 50,
+          cache_read_input_tokens: 90,
+          cache_creation_input_tokens: 10,
+        },
+      }),
+    );
+    const result = await new AnthropicProvider('ant-key-789').chat([
+      { role: 'user', content: 'same prompt' },
+    ]);
+    expect(result.providerCacheUsage).toEqual({
+      promptTokens: 1000,
+      cachedPromptTokens: 90,
+      cacheCreationPromptTokens: 10,
+    });
+  });
+
   it('concatenates multiple system messages with newlines', async () => {
     const p = new AnthropicProvider('ant-key-789');
     await p.chat([

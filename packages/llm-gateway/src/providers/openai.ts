@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import { normalizeProviderCacheUsage } from '../provider-cache-telemetry.js';
 import { applyCacheControl } from '../cache-controls.js';
 
 // Known model pricing (USD per 1M tokens)
@@ -99,6 +100,7 @@ export class OpenAIProvider implements BaseProvider {
         prompt_tokens: number;
         completion_tokens: number;
         total_tokens: number;
+        prompt_tokens_details?: { cached_tokens?: number };
       };
     }>(res);
 
@@ -109,11 +111,16 @@ export class OpenAIProvider implements BaseProvider {
       totalTokens: data.usage?.total_tokens ?? 0,
     };
     usage.totalTokens = usage.promptTokens + usage.completionTokens;
+    const providerCacheUsage = normalizeProviderCacheUsage({
+      promptTokens: data.usage?.prompt_tokens,
+      cachedPromptTokens: data.usage?.prompt_tokens_details?.cached_tokens,
+    });
 
     return {
       content,
       model: data.model ?? this.model,
       usage,
+      ...(providerCacheUsage ? { providerCacheUsage } : {}),
       cost: calculateCost(this.model, usage.promptTokens, usage.completionTokens),
     };
   }

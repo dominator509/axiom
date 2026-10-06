@@ -185,7 +185,12 @@ describe('callGoogle', () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         candidates: [{ content: { parts: [{ text: 'from gemini' }] }, finishReason: 'STOP' }],
-        usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 20, totalTokenCount: 70 },
+        usageMetadata: {
+          promptTokenCount: 50,
+          cachedContentTokenCount: 20,
+          candidatesTokenCount: 20,
+          totalTokenCount: 70,
+        },
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -202,6 +207,11 @@ describe('callGoogle', () => {
     expect(res.usage.prompt_tokens).toBe(50);
     expect(res.usage.completion_tokens).toBe(20);
     expect(res.usage.total_tokens).toBe(70);
+    expect(res.usage.cacheUsage).toEqual({
+      promptTokens: 50,
+      cachedPromptTokens: 20,
+      cacheCreationPromptTokens: 0,
+    });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain(`${GOOGLE_BASE_URL}/models/gemini-flash-latest:generateContent`);

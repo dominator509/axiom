@@ -38,12 +38,16 @@ class FakeSubscriptionTransport implements SubscriptionTransport {
     };
   }
 
-  async *stream(request: SubscriptionRequest): AsyncIterable<string> {
+  async *stream(
+    request: SubscriptionRequest,
+    reportProviderCacheUsage?: Parameters<SubscriptionTransport['stream']>[1],
+  ): AsyncIterable<string> {
     this.calls.push(request);
     const failure = this.failures.get(request.provider);
     if (failure) throw failure;
     yield `hello from `;
     yield request.provider;
+    reportProviderCacheUsage?.(undefined);
   }
 
   async status(provider: 'openai' | 'anthropic' | 'grok') {
@@ -249,11 +253,48 @@ describe('LLMGateway user-funded chat', () => {
     const result = await gateway().chat(messages, { provider: 'vllm' });
     expect(result).toMatchObject({ provider: 'vllm', content: 'hello from vllm', cost: 0 });
   });
+
+  it('reports local provider cache counters and leaves absent counters unknown', async () => {
+    const gw = gateway();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        ...vllmResponse,
+        usage: {
+          prompt_tokens: 1000,
+          completion_tokens: 25,
+          total_tokens: 1025,
+          prompt_tokens_details: { cached_tokens: 980 },
+        },
+      }),
+    );
+    const measured = await gw.chat(messages, { provider: 'vllm', model: 'first' });
+    const unknown = await gw.chat([...messages, { role: 'user', content: 'different input' }], {
+      provider: 'vllm',
+      model: 'second',
+    });
+
+    expect(measured.providerCacheUsage).toEqual({
+      promptTokens: 1000,
+      cachedPromptTokens: 980,
+      cacheCreationPromptTokens: 0,
+    });
+    expect(unknown.providerCacheUsage).toBeUndefined();
+    expect(gw.getStats().providerCache).toMatchObject({
+      scope: 'process-lifetime',
+      observedResponses: 1,
+      unobservedResponses: 1,
+      promptTokens: 1000,
+      cachedPromptTokens: 980,
+      hitRate: 0.98,
+      providers: { vllm: { observedResponses: 1, unobservedResponses: 1 } },
+    });
+  });
 });
 
 describe('LLMGateway subscription streaming', () => {
   it('streams through the selected user subscription', async () => {
-    const stream = await gateway().chatStream(messages, {
+    const gw = gateway();
+    const stream = await gw.chatStream(messages, {
       provider: 'anthropic',
       userId: 'user-2',
     });
@@ -261,6 +302,33 @@ describe('LLMGateway subscription streaming', () => {
     for await (const chunk of stream) result += chunk;
     expect(result).toBe('hello from anthropic');
     expect(transport.calls[0]).toMatchObject({ provider: 'anthropic', userId: 'user-2' });
+    expect(gw.getStats().providerCache).toMatchObject({
+      observedResponses: 0,
+      unobservedResponses: 1,
+      providers: { anthropic: { observedResponses: 0, unobservedResponses: 1 } },
+    });
+  });
+
+  it('includes provider-reported cache counters from a completed stream', async () => {
+    vi.spyOn(transport, 'stream').mockImplementation(async function* (request, reportUsage) {
+      transport.calls.push(request);
+      yield 'cached';
+      reportUsage?.({
+        promptTokens: 1000, cachedPromptTokens: 980, cacheCreationPromptTokens: 0,
+      });
+    });
+    const gw = gateway();
+    const stream = await gw.chatStream(messages, { provider: 'openai', userId: 'user-1' });
+    for await (const chunk of stream) void chunk;
+
+    expect(gw.getStats().providerCache).toMatchObject({
+      observedResponses: 1,
+      unobservedResponses: 0,
+      promptTokens: 1000,
+      cachedPromptTokens: 980,
+      hitRate: 0.98,
+      providers: { openai: { observedResponses: 1, unobservedResponses: 0 } },
+    });
   });
 
   it('requires an authenticated user for subscription streaming', async () => {
