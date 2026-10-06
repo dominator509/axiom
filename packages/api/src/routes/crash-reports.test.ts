@@ -118,6 +118,7 @@ describe('POST /crash-reports', () => {
     mockState.result = [
       { id: 'crash-cached', orgId: ORG_ID, fingerprint: 'abc', count: 1, status: 'open' },
     ];
+    mockState.insertValues = [];
     const res = await appWithOrg(ORG_ID, true).request('/crash-reports', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -126,7 +127,10 @@ describe('POST /crash-reports', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.id).toBe('crash-cached');
-    expect(body.data.correlationId).toBe(reportBody.correlationId);
+    expect(mockState.insertValues.at(-1)).toMatchObject({
+      orgId: ORG_ID,
+      correlationId: reportBody.correlationId,
+    });
   });
 
   it('marks a recurring crash as existing (count > 1 → isNew false)', async () => {

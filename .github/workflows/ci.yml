@@ -287,6 +287,10 @@ jobs:
           TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
         run: cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_publishing_gate_is_rls_scoped -- --exact
 
+      - name: Run focused crash-report body-cache regression
+        if: matrix.task == 'test'
+        run: pnpm --filter @axiom/api exec vitest run src/routes/crash-reports.test.ts
+
       - name: Run JS/TS tests
         if: matrix.task == 'test'
         env:
