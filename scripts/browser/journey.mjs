@@ -82,7 +82,9 @@ const observePage = observedPage => observedPage.on('response', response => {
   if (kind === 'script') scriptCount++;
   // Read while each response is available, before a later navigation can
   // evict it from Chromium's resource buffer. Retain only a boolean.
-  if (['document', 'script'].includes(kind)) {
+  // Chromium follows redirects instead of rendering their response bodies as
+  // documents; the final destination response is observed separately.
+  if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
     const resource = { path: safePath(response.url()), status: response.status(), kind };
     deliveredBodies.push(response.body()
       .then(body => ({ ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) }))
