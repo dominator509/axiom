@@ -115,6 +115,33 @@ async function expiredConsentPublishFixture() {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, target, job: result.rows[0] };
 }
+async function publishLedgerHitFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
+  const idemKey = randomBytes(32), remoteId = `l5-provider-resource-${randomUUID()}`;
+  const document = docKind => ({
+    orgId: org, modelId: model, platform: 'instagram', consentType: 'fixture',
+    subjectRef: `l5-${model}`, docKind, granted: true,
+    blobRef: `isolated-l5://${randomUUID()}`, sha256: randomBytes(32),
+  });
+  await scoped(org, async tx => {
+    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.consentRecord).values([
+      document('2257'), document('model_release'), document('id_verify'), document('platform_consent'),
+    ]);
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'approved', captions: { instagram: 'Synthetic idempotency fixture.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'instagram', score: 0, verdict: 'pass' }] } });
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'instagram', state: 'pending', idemKey });
+    await tx.insert(schema.idempotencyLedger).values({ orgId: org,
+      idemKey: idemKey.toString('hex'), responseHash: remoteId, locked: false });
+    await tx.insert(schema.job).values({ id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+      payload: { targetId: target }, attempts: 0, maxAttempts: 1, lockedBy: 'l5-worker', lockedAt: new Date() });
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, target, job: result.rows[0], idemKey: idemKey.toString('hex'), remoteId };
+}
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
   job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
@@ -252,6 +279,25 @@ try {
     assert.equal(new Date(records.target.scheduledFor).getTime(), scheduledFor.getTime());
     assert.equal(records.target.state, 'pending');
     assert.equal(records.dispatchMarkers.length, 0, 'A future schedule must stop before the provider dispatch marker');
+  });
+  await check('publish.target: durable idempotency hit reconciles without a connector', async () => {
+    const fixture = await publishLedgerHitFixture();
+    assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'done');
+    const records = await scoped(fixture.org, async tx => ({
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      ledger: await tx.select().from(schema.idempotencyLedger).where(and(
+        eq(schema.idempotencyLedger.orgId, fixture.org), eq(schema.idempotencyLedger.idemKey, fixture.idemKey),
+      )),
+      dispatchMarkers: await tx.select().from(schema.prePostRun).where(and(
+        eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')),
+      ),
+    }));
+    assert.equal(records.job.state, 'done');
+    assert.equal(records.target.state, 'published');
+    assert.equal(records.target.remoteId, fixture.remoteId);
+    assert.equal(records.ledger.length, 1);
+    assert.equal(records.dispatchMarkers.length, 0, 'A committed ledger result must not resolve a connector or create a second dispatch');
   });
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
     const fixture = await relayDispatchFixture();
