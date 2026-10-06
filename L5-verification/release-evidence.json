@@ -252,14 +252,14 @@
     {
       "id": "LBI-09",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| LBI-09 | TOKENKILLER ordering | S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97% | unit + performance |",
-      "requirementSha256": "b4326d39833801c6eeaeace9fd39257654855d42ad7315c83be886b3155e587a",
+      "requirement": "| LBI-09 | TOKENKILLER ordering | S0→S1→S2→S3 remains byte-stable and ordered; on repeat generations, provider-reported cached input tokens / total input tokens is > 97%; every successful provider response in the cohort must report usable cache counters; local application response/prefix-cache counters do not qualify | unit + performance |",
+      "requirementSha256": "245b1d113f0be03b037db8c8f68d8caf1098e2ae6d089769a12be55825257506",
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
       "evidence": [],
       "verification": {
-        "test": "S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97%",
+        "test": "Measure summed provider-reported cached input tokens divided by summed total input tokens over repeat generations; every successful provider response in the cohort must report usable counters, and unknown responses block acceptance.",
         "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
         "dependencies": [
           1,
@@ -273,7 +273,7 @@
           "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
           "Verified cleanup for created resources and immutable image digests when containers are used."
         ],
-        "completionCondition": "Pass the canonical LBI-09 acceptance behavior: S0→S1→S2→S3 remains byte-stable and ordered; measured repeat-generation provider cache hit is > 97%; zero failed and zero skipped acceptance checks."
+        "completionCondition": "Pass the canonical LBI-09 acceptance behavior: S0→S1→S2→S3 remains byte-stable and ordered; summed provider-reported cached input tokens / total input tokens is > 97% on repeat generations; every successful provider response in the cohort reports usable counters, and local application response/prefix-cache counters do not qualify; zero failed and zero skipped acceptance checks."
       }
     },
     {
@@ -1009,14 +1009,14 @@
     {
       "id": "NONFUNCTIONAL-1",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] Prefix cache-hit **> 97%** on repeat generations (LBI-09).",
-      "requirementSha256": "500378ef1f8e18d74ddcecf96aaf5214c7603d05ca5be9234970a2911b1ef969",
+      "requirement": "- [ ] Provider-reported cached input tokens / total input tokens is **> 97%** on repeat generations; every successful provider response in the cohort reports usable cache counters, and local response/prefix-cache counters do not qualify (LBI-09).",
+      "requirementSha256": "6193981d3b70cde6fb320e947b739778ceae36ec0497ff025a7118bfc4b1c73d",
       "lane": 6,
       "status": "unverified",
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
       "evidence": [],
       "verification": {
-        "test": "Measure actual provider token-cache hit telemetry over repeated generation requests and verify the >97 percent threshold.",
+        "test": "Measure summed provider-reported cached input tokens divided by summed total input tokens over repeated generation requests; every successful response in the cohort must have usable provider counters, and unknown responses block acceptance.",
         "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
         "dependencies": [
           1,
@@ -1030,7 +1030,7 @@
           "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
           "Verified cleanup for created resources and immutable image digests when containers are used."
         ],
-        "completionCondition": "Satisfy this exact acceptance requirement: Prefix cache-hit **> 97%** on repeat generations (LBI-09).; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+        "completionCondition": "Satisfy this exact acceptance requirement: provider-reported cached input tokens / total input tokens is > 97% on repeat generations; every successful provider response in the cohort reports usable cache counters, and local response/prefix-cache counters do not qualify (LBI-09); record a source-bound receipt with zero failed and zero skipped acceptance checks."
       }
     },
     {

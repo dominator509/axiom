@@ -31,6 +31,11 @@ import {
 import { cacheKey } from './cache.js';
 import { appendBoundedProviderContent } from './bounded-provider-response.js';
 import {
+  ProviderCacheTelemetry,
+  normalizeProviderCacheUsage,
+  type ProviderCacheUsage,
+} from './provider-cache-telemetry.js';
+import {
   applyCacheControl,
   canonicalCacheControls,
   CACHE_CONTROL_UNSUPPORTED_CODE,
@@ -72,10 +77,10 @@ export interface ChatOptions {
   cacheControls?: CacheControlSetting[];
   /**
    * TOKENKILLER (L2.5 / LBI-09): assemble the request as S0–S3 segments,
-   * align to 64-token blocks, and track prefix cache hits. When set, the
+   * align to 64-token blocks, and track local prefix-cache hits. When set, the
    * gateway prepends the aligned S0–S2 prefix (byte-stable, provider prefix
-   * cache friendly) and appends the dynamic S3 task segment, then measures
-   * the prefix-cache hit ratio across calls (target > 97%).
+   * cache friendly) and appends the dynamic S3 task segment. Local prefix-cache
+   * counters are diagnostic only; LBI-09 uses provider-reported token counts.
    */
   tokenkiller?: TokenKillerOptions;
 }
@@ -106,6 +111,8 @@ export interface ChatResult {
   };
   latency: number;
   cached: boolean;
+  /** Missing means the selected provider transport did not report cache usage. */
+  providerCacheUsage?: ProviderCacheUsage;
 }
 
 export interface ProviderConfig {
@@ -344,6 +351,7 @@ export class LLMGateway {
   private requestCount = 0;
   private failureCount = 0;
   private subscriptionTransport: SubscriptionTransport;
+  private providerCacheTelemetry = new ProviderCacheTelemetry();
 
   constructor(
     providerOverrides?: Partial<ProviderConfig>[],
@@ -408,6 +416,7 @@ export class LLMGateway {
       failures: this.failureCount,
       cache: this.cache.stats(),
       tokenkiller: this.prefixCache.getStats(),
+      providerCache: this.providerCacheTelemetry.snapshot(),
     };
   }
 
@@ -591,6 +600,7 @@ export class LLMGateway {
         let content: string;
         let promptTokens: number;
         let completionTokens: number;
+        let providerCacheUsage: ProviderCacheUsage | undefined;
 
         if (provider.subscriptionSupported) {
           if (!options.userId) {
@@ -625,6 +635,7 @@ export class LLMGateway {
           content = res.content;
           promptTokens = res.usage.promptTokens;
           completionTokens = res.usage.completionTokens;
+          providerCacheUsage = res.usage.providerCacheUsage;
         } else if (provider.name === 'vllm') {
           const mapped = applyCacheControl(
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
@@ -643,6 +654,11 @@ export class LLMGateway {
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
           completionTokens = res.usage.completion_tokens;
+          providerCacheUsage = normalizeProviderCacheUsage({
+            promptTokens: res.usage.prompt_tokens,
+            cachedPromptTokens: res.usage.prompt_tokens_details?.cached_tokens,
+            cacheCreationPromptTokens: res.usage.prompt_tokens_details?.created_cache_tokens,
+          });
         } else {
           throw new Error(`Unsupported provider: ${provider.name}`);
         }
@@ -659,6 +675,7 @@ export class LLMGateway {
         });
 
         this.requestCount++;
+        this.providerCacheTelemetry.record(provider.name, providerCacheUsage);
 
         return {
           id: uuid(),
@@ -669,6 +686,7 @@ export class LLMGateway {
           tokens: { prompt: promptTokens, completion: completionTokens, total: totalTokens },
           latency,
           cached: false,
+          ...(providerCacheUsage ? { providerCacheUsage } : {}),
         };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
@@ -792,9 +810,9 @@ export class LLMGateway {
   /**
    * TOKENKILLER chat (L2.5 / LBI-09): assemble the request as S0–S3 segments,
    * 64-token block aligned, track the prefix in the PrefixCache, and emit a
-   * cache-hit metric. Stable S0–S2 prefixes hit the local cache (and the
-   * provider's prefix cache); only S3 varies per call. The >97% target is
-   * measurable via getStats().tokenkiller.ratio.
+   * cache-hit metric. Stable S0–S2 prefixes hit the local cache (and may hit a
+   * provider's prefix cache); only S3 varies per call. Local prefix-cache
+   * counts are diagnostic; LBI-09 must use provider-reported token counts.
    */
   async chatWithTokenKiller(messages: Message[], options: ChatOptions): Promise<ChatResult> {
     const tk = options.tokenkiller;
@@ -892,6 +910,15 @@ export class LLMGateway {
     const recordRequest = () => {
       this.requestCount++;
     };
+    const recordProviderCacheUsage = (
+      providerName: string,
+      usage: ProviderCacheUsage | undefined,
+    ) => {
+      // Include successful streams in the same cohort as non-stream calls.
+      // Missing provider counters remain unobserved rather than being treated
+      // as zero or silently dropped from the denominator.
+      this.providerCacheTelemetry.record(providerName, usage);
+    };
     const recordFailure = () => {
       this.failureCount++;
     };
@@ -917,6 +944,7 @@ export class LLMGateway {
           const resolvedModel = requiredOptions.model || provider.defaultModel;
 
           let stream: AsyncIterable<string>;
+          let providerCacheUsage: ProviderCacheUsage | undefined;
 
           if (provider.subscriptionSupported) {
             if (!requiredOptions.userId) {
@@ -947,6 +975,8 @@ export class LLMGateway {
               model: resolvedModel,
               messages: processedMessages,
               signal: options.signal,
+            }, (usage) => {
+              providerCacheUsage = usage;
             });
           } else if (provider.name === 'vllm') {
             stream = streamVLLM(
@@ -969,6 +999,8 @@ export class LLMGateway {
             fullContent = appendBoundedProviderContent(fullContent, chunk);
             yield chunk;
           }
+
+          recordProviderCacheUsage(provider.name, providerCacheUsage);
 
           // Cache the full response
           const streamCacheKey = responseCacheKey(

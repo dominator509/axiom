@@ -12,6 +12,7 @@ import {
   readProviderErrorText,
   readProviderJson,
 } from '../bounded-provider-response.js';
+import { normalizeProviderCacheUsage } from '../provider-cache-telemetry.js';
 
 // vLLM is a local model server — zero marginal cost
 const COST_PER_CHAT = 0;
@@ -73,6 +74,10 @@ export class VLLMProvider implements BaseProvider {
         prompt_tokens: number;
         completion_tokens: number;
         total_tokens: number;
+        prompt_tokens_details?: {
+          cached_tokens?: number;
+          created_cache_tokens?: number;
+        };
       };
     }>(res);
 
@@ -83,11 +88,17 @@ export class VLLMProvider implements BaseProvider {
       totalTokens: 0,
     };
     usage.totalTokens = usage.promptTokens + usage.completionTokens;
+    const providerCacheUsage = normalizeProviderCacheUsage({
+      promptTokens: data.usage?.prompt_tokens,
+      cachedPromptTokens: data.usage?.prompt_tokens_details?.cached_tokens,
+      cacheCreationPromptTokens: data.usage?.prompt_tokens_details?.created_cache_tokens,
+    });
 
     return {
       content,
       model: data.model ?? this.model,
       usage,
+      ...(providerCacheUsage ? { providerCacheUsage } : {}),
       cost: COST_PER_CHAT,
     };
   }
@@ -240,6 +251,10 @@ export interface VLLMCompletionResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+      created_cache_tokens?: number;
+    };
   };
 }
 export async function callVLLM(

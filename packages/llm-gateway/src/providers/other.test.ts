@@ -381,6 +381,26 @@ describe('VLLMProvider', () => {
     expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
   });
 
+  it('surfaces local prefix-cache counters only when vLLM reports them', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        ...openaiStyleCompletion('cached local output'),
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 4,
+          total_tokens: 104,
+          prompt_tokens_details: { cached_tokens: 80, created_cache_tokens: 5 },
+        },
+      }),
+    );
+    const result = await new VLLMProvider().chat([{ role: 'user', content: 'hello' }]);
+    expect(result.providerCacheUsage).toEqual({
+      promptTokens: 100,
+      cachedPromptTokens: 80,
+      cacheCreationPromptTokens: 5,
+    });
+  });
+
   it('chat throws ProviderError on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 503));
     const p = new VLLMProvider();

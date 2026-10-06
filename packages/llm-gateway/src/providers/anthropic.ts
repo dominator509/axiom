@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import { normalizeProviderCacheUsage } from '../provider-cache-telemetry.js';
 import { applyCacheControl } from '../cache-controls.js';
 
 // Anthropic Claude pricing (USD per 1M tokens)
@@ -141,11 +142,22 @@ export class AnthropicProvider implements BaseProvider {
       totalTokens: 0,
     };
     usage.totalTokens = usage.promptTokens + usage.completionTokens;
+    const providerCacheUsage = normalizeProviderCacheUsage({
+      promptTokens:
+        data.usage?.input_tokens === undefined
+          ? undefined
+          : data.usage.input_tokens +
+            (data.usage.cache_read_input_tokens ?? 0) +
+            (data.usage.cache_creation_input_tokens ?? 0),
+      cachedPromptTokens: data.usage?.cache_read_input_tokens,
+      cacheCreationPromptTokens: data.usage?.cache_creation_input_tokens,
+    });
 
     return {
       content,
       model: data.model ?? this.model,
       usage,
+      ...(providerCacheUsage ? { providerCacheUsage } : {}),
       cost: calculateCost(this.model, usage.promptTokens, usage.completionTokens),
     };
   }
@@ -299,6 +311,8 @@ export interface AnthropicMessageResponse {
   usage: {
     input_tokens: number;
     output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
   };
 }
 export async function callAnthropic(

@@ -1,5 +1,7 @@
 // Shared types for LLM Gateway providers
 
+import type { ProviderCacheUsage } from '../provider-cache-telemetry.js';
+
 export interface ProviderMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -27,6 +29,8 @@ export interface ProviderChatResult {
   content: string;
   model: string;
   usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  /** Present only when the provider returned explicit cache token counters. */
+  providerCacheUsage?: ProviderCacheUsage;
   cost: number;
 }
 
@@ -34,6 +38,8 @@ export interface ProviderStreamChunk {
   type: 'text' | 'delta' | 'done';
   content?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  /** Present only when the provider returned explicit cache token counters. */
+  providerCacheUsage?: ProviderCacheUsage;
   cost?: number;
 }
 

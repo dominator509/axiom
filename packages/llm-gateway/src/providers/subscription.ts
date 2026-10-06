@@ -20,6 +20,10 @@ import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './g
 import { grokSandboxCommand } from './grok-sandbox.js';
 import { waitForLinuxProcessGroup } from './subscription-process.js';
 import { loadR2Storage, r2ManagedConfig } from '../grok-r2-storage.js';
+import {
+  normalizeProviderCacheUsage,
+  type ProviderCacheUsage,
+} from '../provider-cache-telemetry.js';
 
 export interface GrokMediaRequest {
   userId: string;
@@ -58,6 +62,8 @@ export interface SubscriptionRequest {
 export interface SubscriptionUsage {
   promptTokens: number;
   completionTokens: number;
+  /** Provider-reported counts; absent when the CLI omits the counters. */
+  providerCacheUsage?: ProviderCacheUsage;
 }
 
 export interface SubscriptionResult {
@@ -74,7 +80,10 @@ export interface SubscriptionConnectionStatus {
 export interface SubscriptionTransport {
   readonly providers: ReadonlySet<SubscriptionProvider>;
   chat(request: SubscriptionRequest): Promise<SubscriptionResult>;
-  stream(request: SubscriptionRequest): AsyncIterable<string>;
+  stream(
+    request: SubscriptionRequest,
+    onProviderCacheUsage?: (usage: ProviderCacheUsage | undefined) => void,
+  ): AsyncIterable<string>;
   status(
     provider: SubscriptionProvider,
     userId: string,
@@ -363,11 +372,19 @@ function parseJsonLine(provider: SubscriptionProvider, line: string): ParsedLine
       return { chunks: typeof item.text === 'string' ? [item.text] : [] };
     }
     if (value.type === 'turn.completed') {
+      const inputTokens = Number(usage?.input_tokens || 0);
+      // Codex JSONL reports cache counts as top-level usage properties.
+      const providerCacheUsage = normalizeProviderCacheUsage({
+        promptTokens: inputTokens,
+        cachedPromptTokens: usage?.cached_input_tokens,
+        cacheCreationPromptTokens: usage?.cache_write_input_tokens,
+      });
       return {
         chunks: [],
         usage: {
-          promptTokens: Number(usage?.input_tokens || 0),
+          promptTokens: inputTokens,
           completionTokens: Number(usage?.output_tokens || 0),
+          ...(providerCacheUsage ? { providerCacheUsage } : {}),
         },
       };
     }
@@ -388,9 +405,21 @@ function parseJsonLine(provider: SubscriptionProvider, line: string): ParsedLine
     return { chunks: [delta.text] };
   }
   if (event?.type === 'message_start') {
+    const inputTokens = Number(messageUsage?.input_tokens || 0);
+    const cachedInputTokens = Number(messageUsage?.cache_read_input_tokens || 0);
+    const cacheCreationInputTokens = Number(messageUsage?.cache_creation_input_tokens || 0);
+    const providerCacheUsage = normalizeProviderCacheUsage({
+      // Anthropic reports uncached input separately from cache read/write.
+      promptTokens: inputTokens + cachedInputTokens + cacheCreationInputTokens,
+      cachedPromptTokens: messageUsage?.cache_read_input_tokens,
+      cacheCreationPromptTokens: messageUsage?.cache_creation_input_tokens,
+    });
     return {
       chunks: [],
-      usage: { promptTokens: Number(messageUsage?.input_tokens || 0) },
+      usage: {
+        promptTokens: inputTokens,
+        ...(providerCacheUsage ? { providerCacheUsage } : {}),
+      },
     };
   }
   if (event?.type === 'message_delta') {
@@ -1000,6 +1029,9 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     for await (const event of runSubscription(request)) {
       if (event.text) content += event.text;
       if (event.usage?.promptTokens !== undefined) usage.promptTokens = event.usage.promptTokens;
+      if (event.usage?.providerCacheUsage !== undefined) {
+        usage.providerCacheUsage = event.usage.providerCacheUsage;
+      }
       if (event.usage?.completionTokens !== undefined) {
         usage.completionTokens = event.usage.completionTokens;
       }
@@ -1009,9 +1041,14 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     return { content, model: request.model, usage };
   }
 
-  async *stream(request: SubscriptionRequest): AsyncIterable<string> {
+  async *stream(
+    request: SubscriptionRequest,
+    onProviderCacheUsage?: (usage: ProviderCacheUsage | undefined) => void,
+  ): AsyncIterable<string> {
     let emitted = false;
+    let providerCacheUsage: ProviderCacheUsage | undefined;
     for await (const event of runSubscription(request)) {
+      if (event.usage?.providerCacheUsage) providerCacheUsage = event.usage.providerCacheUsage;
       if (event.text) {
         emitted = true;
         yield event.text;
@@ -1019,6 +1056,7 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     }
     if (!emitted)
       throw new ProviderError('Subscription transport returned no content', 502, request.provider);
+    onProviderCacheUsage?.(providerCacheUsage);
   }
 
   async status(

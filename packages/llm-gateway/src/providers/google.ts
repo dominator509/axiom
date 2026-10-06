@@ -11,6 +11,10 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import {
+  normalizeProviderCacheUsage,
+  type ProviderCacheUsage,
+} from '../provider-cache-telemetry.js';
 
 export const GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -44,6 +48,7 @@ export class GoogleProvider implements BaseProvider {
         completionTokens: res.usage.completion_tokens,
         totalTokens: res.usage.total_tokens,
       },
+      ...(res.usage.cacheUsage ? { providerCacheUsage: res.usage.cacheUsage } : {}),
       cost: (res.usage.prompt_tokens * 0.0001 + res.usage.completion_tokens * 0.0004) / 1000,
     };
   }
@@ -99,6 +104,7 @@ export interface GoogleGenerateResponse {
     promptTokenCount: number;
     candidatesTokenCount: number;
     totalTokenCount: number;
+    cachedContentTokenCount?: number;
   };
   error?: { code: number; message: string; status: string };
 }
@@ -118,6 +124,7 @@ export interface OpenAICompatCompletionResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    cacheUsage?: ProviderCacheUsage;
   };
 }
 
@@ -129,6 +136,10 @@ function toOpenAICompat(
     throw new Error(`Gemini API error ${data.error.code}: ${data.error.message}`);
   }
   const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  const cacheUsage = normalizeProviderCacheUsage({
+    promptTokens: data.usageMetadata?.promptTokenCount,
+    cachedPromptTokens: data.usageMetadata?.cachedContentTokenCount,
+  });
   return {
     id: `gemini-${Date.now()}`,
     object: 'chat.completion',
@@ -145,6 +156,7 @@ function toOpenAICompat(
       prompt_tokens: data.usageMetadata?.promptTokenCount ?? 0,
       completion_tokens: data.usageMetadata?.candidatesTokenCount ?? 0,
       total_tokens: data.usageMetadata?.totalTokenCount ?? 0,
+      ...(cacheUsage ? { cacheUsage } : {}),
     },
   };
 }
