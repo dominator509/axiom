@@ -791,7 +791,16 @@ COMMIT;
       const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/ui-locale'
         && response.request().method() === 'PATCH');
       await localeForm.locator('button[type="submit"]').click();
-      expect((await saved).status()).toBe(200);
+      const saveResponse = await saved;
+      if (saveResponse.status() !== 200) {
+        const body = await saveResponse.json().catch(() => null);
+        failureContext = {
+          attemptedLocale: locale,
+          saveStatus: saveResponse.status(),
+          saveDetail: typeof body?.detail === 'string' ? safeDiagnostic(new Error(body.detail)) : null,
+        };
+      }
+      expect(saveResponse.status()).toBe(200);
       const readback = await page.evaluate(async () => {
         const response = await fetch('/api/v1/ui-locale', { cache: 'no-store' });
         return { status: response.status, body: await response.json() };
