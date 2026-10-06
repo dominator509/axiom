@@ -511,17 +511,32 @@ function getBucket(
   return bucket;
 }
 
-const AUTH_SESSION_COOKIE_NAMES = new Set(['axiom.session_token', '__Secure-axiom.session_token']);
+function configuredAuthSessionCookieName(): string | undefined {
+  const baseURL = process.env.BETTER_AUTH_URL?.trim();
+  if (!baseURL) return 'axiom.session_token';
+
+  try {
+    const protocol = new URL(baseURL).protocol;
+    if (protocol === 'https:') return '__Secure-axiom.session_token';
+    if (protocol === 'http:') return 'axiom.session_token';
+  } catch {
+    // Auth configuration rejects this URL during startup. Fail closed here too
+    // if middleware is exercised before that validation in a test harness.
+  }
+  return undefined;
+}
 
 function sessionCookieCredential(c: Context): string | undefined {
   const cookieHeader = c.req.header('cookie');
   if (!cookieHeader) return undefined;
+  const expectedName = configuredAuthSessionCookieName();
+  if (!expectedName) return undefined;
 
   for (const part of cookieHeader.split(';')) {
     const separator = part.indexOf('=');
     if (separator < 0) continue;
     const name = part.slice(0, separator).trim();
-    if (!AUTH_SESSION_COOKIE_NAMES.has(name)) continue;
+    if (name !== expectedName) continue;
     const value = part.slice(separator + 1).trim();
     if (value) return value;
   }
