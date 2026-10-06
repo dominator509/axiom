@@ -19,8 +19,22 @@ export default async function ModelLayout({
   let model;
   try {
     model = (await api.models.get(id)).data;
-  } catch {
-    notFound();
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error
+      ? error.status
+      : null;
+    if (status === 404) notFound();
+    return (
+      <div className="page-stack">
+        <section className="card" role="alert">
+          <h1>{t('status.error')}</h1>
+          <p>{t('error.network')}</p>
+          <Link href="/" className="button secondary" prefetch={false}>
+            {t('modelSurface.talentPortfolio')}
+          </Link>
+        </section>
+      </div>
+    );
   }
 
   return (

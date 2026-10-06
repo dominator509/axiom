@@ -98,7 +98,17 @@ router.patch('/ui-locale', async (c) => {
   if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'orgId and userId required');
   let payload: unknown;
   try {
-    payload = await readBoundedJson(c.req.raw);
+    // Idempotency middleware reads and caches the exact bytes before the route
+    // runs. Rebuild a bounded request from that cache so locale parsing sees
+    // the submitted body instead of the already-consumed raw stream.
+    const bodyRequest = c.req.bodyCache.arrayBuffer
+      ? new Request(c.req.url, {
+          method: 'POST',
+          headers: c.req.raw.headers,
+          body: await c.req.arrayBuffer(),
+        })
+      : c.req.raw;
+    payload = await readBoundedJson(bodyRequest);
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'ui locale body too large');
     return apiError(c, 400, statusTitle(400), 'invalid ui locale body');

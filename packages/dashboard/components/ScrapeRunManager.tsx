@@ -38,6 +38,19 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
 
   async function submit() {
     if (busy) return;
+    if (kind === 'social') {
+      try {
+        const url = new URL(profileUrl.trim());
+        if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.port
+          || ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname.toLowerCase())) {
+          setError(t('scrape.httpsProfileRequired'));
+          return;
+        }
+      } catch {
+        setError(t('scrape.httpsProfileRequired'));
+        return;
+      }
+    }
     const body = kind === 'social'
       ? { kind, platform, profileUrl: profileUrl.trim() }
       : { kind, brandName: brandName.trim(), industry: industry.trim(), platforms: platforms.split(',').map(value => value.trim()).filter(Boolean) };
@@ -45,7 +58,11 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
     setBusy(true); setError('');
     try {
       const response = await mutationFetch(`/api/v1/models/${encodeURIComponent(modelId)}/scrape-runs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: intent.current.body }, { idempotencyKey: intent.current.key, retries: 0 });
-      if (!response.ok) { setError(t('scrape.queueFailed')); if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null; return; }
+      if (!response.ok) {
+        setError(t('scrape.queueFailed'));
+        if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
+        return;
+      }
       const result = await readDashboardJson<{ data?: unknown }>(response); if (!result.data) throw new Error('unconfirmed scrape response');
       intent.current = null; router.refresh();
     } catch { setError(t('scrape.queueUnconfirmed')); }

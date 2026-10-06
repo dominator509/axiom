@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { clientApi as api } from '@/lib/client-api';
 import { useLocale } from './LocaleProvider';
@@ -28,6 +28,7 @@ export function telegramConnectErrorKey(code?: string) {
 export default function TelegramConnect({ modelId }: { modelId: string }) {
   const router = useRouter();
   const { t } = useLocale();
+  const channelHintId = useId();
   const [botToken, setBotToken] = useState('');
   const [channelId, setChannelId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -71,17 +72,18 @@ export default function TelegramConnect({ modelId }: { modelId: string }) {
       </label>
       <label className="stack">
         <span>{t('network.telegramChannelId')}</span>
-        <span className="subtle">{t('network.telegramTargetHint')}</span>
         <input
           type="text"
           autoComplete="off"
           required
           maxLength={64}
           placeholder="@channel or -100…"
+          aria-describedby={channelHintId}
           value={channelId}
           onChange={(event) => setChannelId(event.target.value)}
         />
       </label>
+      <p id={channelHintId} className="subtle">{t('network.telegramTargetHint')}</p>
       <div className="action-row">
         <button className="btn secondary" type="submit" disabled={busy || !botToken || !channelId}>
           {busy ? t('network.telegramConnecting') : t('network.connectTelegram')}

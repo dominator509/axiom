@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { formatNumber, type SupportedLocale } from '@axiom/core';
 import type {
@@ -397,6 +398,14 @@ export default function RoleplayManager({
             queue: context?.meta.queue ?? actor?.queue ?? t('roleplay.none'),
           })}
         </p>
+        {!actor && (
+          <p className="notice">
+            {t('roleplay.noActiveActorHelp')}{' '}
+            <Link href={canEdit ? `/models/${encodeURIComponent(modelId)}/team` : '/shifts'}>
+              {canEdit ? t('team.pageTitle') : t('shifts.title')}
+            </Link>
+          </p>
+        )}
         {error && (
           <p className="notice error" role="alert">
             {error}

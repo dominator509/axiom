@@ -23,12 +23,20 @@ import { roleplayGateway, roleplayRouter } from './roleplay.js';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 
-function appWithAuth(role: UserRole = 'operator', orgId: string | null = ORG_ID) {
+function appWithAuth(
+  role: UserRole = 'operator',
+  orgId: string | null = ORG_ID,
+  cacheConsumedBody = false,
+) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
     c.set('role', role);
+    if (cacheConsumedBody && c.req.method === 'PUT') {
+      const bytes = await c.req.raw.arrayBuffer();
+      c.req.bodyCache.arrayBuffer = Promise.resolve(bytes) as unknown as ArrayBuffer;
+    }
     await next();
   });
   app.route('/', roleplayRouter);
@@ -59,6 +67,13 @@ describe('roleplay persistence contract', () => {
       body: JSON.stringify({ expectedRevision: 0, sourceRef: 'soul.md', content: 'x'.repeat(8_001) }),
     });
     expect(response.status).toBe(400);
+
+    const overBodyLimit = await appWithAuth('operator', ORG_ID, true).request(`/models/${MODEL_ID}/roleplay/persona`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedRevision: 0, sourceRef: 'soul.md', content: 'x'.repeat(64 * 1024) }),
+    });
+    expect(overBodyLimit.status).toBe(413);
     expect(mockState.insertValues).toHaveLength(0);
   });
 
@@ -74,7 +89,7 @@ describe('roleplay persistence contract', () => {
 
   it('persists a new immutable soul.md revision with the authenticated author', async () => {
     mockState.results = [[], [{ id: MODEL_ID }], [], [{ id: 'persona-1', revision: 1, source: 'soul.md', sourceRef: 'soul.md', content: 'Warm and playful' }]];
-    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/persona`, {
+    const response = await appWithAuth('operator', ORG_ID, true).request(`/models/${MODEL_ID}/roleplay/persona`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ expectedRevision: 0, sourceRef: 'soul.md', content: 'Warm and playful' }),
@@ -130,6 +145,52 @@ describe('roleplay persistence contract', () => {
     });
     expect(response.status).toBe(400);
     expect(mockState.insertValues).toHaveLength(0);
+  });
+
+  it('persists a valid dashboard handoff object within the authenticated model scope', async () => {
+    const shiftId = '33333333-3333-4333-8333-333333333333';
+    const handoff = {
+      currentOwner: { type: 'llm', ref: 'grok-roleplayer' },
+      actor: { type: 'llm', ref: 'grok-roleplayer' },
+      orgId: '',
+      modelId: MODEL_ID,
+      shiftId,
+      queue: 'chatter',
+      conversationCursor: null,
+      lastSafeSummary: 'Continue the bounded conversation.',
+      pendingIntentId: null,
+      memoryPolicy: { maxTurns: 20, maxCharacters: 8_000 },
+      personaSource: null,
+      allowedNextAction: 'Generate one bounded roleplay turn',
+      terminal: false,
+      unresolvedUncertainty: null,
+      evidenceReferences: [],
+    };
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: shiftId, queue: 'chatter', actorType: 'llm', actorRef: 'grok-roleplayer' }],
+      [{ id: 'permission-1' }],
+      [],
+      [{ id: 'handoff-1', revision: 1, payload: { ...handoff, orgId: ORG_ID } }],
+    ];
+
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/handoff`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedRevision: 0, conversationKey: 'default', handoff }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues).toContainEqual(expect.objectContaining({
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      conversationKey: 'default',
+      actorType: 'llm',
+      actorRef: 'grok-roleplayer',
+      revision: 1,
+      payload: expect.objectContaining({ orgId: ORG_ID, modelId: MODEL_ID }),
+    }));
   });
 
   it('returns persisted provider receipts in the reloadable roleplay context', async () => {

@@ -173,14 +173,21 @@ it('accepts labels and URLs at the public renderer limits', async () => {
   expect(hooks.values[6]).toEqual(expect.arrayContaining([{ label, url }]));
 });
 
-it('enables an unconfigured provider and triggers a server readback', async () => {
-  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { kind: 'native', enabled: true } }), { status: 201, headers: { 'content-type': 'application/json' } }));
+it('renders API-confirmed provider state without refreshing the parent model route', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {
+    id: 'native', kind: 'native', enabled: true, isPrimary: false, status: 'configured', updatedAt: '2026-10-06T00:00:00.000Z',
+    integration: { state: 'configured', reason: null, linkManagement: 'first_party', analytics: 'first_party', revocation: 'local' },
+    config: { links: [{ label: 'Saved destination', url: 'https://example.com/saved' }] },
+  } }), { status: 201, headers: { 'content-type': 'application/json' } }));
   vi.stubGlobal('fetch', fetch);
   await findButton(panel(false), 'Enable provider')!.props.onClick();
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
     kind: 'native', config: { links: [{ label: 'Saved destination', url: 'https://example.com/saved' }] },
   });
-  await vi.waitFor(() => expect(hooks.refresh).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(renderToStaticMarkup(panel(false))).toContain('Configured'));
+  expect(hooks.refresh).not.toHaveBeenCalled();
+  expect(renderToStaticMarkup(panel(false))).toContain('Configured');
+  expect(renderToStaticMarkup(panel(false))).toContain('Saved destination');
   expect(renderToStaticMarkup(panel(true))).toContain('Saved destination');
 });
 
@@ -224,6 +231,7 @@ it('wires FanLynks page-scoped token input to the encrypted connection request',
     apiToken,
   });
   expect(hooks.values[17]).toBe('');
+  expect(hooks.refresh).toHaveBeenCalledOnce();
   expect(renderToStaticMarkup(fanlynksPanel(true))).toContain('Sync analytics');
 });
 

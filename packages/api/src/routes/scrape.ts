@@ -20,7 +20,21 @@ const competitorSchema = z.object({ kind: z.literal('competitor'), brandName: z.
 const createSchema = z.discriminatedUnion('kind', [socialSchema, competitorSchema]);
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
-  try { return await readBoundedJson(c.req.raw, 64 * 1024); }
+  try {
+    // Durable idempotency hashes the raw stream before route execution and
+    // retains its bounded copy in Hono's body cache. The raw stream is already
+    // drained by then, so parse the cached bytes when middleware supplied them.
+    const cachedBody = c.req.bodyCache.arrayBuffer as
+      | ArrayBuffer
+      | Promise<ArrayBuffer>
+      | undefined;
+    if (cachedBody) {
+      const bytes = await cachedBody;
+      if (bytes.byteLength > 64 * 1024) throw new RequestBodyTooLargeError(64 * 1024);
+      return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    }
+    return await readBoundedJson(c.req.raw, 64 * 1024);
+  }
   catch (error) { if (error instanceof RequestBodyTooLargeError) throw error; return {}; }
 }
 

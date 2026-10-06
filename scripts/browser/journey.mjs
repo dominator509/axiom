@@ -40,9 +40,15 @@ await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
 const redirects = [];
+const browserErrors = [];
+const pageResponses = [];
+const pendingRouteBodySummaries = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
+const secretMarker = typeof process.env.BROWSER_SECRET_SENTINEL === 'string'
+  ? Buffer.from(process.env.BROWSER_SECRET_SENTINEL)
+  : null;
 const diagnosticRedactions = new Set([process.env.BROWSER_SECRET_SENTINEL].filter(Boolean));
 const safeDiagnostic = error => {
   let message = `${error?.name ?? 'Error'}: ${error?.message ?? ''}`;
@@ -55,6 +61,11 @@ const safeDiagnostic = error => {
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
     .split('\n').slice(0, 4).join('\n').slice(0, 1200);
 };
+const recordBrowserError = error => {
+  if (browserErrors.length >= 8) return;
+  const summary = safeDiagnostic(error);
+  if (!browserErrors.includes(summary)) browserErrors.push(summary);
+};
 const check = async (label, work) => {
   currentCheck = label;
   await work();
@@ -65,24 +76,73 @@ let context;
 let page;
 const deliveredBodies = [];
 let scriptCount = 0;
-const observePage = observedPage => observedPage.on('response', response => {
-  const path = new URL(response.url()).pathname;
-  if (response.status() >= 300 && response.status() < 400) {
-    const location = response.headers().location;
-    if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
-  }
-  if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
-  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
-    probes.push({ path: safePath(response.url()), status: response.status() });
-  }
-  const kind = response.request().resourceType();
-  if (kind === 'script') scriptCount++;
-  // Read while each response is available, before a later navigation can
-  // evict it from Chromium's resource buffer. Retain only a boolean.
-  if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
-    .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
-    .catch(() => false));
-});
+const observePage = observedPage => {
+  observedPage.on('pageerror', recordBrowserError);
+  observedPage.on('console', message => {
+    if (message.type() === 'error') recordBrowserError(new Error(message.text()));
+  });
+  observedPage.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    const kind = response.request().resourceType();
+    let routeResponse;
+    if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
+      routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
+      pageResponses.push(routeResponse);
+      if (pageResponses.length > 24) pageResponses.shift();
+      if (new URL(response.url()).searchParams.has('_rsc')) {
+        pendingRouteBodySummaries.push(response.body().then(body => {
+          const flight = body.toString('utf8');
+          routeResponse.renderedRoute = {
+            bytes: body.length,
+            errorChunkCount: (flight.match(/(?:^|\n)\d+:E\{/g) ?? []).length,
+            hasNotFoundMarker: flight.includes('NEXT_HTTP_ERROR_FALLBACK;404'),
+            hasRedirectMarker: flight.includes('NEXT_REDIRECT;'),
+            hasTalentHeader: flight.includes('talent-header'),
+            hasPageStack: flight.includes('page-stack'),
+          };
+        }).catch(error => {
+          routeResponse.renderedRoute = { bodyUnavailable: error?.name ?? 'Error' };
+        }));
+      }
+    }
+    if (response.status() >= 300 && response.status() < 400) {
+      const location = response.headers().location;
+      if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
+    }
+    if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
+    if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/(?:calendar|linkbio|triggers))?$/.test(path)) {
+      probes.push({ path: safePath(response.url()), status: response.status() });
+    }
+
+    if (kind === 'script') scriptCount++;
+    // Read while each response is available, before a later navigation can
+    // evict it from Chromium's resource buffer. Retain only a boolean.
+    // Chromium follows redirects instead of rendering their response bodies as
+    // documents; the final destination response is observed separately.
+    if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
+      const resource = { path: safePath(response.url()), status: response.status(), kind };
+      deliveredBodies.push(response.body().then(body => {
+        if (routeResponse && kind === 'document') {
+          const html = body.toString('utf8');
+          routeResponse.renderedRoute = {
+            bytes: body.length,
+            hasWorkspaceShell: html.includes('app-shell'),
+            hasTalentHeader: html.includes('talent-header'),
+            hasPageStack: html.includes('page-stack'),
+            hasLinkbioForm: /Link label/.test(html),
+            hasErrorTitle: /<title>\s*Error:/i.test(html),
+            hasApplicationError: html.includes('Application error: a server-side exception has occurred'),
+            hasNotFound: html.includes('404: This page could not be found.'),
+          };
+        }
+        return { ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) };
+      }).catch(error => {
+        if (routeResponse && kind === 'document') routeResponse.renderedRoute = { bodyUnavailable: error?.name ?? 'Error' };
+        return { ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' };
+      }));
+    }
+  });
+};
 try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
@@ -139,6 +199,52 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, method, body, key: randomUUID() });
+  const fixtureSql = (input, variables = {}) => {
+    const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
+      ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
+    { encoding: 'utf8', timeout: 15000, input });
+    if (result.status !== 0) {
+      const detail = safeDiagnostic(new Error([
+        result.stderr?.trim(),
+        result.error?.message,
+        `psql exited ${result.status}`,
+      ].filter(Boolean).join('\n')));
+      throw new Error(`Disposable browser fixture SQL failed: ${detail}`);
+    }
+    return result.stdout.trim();
+  };
+  const createRoleplayActor = () => {
+    const actorRef = `browser-llm-${randomUUID()}`;
+    const shiftId = randomUUID();
+    const inserted = fixtureSql(`
+INSERT INTO agent_permission (org_id, agent_ref, model_id, tier, can_publish, can_edit)
+VALUES (:'org', :'agent', :'model', 'operator', false, true);
+INSERT INTO team_shift (id, org_id, model_id, assignee_type, assignee_user_id, assignee_agent_ref, queue, starts_at, ends_at, status)
+VALUES (:'shift', :'org', :'model', 'llm', NULL, :'agent', 'chatter', statement_timestamp() - interval '1 minute', statement_timestamp() + interval '1 hour', 'active');
+SELECT id FROM team_shift WHERE id = :'shift';
+`, { org, model: ownModel, agent: actorRef, shift: shiftId });
+    if (inserted !== shiftId) throw new Error('Disposable roleplay actor was not created');
+    return { actorRef, shiftId };
+  };
+  const removeRoleplayActor = ({ actorRef, shiftId }) => {
+    const remaining = fixtureSql(`
+BEGIN;
+DELETE FROM roleplay_turn
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+  AND actor_type = 'llm' AND actor_ref = :'agent';
+DELETE FROM roleplay_handoff
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+  AND actor_type = 'llm' AND actor_ref = :'agent';
+DELETE FROM team_shift WHERE id = :'shift' AND org_id = :'org' AND model_id = :'model';
+DELETE FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent';
+SELECT (SELECT count(*) FROM team_shift WHERE id = :'shift')::text || '|'
+  || (SELECT count(*) FROM roleplay_handoff WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+  || (SELECT count(*) FROM roleplay_turn WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+  || (SELECT count(*) FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent')::text;
+COMMIT;
+`, { org, model: ownModel, agent: actorRef, shift: shiftId });
+    if (remaining !== '0|0|0|0') throw new Error('Disposable roleplay actor cleanup was not verified');
+  };
   let relayRouteStatus = null;
   const signIn = async (identity, suppliedPassword) => {
     // These are separate user scenarios, not a rate-limit load test. Let the
@@ -157,11 +263,42 @@ COMMIT;
     // Workspace navigation/prefetch also resolves sessions through the auth
     // routes. Test revocation after the unchanged auth budget has recovered.
     await delay(21_000);
-    const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
-      && response.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
-    expect((await response).status()).toBe(200);
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    const buttonStates = await page.locator('.signout-button').evaluateAll(buttons => buttons.map(button => ({
+      label: button.getAttribute('aria-label'),
+      disabled: button.disabled,
+      visible: button.getClientRects().length > 0,
+    })));
+    const signOutContext = { pagePath: safePath(page.url()), buttonStates, requestObserved: false, requestFailure: null, responseStatus: null };
+    failureContext = signOutContext;
+    const isSignOutRequest = request => new URL(request.url()).pathname === '/api/auth/sign-out'
+      && request.method() === 'POST';
+    const onRequest = request => {
+      if (isSignOutRequest(request)) signOutContext.requestObserved = true;
+    };
+    const onRequestFailed = request => {
+      if (isSignOutRequest(request)) {
+        signOutContext.requestFailure = safeDiagnostic(new Error(request.failure()?.errorText ?? 'request failed'));
+      }
+    };
+    page.on('request', onRequest);
+    page.on('requestfailed', onRequestFailed);
+    try {
+      const [response] = await Promise.all([
+        page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
+          && response.request().method() === 'POST', { timeout: 15_000 }),
+        page.locator('.signout-button:visible').first().click({ timeout: 15_000 }),
+      ]);
+      signOutContext.responseStatus = response.status();
+      expect(response.status()).toBe(200);
+      await expect(page).toHaveURL(url => url.pathname === '/login');
+      await expect(page.locator('.signout-button:visible')).toHaveCount(0);
+      await expect(page.locator('form').first()).toBeVisible();
+      failureContext = null;
+      return response;
+    } finally {
+      page.off('request', onRequest);
+      page.off('requestfailed', onRequestFailed);
+    }
   };
   await page.goto('/login');
   await check('public brand projection', async () => {
@@ -250,6 +387,280 @@ COMMIT;
   await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
+  let syntheticConsentId = null;
+  await check('consent vault saves an expired synthetic DNG and proves encrypted-document readback', async () => {
+    await page.goto(`/models/${ownModel}/consent`);
+    await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
+    const form = page.locator('form[aria-label="Add consent metadata"]');
+    const dng = Buffer.alloc(300 * 1024, 0x5a);
+    dng.write('II', 0, 'ascii');
+    dng.writeUInt16LE(42, 2);
+    dng.writeUInt32LE(8, 4);
+    dng.writeUInt16LE(1, 8);
+    dng.writeUInt16LE(0xc612, 10);
+    dng.writeUInt16LE(1, 12);
+    dng.writeUInt32LE(4, 14);
+    dng.set([1, 4, 0, 0], 18);
+    dng.writeUInt32LE(0, 22);
+    await form.locator('input[name="platform"]').fill('instagram');
+    await form.locator('select[name="docKind"]').selectOption('id_verify');
+    await form.locator('input[name="subjectRef"]').fill('synthetic-consent-subject');
+    await form.locator('input[name="document"]').setInputFiles({
+      name: 'synthetic-driver-license.dng', mimeType: 'application/octet-stream', buffer: dng,
+    });
+    await form.locator('input[name="validFrom"]').fill('2020-01-01');
+    await form.locator('input[name="expiresAt"]').fill('2020-12-31');
+    const upload = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/consent-records`
+      && response.request().method() === 'POST');
+    await form.getByRole('button', { name: 'Save consent record' }).click();
+    const saved = await upload;
+    const savedBody = await saved.json();
+    expect(saved.status(), JSON.stringify(savedBody)).toBe(201);
+    syntheticConsentId = savedBody.data.id;
+    expect(savedBody.data).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    await expect(form.getByRole('status')).toContainText('Consent record saved with an encrypted document');
+    const expiredCard = page.locator('article.card').filter({ hasText: 'synthetic-consent-subject' });
+    await expect(expiredCard).toContainText('expired');
+
+    const list = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/consent-records`);
+    expect(list.status).toBe(200);
+    const record = list.body.data.find(entry => entry.id === syntheticConsentId);
+    expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length, expiresAt: '2020-12-31T23:59:59.999Z' });
+    expect(Object.keys(record)).not.toContain('documentCiphertext');
+    expect(record.sha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const downloaded = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        cacheControl: response.headers.get('cache-control'),
+        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+      };
+    }, `/api/v1/models/${ownModel}/consent-records/${syntheticConsentId}/document`);
+    expect(downloaded).toMatchObject({ status: 200, contentType: 'image/tiff' });
+    expect(downloaded.cacheControl).toContain('no-store');
+    expect(downloaded.bytes).toEqual(Array.from(dng));
+    const publishStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
+    expect(publishStatus.status).toBe(200);
+    expect(publishStatus.data.data.ok).toBe(false);
+    expect(await status(`/api/v1/models/${otherModel}/consent-records/${syntheticConsentId}/document`)).toBe(404);
+  });
+  await check('roleplay explains missing assignments, saves persona, and persists a handoff only after a synthetic active actor exists', async () => {
+    const roleplayUrl = `/models/${ownModel}/roleplay`;
+    await page.goto(roleplayUrl);
+    await expect(page.getByText('Handoff and context reload need an active assigned shift.', { exact: false })).toBeVisible();
+    const actorHelp = page.locator('p.notice').filter({ hasText: 'Handoff and context reload need an active assigned shift.' });
+    const assignmentLink = actorHelp.getByRole('link');
+    await expect(assignmentLink).toBeVisible();
+    const assignmentHref = await assignmentLink.getAttribute('href');
+    const assignmentPath = assignmentHref
+      ? decodeURIComponent(new URL(assignmentHref, page.url()).pathname).replace(/\/+$/, '')
+      : null;
+    expect(assignmentPath, `Unexpected actor assignment destination: ${assignmentHref}`).toBe(`/models/${ownModel}/team`);
+    const reloadContext = page.getByRole('button', { name: 'Reload bounded context' });
+    const summary = page.getByLabel('Last safe summary');
+    const nextAction = page.getByLabel('Allowed next action');
+    await expect(reloadContext).toBeDisabled();
+    await expect(summary).toBeDisabled();
+    await expect(nextAction).toBeDisabled();
+    const persona = page.getByPlaceholder('Write bounded character guidance…');
+    await expect(persona).toBeEnabled();
+    await persona.fill('Synthetic persona guidance used only by this disposable browser test.');
+    const personaSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/persona`
+      && response.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Save new persona revision' }).click();
+    const personaResponse = await personaSave;
+    const personaBody = await personaResponse.json();
+    expect([200, 201], `Persona save rejected: ${JSON.stringify(personaBody)}`).toContain(personaResponse.status());
+    const personaReadback = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/roleplay/persona`);
+    expect(personaReadback).toMatchObject({ status: 200, body: { data: { revision: 1, content: 'Synthetic persona guidance used only by this disposable browser test.' } } });
+
+    const fixtureActor = createRoleplayActor();
+    try {
+      await page.reload();
+      const actorSelect = page.getByLabel('Active actor');
+      await expect(actorSelect).toHaveValue(`llm:${fixtureActor.actorRef}`);
+      await expect(reloadContext).toBeEnabled();
+      const contextRead = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay`
+        && response.request().method() === 'GET');
+      await reloadContext.click();
+      expect((await contextRead).status()).toBe(200);
+      await expect(summary).toBeEnabled();
+      await expect(nextAction).toBeEnabled();
+      await summary.fill('Synthetic handoff summary; no provider turn was requested.');
+      await nextAction.fill('Review the fixture only.');
+      const handoffSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/handoff`
+        && response.request().method() === 'PUT');
+      await page.getByRole('button', { name: 'Save handoff' }).click();
+      const handoffResponse = await handoffSave;
+      const handoffBody = await handoffResponse.json();
+      expect([200, 201], `Handoff save rejected: ${JSON.stringify(handoffBody)}`).toContain(handoffResponse.status());
+      const contextReadback = await page.evaluate(async args => {
+        const query = new URLSearchParams({ actorType: 'llm', actorRef: args.actorRef });
+        const response = await fetch(`/api/v1/models/${args.modelId}/roleplay?${query}`, { cache: 'no-store' });
+        return { status: response.status, body: await response.json() };
+      }, { modelId: ownModel, actorRef: fixtureActor.actorRef });
+      expect(contextReadback.status).toBe(200);
+      expect(contextReadback.body.data).toMatchObject({
+        meta: { activeShiftId: fixtureActor.shiftId, actor: { type: 'llm', ref: fixtureActor.actorRef } },
+        handoff: { lastSafeSummary: 'Synthetic handoff summary; no provider turn was requested.', allowedNextAction: 'Review the fixture only.' },
+      });
+    } finally {
+      removeRoleplayActor(fixtureActor);
+    }
+  });
+  await check('Patreon and Snapchat missing credentials return a safe in-app explanation', async () => {
+    for (const platform of ['patreon', 'snapchat']) {
+      await page.goto(`/models/${ownModel}/network`);
+      const authorize = page.locator(`a[href^="/api/v1/connectors/${platform}/authorize?"]`);
+      await expect(authorize).toBeVisible();
+      const redirect = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/connectors/${platform}/authorize`);
+      await authorize.click();
+      expect((await redirect).status()).toBe(303);
+      await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/network\\?oauth=unavailable&platform=${platform}$`));
+      const providerName = platform === 'patreon' ? 'Patreon' : 'Snapchat';
+      await expect(page.locator('p[role="alert"]').filter({ hasText: `${providerName} OAuth is not configured on this service` })).toBeVisible();
+      await expect(page.locator('body')).not.toContainText('application/problem+json');
+    }
+  });
+  await check('Telegram setup never sends a message before a destination and token are supplied', async () => {
+    await page.goto(`/models/${ownModel}/network`);
+    const token = page.getByLabel(/^Telegram bot token\b/i);
+    const destination = page.getByLabel('Channel username or chat ID', { exact: true });
+    await expect(token).toHaveCount(1);
+    await expect(destination).toHaveCount(1);
+    await expect(token).toHaveValue('');
+    await expect(destination).toHaveValue('');
+    const connect = page.getByRole('button', { name: 'Connect Telegram bot' });
+    await expect(connect).toBeDisabled();
+    expect(probes.some(probe => probe.path.includes('/connectTelegram'))).toBe(false);
+  });
+  await check('scrape explains HTTPS validation and queues a public Instagram fixture without dispatching it', async () => {
+    await page.goto(`/models/${ownModel}/scraping`);
+    failureContext = await page.evaluate(() => {
+      const bodyText = document.body?.innerText ?? '';
+      const labels = Array.from(document.querySelectorAll('label'));
+      const form = document.querySelector('fieldset');
+      return {
+        hasExpectedHeading: bodyText.includes('Trend & competitor radar'),
+        hasStartForm: bodyText.includes('Start a research run'),
+        hasLoadFailure: bodyText.includes('Research runs could not be loaded'),
+        hasNoRuns: bodyText.includes('No scraper runs yet'),
+        hasProfileUrlLabel: labels.some(label => label.textContent?.includes('Public HTTPS profile URL')),
+        labelCount: labels.length,
+        inputTypes: Array.from(document.querySelectorAll('input')).map(input => input.type),
+        formDisabled: form instanceof HTMLFieldSetElement ? form.disabled : null,
+      };
+    });
+    const profileUrl = page.getByLabel('Public HTTPS profile URL');
+    const scrapePath = `/api/v1/models/${ownModel}/scrape-runs`;
+    const scrapePosts = [];
+    const onScrapeRequest = request => {
+      const url = new URL(request.url());
+      if (url.pathname === scrapePath && request.method() === 'POST') scrapePosts.push(url.pathname);
+    };
+    page.on('request', onScrapeRequest);
+    await profileUrl.fill('http://127.0.0.1/private-fixture');
+    await page.getByRole('button', { name: 'Queue scrape' }).click();
+    await expect(page.locator('p[role="alert"]')).toHaveText('Use a profile URL that starts with https://. HTTP links cannot be queued.');
+    expect(scrapePosts).toHaveLength(0);
+    failureContext = { ...failureContext, scrapePostsAfterHttpUrl: scrapePosts.length };
+    const history = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, scrapePath);
+    expect(history).toMatchObject({ status: 200, body: { data: [] } });
+
+    await profileUrl.fill('https://www.instagram.com/synthetic-public-profile');
+    const queue = page.waitForResponse(response => new URL(response.url()).pathname === scrapePath
+      && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Queue scrape' }).click();
+    const queuedResponse = await queue;
+    const queuedPayload = await queuedResponse.json().catch(() => null);
+    if (queuedResponse.status() !== 202) {
+      const detail = queuedPayload && typeof queuedPayload.detail === 'string' ? queuedPayload.detail : 'No public problem detail';
+      failureContext = {
+        ...failureContext,
+        scrapeQueueStatus: queuedResponse.status(),
+        scrapeQueueContentType: queuedResponse.headers()['content-type'] ?? null,
+        scrapeQueueProblem: safeDiagnostic(new Error(detail)),
+      };
+    }
+    expect(queuedResponse.status()).toBe(202);
+    expect(scrapePosts).toHaveLength(1);
+    expect(queuedPayload).toMatchObject({ data: { kind: 'social', state: 'queued', modelId: ownModel, error: null } });
+    const queuedHistory = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, scrapePath);
+    expect(queuedHistory).toMatchObject({ status: 200, body: { data: [{ kind: 'social', state: 'queued', error: null }] } });
+    page.off('request', onScrapeRequest);
+    failureContext = null;
+  });
+  await check('automation page states its value in plain language instead of implementation jargon', async () => {
+    await page.goto(`/models/${ownModel}/triggers`);
+    const renderedDescription = await page.locator('.card p.subtle').first().innerText().catch(() => '<missing>');
+    const routeDiagnostics = renderedDescription === '<missing>'
+      ? await page.evaluate(async modelId => {
+          const read = async (label, path) => {
+            const response = await fetch(path, { cache: 'no-store' });
+            const body = await response.json().catch(() => null);
+            return {
+              label,
+              status: response.status,
+              detail: typeof body?.detail === 'string' ? body.detail.slice(0, 300)
+                : typeof body?.error?.message === 'string' ? body.error.message.slice(0, 300) : null,
+            };
+          };
+          const [sessionResponse, rules, social, modelProfile] = await Promise.all([
+            fetch('/api/auth/get-session', { cache: 'no-store' }),
+            read('trigger-rules', `/api/v1/models/${encodeURIComponent(modelId)}/trigger-rules`),
+            read('social-accounts', `/api/v1/social-accounts?modelId=${encodeURIComponent(modelId)}`),
+            read('model-profile', `/api/v1/models/${encodeURIComponent(modelId)}`),
+          ]);
+          const session = await sessionResponse.json().catch(() => null);
+          return {
+            sessionStatus: sessionResponse.status,
+            sessionRole: session?.user?.role ?? null,
+            hasWorkspace: Boolean(session?.user?.orgId),
+            rules,
+            social,
+            modelProfile,
+          };
+        }, ownModel)
+      : null;
+    failureContext = {
+      pageLocale: await page.locator('html').getAttribute('lang'),
+      automationDescription: safeDiagnostic(new Error(renderedDescription)),
+      pageTitle: safeDiagnostic(new Error(await page.title())),
+      renderedPage: safeDiagnostic(new Error(await page.locator('body').innerText().catch(() => '<missing>'))),
+      ...(routeDiagnostics ? {
+        routeDiagnostics: {
+          ...routeDiagnostics,
+          rules: { ...routeDiagnostics.rules, detail: routeDiagnostics.rules.detail ? safeDiagnostic(new Error(routeDiagnostics.rules.detail)) : null },
+          social: { ...routeDiagnostics.social, detail: routeDiagnostics.social.detail ? safeDiagnostic(new Error(routeDiagnostics.social.detail)) : null },
+          modelProfile: { ...routeDiagnostics.modelProfile, detail: routeDiagnostics.modelProfile.detail ? safeDiagnostic(new Error(routeDiagnostics.modelProfile.detail)) : null },
+        },
+      } : {}),
+    };
+    await expect(page.getByText('Choose a platform, what to measure (such as likes, comments, or views), and a target.', { exact: false })).toBeVisible();
+    await expect(page.getByText('without checking every post by hand', { exact: false })).toBeVisible();
+    await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: false })).toBeVisible();
+    const thresholdMode = page.getByLabel('How should the target be set?');
+    await thresholdMode.selectOption('learned_p90');
+    await expect(thresholdMode).toHaveValue('learned_p90');
+    await expect(thresholdMode.locator('option:checked')).toHaveText('Compare with recent performance');
+    await expect(page.getByText(/top 10% level of recent results/)).toBeVisible();
+    await expect(page.getByText(/Learned p90|worker gates|kill-switch/)).toHaveCount(0);
+    failureContext = null;
+  });
   await check('link-in-bio starts with zero configured providers', async () => {
     await page.goto(`/models/${ownModel}/linkbio`);
     const response = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
@@ -257,17 +668,82 @@ COMMIT;
     expect(response.data.data.providers.filter(provider => provider.enabled)).toEqual([]);
   });
   await check('Native provider and tracked destination can be configured from the dashboard', async () => {
+    const renderState = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/get-session', { cache: 'no-store' });
+      const session = await response.json().catch(() => null);
+      return {
+        sessionStatus: response.status,
+        sessionRole: session?.user?.role ?? null,
+        hasWorkspace: Boolean(session?.user?.orgId),
+        title: document.title,
+        bodyText: (document.body?.innerText ?? '').slice(0, 1600),
+        labeledInputs: Array.from(document.querySelectorAll('input')).map(input => ({
+          label: input.getAttribute('aria-label'),
+          type: input.type,
+          disabled: input.disabled,
+          visible: input.getClientRects().length > 0,
+        })),
+      };
+    });
+    failureContext = {
+      sessionStatus: renderState.sessionStatus,
+      sessionRole: renderState.sessionRole,
+      hasWorkspace: renderState.hasWorkspace,
+      pageTitle: safeDiagnostic(new Error(renderState.title)),
+      renderedBody: safeDiagnostic(new Error(renderState.bodyText)),
+      labeledInputs: renderState.labeledInputs,
+    };
+    expect(renderState.sessionStatus).toBe(200);
+    expect(renderState.sessionRole).toBe('operator');
+    await expect(page.getByLabel('Link label')).toBeVisible();
     await page.getByLabel('Link label').fill('Synthetic destination');
     await page.getByLabel('Link URL').fill('https://example.invalid/synthetic-destination');
     await page.getByRole('button', { name: 'Add link' }).click();
+    const saveResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/linkbio`
+      && response.request().method() === 'POST', { timeout: 10_000 }).catch(() => null);
     await page.getByRole('button', { name: 'Enable provider' }).click();
-    const row = page.getByRole('row').filter({ hasText: 'native' });
-    await expect(row).toContainText('Configured');
+    const saveResponse = await saveResponsePromise;
+    const saveBody = saveResponse ? await saveResponse.json().catch(() => null) : null;
+    const savedReadback = saveResponse?.status() === 201 ? await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`) : null;
+    const nativeProvider = savedReadback?.data?.data?.providers?.find(provider => provider.kind === 'native');
+    failureContext = {
+      saveStatus: saveResponse?.status() ?? null,
+      saveDetail: typeof saveBody?.detail === 'string' ? safeDiagnostic(new Error(saveBody.detail))
+        : typeof saveBody?.error?.message === 'string' ? safeDiagnostic(new Error(saveBody.error.message)) : null,
+      saveProvider: saveBody?.data ? {
+        kind: saveBody.data.kind,
+        enabled: saveBody.data.enabled,
+        integrationState: saveBody.data.integration?.state ?? null,
+      } : null,
+      readbackStatus: savedReadback?.status ?? null,
+      readbackProvider: nativeProvider ? {
+        enabled: nativeProvider.enabled,
+        integrationState: nativeProvider.integration?.state ?? null,
+        linkCount: nativeProvider.config?.links?.length ?? null,
+      } : null,
+      renderedRows: await page.getByRole('row').allInnerTexts().catch(() => []),
+      visibleAlerts: await page.locator('[role="alert"]').allInnerTexts().catch(() => []),
+    };
+    expect(saveResponse?.status(), JSON.stringify(failureContext)).toBe(201);
+    expect(savedReadback?.status, JSON.stringify(failureContext)).toBe(200);
+    expect(nativeProvider, JSON.stringify(failureContext)).toMatchObject({ enabled: true, integration: { state: 'configured' } });
+    await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/linkbio$`));
+    await expect(page.getByText('404: This page could not be found.')).toHaveCount(0);
+    const providerRows = page.getByRole('table').first().getByRole('row');
+    await expect(providerRows).toHaveCount(2);
+    const nativeProviderRow = providerRows.nth(1);
+    await expect(nativeProviderRow).toContainText('native');
+    await expect(nativeProviderRow).toContainText('Configured');
     const savedLink = page.getByRole('listitem').filter({ hasText: 'Synthetic destination' });
     await expect(savedLink).toContainText('https://example.invalid/synthetic-destination');
     expect(await status(`/linkbio/${ownModel}`)).toBe(200);
+    failureContext = null;
   });
   await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
+    // The full journey has just traversed several independent dashboard areas.
+    // Let the fixture IP burst bucket refill before the provider lifecycle
+    // checks; this is not a rate-limit load test and no acceptance is skipped.
+    await delay(6_500);
     const path = `/api/v1/models/${ownModel}/linkbio`;
     const nativeDisabled = await linkbioRequest(`${path}/native`, 'DELETE');
     expect(nativeDisabled.status).toBe(200);
@@ -278,9 +754,18 @@ COMMIT;
     ];
     for (const provider of independent) {
       const saved = await linkbioRequest(path, 'POST', { ...provider, isPrimary: true });
+      failureContext = { providerKind: provider.kind, saveStatus: saved.status };
       expect(saved.status).toBe(201);
       const current = await linkbioRequest(path);
-      const active = current.data.data.providers.filter(entry => entry.enabled);
+      failureContext = {
+        ...failureContext,
+        readbackStatus: current.status,
+        readbackDetail: typeof current.data?.detail === 'string' ? safeDiagnostic(new Error(current.data.detail)) : null,
+      };
+      expect(current.status, JSON.stringify(failureContext)).toBe(200);
+      const providers = current.data?.data?.providers;
+      expect(Array.isArray(providers), JSON.stringify(failureContext)).toBe(true);
+      const active = providers.filter(entry => entry.enabled);
       expect(active.map(entry => entry.kind)).toEqual([provider.kind]);
       expect(active[0].config.links.length).toBe(1);
       expect(active[0].config.links[0].path).toContain(`/linkbio/${provider.kind}/`);
@@ -296,6 +781,7 @@ COMMIT;
     }
     const empty = await linkbioRequest(path);
     expect(empty.data.data.providers.filter(entry => entry.enabled)).toEqual([]);
+    failureContext = null;
   });
   await check('all four providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
     const path = `/api/v1/models/${ownModel}/linkbio`;
@@ -386,6 +872,35 @@ COMMIT;
     await page.setViewportSize({ width: 1440, height: 1000 });
     failureContext = null;
   });
+  await check('all six supported interface languages save and read back in the settings UI', async () => {
+    await page.goto('/settings');
+    const localeForm = page.locator('form').first();
+    const localeSelect = localeForm.locator('select');
+    await expect(localeSelect).toHaveCount(1);
+    for (const locale of ['en', 'es', 'ja', 'it', 'pt-BR', 'de']) {
+      await localeSelect.selectOption(locale);
+      const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/ui-locale'
+        && response.request().method() === 'PATCH');
+      await localeForm.locator('button[type="submit"]').click();
+      const saveResponse = await saved;
+      if (saveResponse.status() !== 200) {
+        const body = await saveResponse.json().catch(() => null);
+        failureContext = {
+          attemptedLocale: locale,
+          saveStatus: saveResponse.status(),
+          saveDetail: typeof body?.detail === 'string' ? safeDiagnostic(new Error(body.detail)) : null,
+        };
+      }
+      expect(saveResponse.status()).toBe(200);
+      const readback = await page.evaluate(async () => {
+        const response = await fetch('/api/v1/ui-locale', { cache: 'no-store' });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(readback).toMatchObject({ status: 200, body: { data: { locale, userLocale: locale } } });
+      await expect(localeSelect).toHaveValue(locale);
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    }
+  });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
     expect(models.map(model => model.id)).toEqual([ownModel]);
@@ -434,13 +949,28 @@ COMMIT;
   });
   await check('no server secret in delivered HTML or scripts', async () => {
     const sentinel = process.env.BROWSER_SECRET_SENTINEL;
-    expect(typeof sentinel === 'string' && sentinel.length >= 32).toBe(true);
-    expect(scriptCount).toBeGreaterThan(0);
-    expect((await Promise.all(deliveredBodies)).every(Boolean)).toBe(true);
+    const bodyResults = await Promise.all(deliveredBodies);
+    const unreadableResources = bodyResults.filter(result => !result.readable)
+      .map(({ path, status, kind, errorName }) => ({ path, status, kind, errorName }));
+    const sentinelMatches = bodyResults.filter(result => result.sentinelMatch)
+      .map(({ path, status, kind }) => ({ path, status, kind }));
+    failureContext = {
+      sentinelConfigured: typeof sentinel === 'string' && sentinel.length >= 32,
+      scriptCount,
+      inspectedBodyCount: bodyResults.length,
+      unreadableResources,
+      sentinelMatches,
+    };
+    expect(failureContext.sentinelConfigured, JSON.stringify(failureContext)).toBe(true);
+    expect(scriptCount, JSON.stringify(failureContext)).toBeGreaterThan(0);
+    expect(unreadableResources, JSON.stringify(failureContext)).toHaveLength(0);
+    expect(sentinelMatches, JSON.stringify(failureContext)).toHaveLength(0);
+    failureContext = null;
   });
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
 } catch (error) {
+  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies]);
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
@@ -448,7 +978,8 @@ COMMIT;
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
-      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
+      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects,
+      pageResponses, browserErrors }));
     process.exitCode = 1;
   }
 } finally {

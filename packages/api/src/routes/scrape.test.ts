@@ -11,15 +11,21 @@ vi.mock('@axiom/worker', async importOriginal => ({
 }));
 
 import { scrapeRouter } from './scrape.js';
+import { enqueueJob } from '@axiom/worker';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const RUN_ID = '33333333-3333-4333-8333-333333333333';
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, drainRequestBody = false) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
+    await next();
+  });
+  if (drainRequestBody) app.use('*', async (c, next) => {
+    const bytes = new Uint8Array(await c.req.raw.arrayBuffer());
+    c.req.bodyCache.arrayBuffer = Promise.resolve(bytes.slice().buffer) as unknown as ArrayBuffer;
     await next();
   });
   app.route('/', scrapeRouter);
@@ -29,10 +35,63 @@ function appWithOrg(orgId: string | null) {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  vi.mocked(enqueueJob).mockClear();
 });
 
 it('requires organization context for saved research history', async () => {
   expect((await appWithOrg(null).request(`/models/${MODEL_ID}/scrape-runs`)).status).toBe(401);
+});
+
+it('rejects HTTP social profile URLs before persisting or queueing a scrape', async () => {
+  const response = await appWithOrg(ORG_ID, true).request(`/models/${MODEL_ID}/scrape-runs`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'social', platform: 'instagram', profileUrl: 'http://127.0.0.1/private-fixture' }),
+  });
+  expect(response.status).toBe(400);
+  expect(response.headers.get('content-type')).toContain('application/problem+json');
+  expect(await response.json()).toMatchObject({
+    status: 400,
+    detail: 'social scrape requires an HTTPS public profile URL and supported platform',
+  });
+  expect(enqueueJob).not.toHaveBeenCalled();
+});
+
+it('queues a supported public HTTPS URL after idempotency drains the raw request body', async () => {
+  const run = {
+    id: RUN_ID,
+    orgId: ORG_ID,
+    modelId: MODEL_ID,
+    kind: 'social',
+    state: 'queued',
+    error: null,
+    createdAt: new Date('2026-10-06T00:00:00Z'),
+    completedAt: null,
+  };
+  mockState.results = [[], [{ id: MODEL_ID }], [run]];
+  const response = await appWithOrg(ORG_ID, true).request(`/models/${MODEL_ID}/scrape-runs`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'social', platform: 'instagram', profileUrl: 'https://www.instagram.com/synthetic-public-profile' }),
+  });
+  expect(response.status).toBe(202);
+  expect(await response.json()).toMatchObject({ data: { id: RUN_ID, modelId: MODEL_ID, kind: 'social', state: 'queued' } });
+  expect(enqueueJob).toHaveBeenCalledOnce();
+});
+
+it('keeps the scrape body limit when idempotency has cached the request bytes', async () => {
+  const response = await appWithOrg(ORG_ID, true).request(`/models/${MODEL_ID}/scrape-runs`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      kind: 'social',
+      platform: 'instagram',
+      profileUrl: 'https://www.instagram.com/synthetic-public-profile',
+      extra: 'x'.repeat(64 * 1024),
+    }),
+  });
+  expect(response.status).toBe(413);
+  expect(enqueueJob).not.toHaveBeenCalled();
 });
 
 it('returns bounded research history with a continuation cursor', async () => {

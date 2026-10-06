@@ -56,6 +56,19 @@ export function consentPayload(data: FormData, t: ConsentT = defaultConsentT) {
   };
 }
 
+export function consentRequestFormData(data: FormData, t: ConsentT = defaultConsentT): FormData {
+  const payload = consentPayload(data, t);
+  const request = new FormData();
+  request.set('platform', payload.platform);
+  request.set('docKind', payload.docKind);
+  request.set('subjectRef', payload.subjectRef);
+  request.set('validFrom', payload.validFrom);
+  if (payload.validTo) request.set('validTo', payload.validTo);
+  if (payload.expiresAt) request.set('expiresAt', payload.expiresAt);
+  request.set('document', payload.document, payload.document.name);
+  return request;
+}
+
 export default function ConsentRecordForm({ modelId }: { modelId: string }) {
   const router = useRouter();
   const { t } = useLocale();
@@ -71,8 +84,7 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
     setError('');
     setMessage('');
     try {
-      const formData = new FormData(form);
-      consentPayload(formData, t);
+      const formData = consentRequestFormData(new FormData(form), t);
       intent.current ??= {
         body: formData,
         key: createIdempotencyKey(),
