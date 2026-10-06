@@ -472,8 +472,16 @@ COMMIT;
     const submit = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
       && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Queue scrape' }).click();
-    expect((await submit).status()).toBe(400);
-    await expect(page.getByRole('alert')).toHaveText('Scrape was not queued. Check the request and try again.');
+    const scrapeResponse = await submit;
+    expect(scrapeResponse.status()).toBe(400);
+    const alertTexts = await page.locator('[role="alert"]').allTextContents();
+    failureContext = {
+      ...failureContext,
+      scrapeResponseStatus: scrapeResponse.status(),
+      alertCount: alertTexts.length,
+      alertTexts: alertTexts.map(value => safeDiagnostic(new Error(value.replace(/\s+/g, ' ').trim()))),
+    };
+    await expect(page.locator('p[role="alert"]')).toHaveText('Scrape was not queued. Check the request and try again.');
     const history = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
