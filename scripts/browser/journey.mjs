@@ -42,6 +42,7 @@ const probes = [];
 const redirects = [];
 const browserErrors = [];
 const pageResponses = [];
+const pendingRouteBodySummaries = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -84,8 +85,24 @@ const observePage = observedPage => {
     const path = new URL(response.url()).pathname;
     const kind = response.request().resourceType();
     if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
-      pageResponses.push({ path: safePath(response.url()), status: response.status(), kind, check: currentCheck });
+      const routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
+      pageResponses.push(routeResponse);
       if (pageResponses.length > 24) pageResponses.shift();
+      if (new URL(response.url()).searchParams.has('_rsc')) {
+        pendingRouteBodySummaries.push(response.body().then(body => {
+          const flight = body.toString('utf8');
+          routeResponse.renderedRoute = {
+            bytes: body.length,
+            errorChunkCount: (flight.match(/(?:^|\n)\d+:E\{/g) ?? []).length,
+            hasNotFoundMarker: flight.includes('NEXT_HTTP_ERROR_FALLBACK;404'),
+            hasRedirectMarker: flight.includes('NEXT_REDIRECT;'),
+            hasTalentHeader: flight.includes('talent-header'),
+            hasPageStack: flight.includes('page-stack'),
+          };
+        }).catch(error => {
+          routeResponse.renderedRoute = { bodyUnavailable: error?.name ?? 'Error' };
+        }));
+      }
     }
     if (response.status() >= 300 && response.status() < 400) {
       const location = response.headers().location;
@@ -936,6 +953,7 @@ COMMIT;
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
 } catch (error) {
+  await Promise.allSettled(pendingRouteBodySummaries);
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
