@@ -1,15 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { assertDatabaseReady } from './readiness.js';
+import { assertDatabaseReady, type ReadinessQuery } from './readiness.js';
 
 // Only the explicitly selected local disposable harness may perform DDL here.
 // Every mutation is transactionally rolled back; no configured recovery URL is used.
 const enabled = process.env.AXIOM_READINESS_FIXTURE === '1';
 describe.skipIf(!enabled)('readiness against real PostgreSQL catalog and runtime role', () => {
   const container = 'axiom-ci-local-6cefdc1';
-  function queryAfter(setup: string) {
+  function queryAfter(setup: string): ReadinessQuery {
     return {
-      async query(text: string, values: string[]) {
+      async query({ text, values }: Parameters<ReadinessQuery['query']>[0]) {
         const url = new URL(process.env.TEST_DATABASE_URL!);
         expect(url.hostname).toBe('127.0.0.1');
         expect(url.port).toBe('55432');
