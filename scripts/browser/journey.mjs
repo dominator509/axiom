@@ -611,7 +611,14 @@ COMMIT;
     const saveResponse = await saveResponsePromise;
     const saveBody = saveResponse ? await saveResponse.json().catch(() => null) : null;
     const savedReadback = saveResponse?.status() === 201 ? await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`) : null;
+    const modelReadback = saveResponse?.status() === 201 ? await linkbioRequest(`/api/v1/models/${ownModel}`) : null;
     const nativeProvider = savedReadback?.data?.data?.providers?.find(provider => provider.kind === 'native');
+    const sessionReadback = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/get-session', { cache: 'no-store' });
+      const session = await response.json().catch(() => null);
+      return { status: response.status, hasUser: Boolean(session?.user?.id), role: session?.user?.role ?? null,
+        hasWorkspace: Boolean(session?.user?.orgId) };
+    });
     failureContext = {
       saveStatus: saveResponse?.status() ?? null,
       saveDetail: typeof saveBody?.detail === 'string' ? safeDiagnostic(new Error(saveBody.detail))
@@ -627,6 +634,9 @@ COMMIT;
         integrationState: nativeProvider.integration?.state ?? null,
         linkCount: nativeProvider.config?.links?.length ?? null,
       } : null,
+      modelReadbackStatus: modelReadback?.status ?? null,
+      modelReadbackMatches: modelReadback?.status === 200 && modelReadback?.data?.data?.id === ownModel,
+      sessionReadback,
       renderedRows: await page.getByRole('row').allInnerTexts().catch(() => []),
       visibleAlerts: await page.locator('[role="alert"]').allInnerTexts().catch(() => []),
     };
