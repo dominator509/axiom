@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockDbFactory, mockState } from './test-utils.js';
+import { readBoundedBytes } from '../webhook-body.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ uiLocalePreference: {} }));
 vi.mock('@axiom/core', async () => {
@@ -17,12 +18,17 @@ import { uiLocaleRouter } from './ui-locale.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
-function appWithContext(orgId: string | null, role: string = 'member') {
+function appWithContext(orgId: string | null, role: string = 'member', cacheMutationBody = false) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
     c.set('role', role as any);
+    await next();
+  });
+  if (cacheMutationBody) app.use('*', async (c, next) => {
+    const bytes = await readBoundedBytes(c.req.raw);
+    c.req.bodyCache.arrayBuffer = Promise.resolve(bytes.slice().buffer) as unknown as ArrayBuffer;
     await next();
   });
   app.route('/', uiLocaleRouter);
@@ -73,6 +79,18 @@ describe('F-89 ui locale API', () => {
     expect(response.status).toBe(200);
     expect(mockState.insertValues[0]).toMatchObject({ scope: 'user', orgId: ORG_ID, userId: 'user-1', locale: 'pt-BR' });
     expect((await response.json() as any).data).toMatchObject({ locale: 'pt-BR', source: 'user' });
+  });
+
+  it('reads a locale mutation after idempotency middleware cached its body', async () => {
+    mockState.results = [[], [], [], [], [{ scope: 'user', orgId: ORG_ID, userId: 'user-1', locale: 'en', updatedAt: new Date() }]];
+    const response = await appWithContext(ORG_ID, 'member', true).request('/ui-locale', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', 'idempotency-key': 'locale-browser-1' },
+      body: JSON.stringify({ scope: 'user', locale: 'en' }),
+    });
+    expect(response.status).toBe(200);
+    expect(mockState.insertValues[0]).toMatchObject({ scope: 'user', orgId: ORG_ID, userId: 'user-1', locale: 'en' });
+    expect((await response.json() as any).data).toMatchObject({ locale: 'en', source: 'user', userLocale: 'en' });
   });
 
   it('allows only owners to write the organization default', async () => {
