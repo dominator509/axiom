@@ -495,8 +495,11 @@ router.put('/models/:modelId/roleplay/persona', async (c) => {
         ),
       )
       .orderBy(desc(schema.roleplayPersonaRevision.revision))
-      .limit(1)
-      .for('update');
+      // The model row above serializes persona writers for this model. The
+      // runtime role intentionally has no UPDATE privilege on immutable
+      // persona revisions, so locking a persona row here would be rejected by
+      // PostgreSQL even though this handler only needs to read the latest row.
+      .limit(1);
     if ((previous?.revision ?? 0) !== parsed.data.expectedRevision) return 'conflict' as const;
     const [row] = await tx
       .insert(schema.roleplayPersonaRevision)
