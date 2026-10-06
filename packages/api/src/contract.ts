@@ -1,7 +1,7 @@
 // ─── L3.0 API contract conventions ───
 //  1. RFC-7807 problem+json error envelope with correlation_id
 //  2. Idempotency-Key header enforcement on mutating routes
-//  3. Per-token rate-limit buckets (429 + Retry-After)
+//  3. Per-credential rate-limit buckets (429 + Retry-After)
 //  4. correlation_id middleware (request-scoped, echoed in responses)
 //
 // Wire order in index.ts: correlation → rate limit → idempotency → routes.
@@ -434,7 +434,7 @@ export function idempotency(required = true, maxBodyBytes = IDEMPOTENCY_MAX_BODY
 }
 
 // ---------------------------------------------------------------------------
-// Rate limiting (per-token buckets)
+// Rate limiting (per-credential buckets)
 // ---------------------------------------------------------------------------
 
 interface Bucket {
@@ -511,9 +511,29 @@ function getBucket(
   return bucket;
 }
 
+const AUTH_SESSION_COOKIE_NAMES = new Set(['axiom.session_token', '__Secure-axiom.session_token']);
+
+function sessionCookieCredential(c: Context): string | undefined {
+  const cookieHeader = c.req.header('cookie');
+  if (!cookieHeader) return undefined;
+
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 0) continue;
+    const name = part.slice(0, separator).trim();
+    if (!AUTH_SESSION_COOKIE_NAMES.has(name)) continue;
+    const value = part.slice(separator + 1).trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 /**
- * Per-token rate limiter: keyed by the caller's API token (or client IP when
- * no token). Returns 429 with Retry-After per L3.0.
+ * Per-credential rate limiter: API tokens and browser sessions get separate
+ * budgets; requests without a credential share the caller-IP budget. Session
+ * cookies are opaque credentials and are hashed before their bucket key is
+ * retained. This keeps dashboard users behind one proxy from consuming each
+ * other's burst budget without relaxing the existing per-credential limits.
  */
 export function rateLimit(
   opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
@@ -530,6 +550,7 @@ export function rateLimit(
   return async (c: Context, next: Next): Promise<Response | void> => {
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
+    const sessionCookie = sessionCookieCredential(c);
     const peerAddress = transportPeerAddress(c);
     const forwardedFor = c.req
       .header('x-forwarded-for')
@@ -542,7 +563,9 @@ export function rateLimit(
       ? `bearer:${credential}`
       : apiKey
         ? `api-key:${apiKey}`
-        : `ip:${clientAddress || 'anonymous'}`;
+        : sessionCookie
+          ? `session:${sessionCookie}`
+          : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
     const bucket = getBucket(buckets, bucketKey, capacity, refillPerSec, maxBuckets);

@@ -1,11 +1,11 @@
 // ─── Contract middleware (L3.0) — Vitest Suite (M-3) ───
 // Verifies the durable idempotency middleware (replay without re-execution,
-// required-header 400), per-token rate limiting (429 + Retry-After), and
+// required-header 400), per-credential rate limiting (429 + Retry-After), and
 // correlation_id echo. The idempotency middleware persists to api_idempotency
 // via @axiom/db, which is mocked with the shared chainable proxy.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { mockState, mockDbFactory } from './routes/test-utils.js';
@@ -426,6 +426,29 @@ describe('idempotency middleware (durable, M-2)', () => {
 });
 
 describe('rateLimit middleware (L3.0)', () => {
+  it('gives cookie-authenticated dashboard sessions independent budgets behind one proxy', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', c => c.json({ ok: true }));
+    const firstSession = randomUUID();
+    const secondSession = randomUUID();
+    const secureSession = randomUUID();
+    const untrustedCookieA = randomUUID();
+    const untrustedCookieB = randomUUID();
+    const hit = (cookie: string) => app.request('/x', { headers: { Cookie: cookie } });
+
+    expect((await hit(`axiom.session_token=${firstSession}`)).status).toBe(200);
+    expect((await hit(`axiom.session_token=${firstSession}`)).status).toBe(429);
+    expect((await hit(`axiom.session_token=${secondSession}`)).status).toBe(200);
+    expect((await hit(`__Secure-axiom.session_token=${secureSession}`)).status).toBe(200);
+    expect((await hit(`__Secure-axiom.session_token=${secureSession}`)).status).toBe(429);
+
+    const untrusted = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    untrusted.get('/x', c => c.json({ ok: true }));
+    const untrustedHit = (token: string) => untrusted.request('/x', { headers: { Cookie: `untrusted.session_token=${token}` } });
+    expect((await untrustedHit(untrustedCookieA)).status).toBe(200);
+    expect((await untrustedHit(untrustedCookieB)).status).toBe(429);
+  });
+
   it.each(['auth-first', 'api-first'])('keeps distinct route budgets independent (%s)', async order => {
     const auth = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
     const api = makeApp({ rate: { capacity: 3, refillPerSec: 0 } });
