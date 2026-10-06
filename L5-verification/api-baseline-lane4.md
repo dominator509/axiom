@@ -64,3 +64,17 @@ The first local run reported 90 passed files, 2 failed files and 5 skipped files
 The [post-merge CI run](https://github.com/dominator509/axiom/actions/runs/37244223902) is green at the exact baseline SHA: **9 jobs passed, 0 failed, 0 cancelled**. Its [test job](https://github.com/dominator509/axiom/actions/runs/37244223902/job/111558796412) ran the direct API command on the pinned CI runtime with its disposable database and reports 97 passed files and 1,375 passed tests, with 0 failures and 0 skips. This also passes the two suites that timed out in the first local run.
 
 The historical two-failure claim remains **unverified**. PR #53's [run 36973015092](https://github.com/dominator509/axiom/actions/runs/36973015092) has a failed security job and a cancelled API test job; it provides no failing API test output. The first local timeout pair on `c9078b5` is a separate observation and does not identify the historical claim's source. No tests, timeouts, skips, dependencies, assertions or product code were changed.
+
+## Reverification on current main
+
+Baseline: `5973486c5ff3165b2d23c72f7eda8e76eb9f2144` (PR #87 merge), verified against `origin/main` on 2026-10-06.
+
+The [post-merge CI run](https://github.com/dominator509/axiom/actions/runs/37540536565) completed with **10 jobs passed, 0 failed, 0 cancelled**. Its [test job](https://github.com/dominator509/axiom/actions/runs/37540536565/job/112532176071) ran the API suite against the disposable CI database on Node 22.23.3 / pnpm 9.14.0:
+
+| Exact command | Passed files/tests | Failed | Skipped | Exit |
+| --- | ---: | ---: | ---: | ---: |
+| `pnpm --filter @axiom/api test` | 97 files / 1,391 tests | 0 | 0 | 0 |
+
+The same job ran `pnpm test`: 4,631 passed, 0 failed, 7 environment-gated tests skipped (5 database-readiness and 2 LLM-environment cases). The raw GitHub job-log response for job `112532176071` was 725,385 bytes, SHA-256 `2b1c3532b0cf6b99d2d4cb8d67ebe10c8f1dcebb3569d7f8de67e5a4e042b49d`.
+
+No API test failed at this current-main SHA, so there was no failing test to isolate or compare. The earlier “two pre-existing API test failures” claim remains **prior claim unverified / not reproduced**; the PR #53 cancelled test job still supplies no failure names or output. No test, skip condition, assertion, dependency, timeout or product code was changed.
