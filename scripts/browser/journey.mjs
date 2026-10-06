@@ -469,38 +469,38 @@ COMMIT;
       };
     });
     const profileUrl = page.getByLabel('Public HTTPS profile URL');
-    await profileUrl.fill('http://127.0.0.1/private-fixture');
-    const submit = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
-      && response.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Queue scrape' }).click();
-    const scrapeResponse = await submit;
-    expect(scrapeResponse.status()).toBe(400);
-    const alertTexts = await page.locator('[role="alert"]').allTextContents();
-    failureContext = {
-      ...failureContext,
-      scrapeResponseStatus: scrapeResponse.status(),
-      alertCount: alertTexts.length,
-      alertTexts: alertTexts.map(value => safeDiagnostic(new Error(value.replace(/\s+/g, ' ').trim()))),
+    const scrapePath = `/api/v1/models/${ownModel}/scrape-runs`;
+    const scrapePosts = [];
+    const onScrapeRequest = request => {
+      const url = new URL(request.url());
+      if (url.pathname === scrapePath && request.method() === 'POST') scrapePosts.push(url.pathname);
     };
-    await expect(page.locator('p[role="alert"]')).toHaveText('Use a public profile URL that starts with https://. Private or local addresses cannot be scraped.');
+    page.on('request', onScrapeRequest);
+    await profileUrl.fill('http://127.0.0.1/private-fixture');
+    await page.getByRole('button', { name: 'Queue scrape' }).click();
+    await expect(page.locator('p[role="alert"]')).toHaveText('Use a profile URL that starts with https://. HTTP links cannot be queued.');
+    expect(scrapePosts).toHaveLength(0);
+    failureContext = { ...failureContext, scrapePostsAfterHttpUrl: scrapePosts.length };
     const history = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
-    }, `/api/v1/models/${ownModel}/scrape-runs`);
+    }, scrapePath);
     expect(history).toMatchObject({ status: 200, body: { data: [] } });
 
     await profileUrl.fill('https://www.instagram.com/synthetic-public-profile');
-    const queue = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
+    const queue = page.waitForResponse(response => new URL(response.url()).pathname === scrapePath
       && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Queue scrape' }).click();
     const queuedResponse = await queue;
     expect(queuedResponse.status()).toBe(202);
+    expect(scrapePosts).toHaveLength(1);
     expect(await queuedResponse.json()).toMatchObject({ data: { kind: 'social', state: 'queued', modelId: ownModel, error: null } });
     const queuedHistory = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
-    }, `/api/v1/models/${ownModel}/scrape-runs`);
+    }, scrapePath);
     expect(queuedHistory).toMatchObject({ status: 200, body: { data: [{ kind: 'social', state: 'queued', error: null }] } });
+    page.off('request', onScrapeRequest);
     failureContext = null;
   });
   await check('automation page states its value in plain language instead of implementation jargon', async () => {
