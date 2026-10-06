@@ -64,6 +64,19 @@ const receipt = {
 };
 
 class RehearsalAssertion extends Error {}
+function safeDiagnostic(value) {
+  return String(value ?? '')
+    .replace(/\b(?:postgres(?:ql)?|https?):\/\/[^\s"']+/gi, match => `${match.split('://', 1)[0]}://[redacted]`)
+    .replace(/\b(?:Bearer|Basic)\s+\S+/gi, match => `${match.split(/\s+/, 1)[0]} [redacted]`)
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/gi, '[redacted-gh-token]')
+    .replace(/\b([A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN|CREDENTIAL|PRIVATE_KEY)[A-Z0-9_]*)\s*[:=]\s*\S+/gi, '$1=[redacted]')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .slice(-8)
+    .join(' | ')
+    .slice(0, 1600);
+}
 function run(command, args, { input, timeout = 120_000, env = processEnv, binaryOutput = false } = {}) {
   const result = spawnSync(command, args, {
     cwd: root,
@@ -75,13 +88,17 @@ function run(command, args, { input, timeout = 120_000, env = processEnv, binary
     ...(binaryOutput ? {} : { encoding: 'utf8' }),
   });
   if (result.error || result.signal || result.status === null) {
-    throw new Error(`${command} did not complete successfully`);
+    const detail = safeDiagnostic(result.error?.message ?? result.stderr);
+    throw new Error(`${command} did not complete successfully${detail ? `: ${detail}` : ''}`);
   }
   return result;
 }
 function docker(args, options = {}) {
   const result = run('docker', args, { env: dockerEnv, ...options });
-  if (result.status !== 0) throw new Error('Disposable Docker operation failed');
+  if (result.status !== 0) {
+    const detail = safeDiagnostic(result.stderr);
+    throw new Error(`Disposable Docker operation failed (exit ${result.status})${detail ? `: ${detail}` : ''}`);
+  }
   return options.binaryOutput ? result.stdout : String(result.stdout ?? '').trim();
 }
 function labeled(args) {
@@ -389,7 +406,9 @@ try {
     });
   }
 } catch (error) {
-  failure = error instanceof RehearsalAssertion ? error.message : `${currentStep}: recovery rehearsal execution failed`;
+  failure = error instanceof RehearsalAssertion
+    ? error.message
+    : `${currentStep}: ${safeDiagnostic(error.message) || 'recovery rehearsal execution failed'}`;
   if (!(error instanceof RehearsalAssertion)) {
     receipt.failed++;
     receipt.assertions.push({ name: 'recovery rehearsal execution', result: 'failed' });
