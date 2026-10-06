@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { ScrapeCompetitorBenchmark, ScrapeRun } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
-import { readDashboardJson } from '@/lib/response';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
 import ScrapeResult from './ScrapeResult';
 import ResearchRefresh from './ResearchRefresh';
 import { useLocale } from './LocaleProvider';
@@ -45,7 +45,14 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
     setBusy(true); setError('');
     try {
       const response = await mutationFetch(`/api/v1/models/${encodeURIComponent(modelId)}/scrape-runs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: intent.current.body }, { idempotencyKey: intent.current.key, retries: 0 });
-      if (!response.ok) { setError(t('scrape.queueFailed')); if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null; return; }
+      if (!response.ok) {
+        const problem = await readDashboardError(response);
+        const httpsRequired = response.status === 400
+          && problem.detail === 'social scrape requires an HTTPS public profile URL and supported platform';
+        setError(t(httpsRequired ? 'scrape.httpsProfileRequired' : 'scrape.queueFailed'));
+        if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
+        return;
+      }
       const result = await readDashboardJson<{ data?: unknown }>(response); if (!result.data) throw new Error('unconfirmed scrape response');
       intent.current = null; router.refresh();
     } catch { setError(t('scrape.queueUnconfirmed')); }

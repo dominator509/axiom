@@ -1725,6 +1725,7 @@ export const MESSAGE_KEYS = [
   'scrape.competitorBenchmark',
   'scrape.platform',
   'scrape.profileUrl',
+  'scrape.httpsProfileRequired',
   'scrape.brand',
   'scrape.industry',
   'scrape.platforms',

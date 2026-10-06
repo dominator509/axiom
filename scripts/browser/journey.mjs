@@ -451,7 +451,7 @@ COMMIT;
     await expect(connect).toBeDisabled();
     expect(probes.some(probe => probe.path.includes('/connectTelegram'))).toBe(false);
   });
-  await check('scrape rejects a private fixture URL before creating or dispatching a run', async () => {
+  await check('scrape explains HTTPS validation and queues a public Instagram fixture without dispatching it', async () => {
     await page.goto(`/models/${ownModel}/scraping`);
     failureContext = await page.evaluate(() => {
       const bodyText = document.body?.innerText ?? '';
@@ -468,7 +468,8 @@ COMMIT;
         formDisabled: form instanceof HTMLFieldSetElement ? form.disabled : null,
       };
     });
-    await page.getByLabel('Public HTTPS profile URL').fill('http://127.0.0.1/private-fixture');
+    const profileUrl = page.getByLabel('Public HTTPS profile URL');
+    await profileUrl.fill('http://127.0.0.1/private-fixture');
     const submit = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
       && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Queue scrape' }).click();
@@ -481,12 +482,25 @@ COMMIT;
       alertCount: alertTexts.length,
       alertTexts: alertTexts.map(value => safeDiagnostic(new Error(value.replace(/\s+/g, ' ').trim()))),
     };
-    await expect(page.locator('p[role="alert"]')).toHaveText('Scrape was not queued. Check the request and try again.');
+    await expect(page.locator('p[role="alert"]')).toHaveText('Use a public profile URL that starts with https://. Private or local addresses cannot be scraped.');
     const history = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
     }, `/api/v1/models/${ownModel}/scrape-runs`);
     expect(history).toMatchObject({ status: 200, body: { data: [] } });
+
+    await profileUrl.fill('https://www.instagram.com/synthetic-public-profile');
+    const queue = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
+      && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Queue scrape' }).click();
+    const queuedResponse = await queue;
+    expect(queuedResponse.status()).toBe(202);
+    expect(await queuedResponse.json()).toMatchObject({ data: { kind: 'social', state: 'queued', modelId: ownModel, error: null } });
+    const queuedHistory = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/scrape-runs`);
+    expect(queuedHistory).toMatchObject({ status: 200, body: { data: [{ kind: 'social', state: 'queued', error: null }] } });
     failureContext = null;
   });
   await check('automation page states its value in plain language instead of implementation jargon', async () => {
@@ -496,7 +510,8 @@ COMMIT;
     await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: false })).toBeVisible();
     const thresholdMode = page.getByLabel('How should the target be set?');
     await thresholdMode.selectOption('learned_p90');
-    await expect(page.getByText('Compare with recent performance', { exact: true })).toBeVisible();
+    await expect(thresholdMode).toHaveValue('learned_p90');
+    await expect(thresholdMode.locator('option:checked')).toHaveText('Compare with recent performance');
     await expect(page.getByText(/top 10% level of recent results/)).toBeVisible();
     await expect(page.getByText(/Learned p90|worker gates|kill-switch/)).toHaveCount(0);
   });
