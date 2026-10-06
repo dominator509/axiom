@@ -2,7 +2,7 @@
 // Server Components fetch the Hono BFF through the same-origin rewrite
 // (/api/* → API_ORIGIN). Cookies are forwarded so Better Auth sessions work.
 
-import { cookies, headers as nextHeaders } from 'next/headers';
+import { headers as nextHeaders } from 'next/headers';
 import {
   AXIOM_ERROR_RESPONSE_MAX_BYTES,
   readBoundedResponseJson,
@@ -69,12 +69,9 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const cookieStore = await cookies();
-  const acceptLanguage = path === '/api/v1/ui-locale' ? (await nextHeaders()).get('accept-language') : null;
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join('; ');
+  const requestHeaders = await nextHeaders();
+  const cookieHeader = requestHeaders.get('cookie');
+  const acceptLanguage = path === '/api/v1/ui-locale' ? requestHeaders.get('accept-language') : null;
 
   const headers = new Headers({
     'content-type': 'application/json',
@@ -854,11 +851,7 @@ export const api = {
 
 /** Resolve the Better Auth session server-side (for layout redirects). */
 export async function getSession() {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join('; ');
+  const cookieHeader = (await nextHeaders()).get('cookie');
   const requestSignal = createRequestSignal(undefined, DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${API_BASE}/api/auth/get-session`, {
