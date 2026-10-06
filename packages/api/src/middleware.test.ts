@@ -430,14 +430,14 @@ describe('rateLimit middleware (L3.0)', () => {
   it('gives cookie-authenticated dashboard sessions independent budgets behind one proxy', async () => {
     vi.stubEnv('BETTER_AUTH_URL', 'http://127.0.0.1:3001');
     const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
-    app.get('/x', c => c.json({ ok: true }));
+    app.post('/x', c => c.json({ ok: true }));
     const firstSession = randomUUID();
     const secondSession = randomUUID();
     const secureSession = randomUUID();
     const secureDecoySession = randomUUID();
     const untrustedCookieA = randomUUID();
     const untrustedCookieB = randomUUID();
-    const hit = (cookie: string) => app.request('/x', { headers: { Cookie: cookie } });
+    const hit = (cookie: string) => app.request('/x', { method: 'POST', headers: { Cookie: cookie } });
 
     expect((await hit(`axiom.session_token=${firstSession}`)).status).toBe(200);
     expect((await hit(`axiom.session_token=${firstSession}`)).status).toBe(429);
@@ -447,8 +447,8 @@ describe('rateLimit middleware (L3.0)', () => {
 
     vi.stubEnv('BETTER_AUTH_URL', 'https://127.0.0.1:3443');
     const secureApp = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
-    secureApp.get('/x', c => c.json({ ok: true }));
-    const hitSecure = (cookie: string) => secureApp.request('/x', { headers: { Cookie: cookie } });
+    secureApp.post('/x', c => c.json({ ok: true }));
+    const hitSecure = (cookie: string) => secureApp.request('/x', { method: 'POST', headers: { Cookie: cookie } });
     expect((await hitSecure(`axiom.session_token=${firstSession}; __Secure-axiom.session_token=${secureSession}`)).status).toBe(200);
     expect((await hitSecure(`axiom.session_token=${secondSession}; __Secure-axiom.session_token=${secureSession}`)).status).toBe(429);
 
@@ -458,6 +458,25 @@ describe('rateLimit middleware (L3.0)', () => {
     expect((await untrustedHit(untrustedCookieA)).status).toBe(200);
     expect((await untrustedHit(untrustedCookieB)).status).toBe(200);
     expect((await untrustedHit(randomUUID())).status).toBe(429);
+  });
+
+  it('gives browser session reads a separate bounded budget without relaxing writes or API credentials', async () => {
+    vi.stubEnv('BETTER_AUTH_URL', 'http://127.0.0.1:3001');
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', c => c.json({ ok: true }));
+    app.post('/x', c => c.json({ ok: true }));
+    const session = randomUUID();
+    const sessionHeaders = { Cookie: `axiom.session_token=${session}` };
+    for (let request = 0; request < 4; request++) {
+      expect((await app.request('/x', { headers: sessionHeaders })).status).toBe(200);
+    }
+    expect((await app.request('/x', { headers: sessionHeaders })).status).toBe(429);
+    expect((await app.request('/x', { method: 'POST', headers: sessionHeaders })).status).toBe(200);
+    expect((await app.request('/x', { method: 'POST', headers: sessionHeaders })).status).toBe(429);
+
+    const bearer = { Authorization: `Bearer ${randomUUID()}` };
+    expect((await app.request('/x', { headers: bearer })).status).toBe(200);
+    expect((await app.request('/x', { headers: bearer })).status).toBe(429);
   });
 
   it.each(['auth-first', 'api-first'])('keeps distinct route budgets independent (%s)', async order => {
