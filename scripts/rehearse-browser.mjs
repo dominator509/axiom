@@ -28,6 +28,26 @@ const execute = (name, args, options = {}) => {
   if (result.status !== 0) throw new Error(`${name} failed (exit ${result.status}); see sanitized log`);
   return result.stdout.trim();
 };
+const apiErrorSummaries = api => {
+  const result = spawnSync('docker', ['logs', '--tail', '200', api], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024,
+  });
+  receipt.commands.push({ command: `docker logs --tail 200 ${api}`, exitCode: result.status });
+  if (result.status !== 0) return ['API error detail unavailable'];
+  const lines = scrub((result.stdout ?? '') + '\n' + (result.stderr ?? '')).split(/\r?\n/);
+  const summaries = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (!/Unhandled API error|Failed to persist API crash report/.test(lines[index])) continue;
+    const context = lines.slice(index, index + 4).join(' ').replace(/\s+/g, ' ');
+    summaries.push(context
+      .replace(/correlationId:\s*['"][^'"]+['"],?/gi, 'correlationId: [redacted]')
+      .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted database URL]')
+      .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+      .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
+      .slice(0, 500));
+  }
+  return summaries.slice(-3);
+};
 const owned = { containers: new Set(), networks: new Set(), volumes: new Set(), images: new Set() };
 const remove = (kind, name) => {
   const format = kind === 'containers' ? '{{json .Config.Labels}}' : '{{json .Labels}}';
@@ -131,7 +151,8 @@ try {
       } catch (error) {
         const log = readFileSync(join(directory, `journey-${repetition}-${mode}.log`), 'utf8');
         const summary = log.split(/\r?\n/).find(line => line.startsWith('{"mode":'));
-        receipt.journeys.push({ repetition, ...(summary ? JSON.parse(summary) : { mode, failed: 1, countsUnavailable: true }) });
+        receipt.journeys.push({ repetition, ...(summary ? JSON.parse(summary) : { mode, failed: 1, countsUnavailable: true }),
+          apiErrors: apiErrorSummaries(api) });
         save();
         throw error;
       }
