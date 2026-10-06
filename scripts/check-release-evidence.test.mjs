@@ -7,6 +7,8 @@ import { requirements, validate, verifyHosted } from './check-release-evidence.m
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const expected = requirements(read);
 const current = JSON.parse(read('L5-verification/release-evidence.json'));
+const invariantCrosswalkFile = 'L5-verification/release-evidence-invariant-crosswalk.json';
+const invariantCrosswalk = JSON.parse(read(invariantCrosswalkFile));
 const releaseSha = 'a'.repeat(40);
 const currentSha = 'd8bfb217b4549e8b53c513de71fd92c1ea499c95';
 const ciUrl = 'https://github.com/dominator509/axiom/actions/runs/123';
@@ -56,6 +58,40 @@ test('L5 invariant rows use the canonical L0 property names and cover every inva
   assert.deepEqual(matrix, canonical);
   const approval = expected.find(row => row.id === 'LBI-04').requirement;
   assert.match(approval, /forged, expired, and replayed commands are rejected and logged/);
+});
+test('every acceptance row maps to canonical invariant properties or explicit independent acceptance', () => {
+  const canonical = [...read('L0-governance/L0.0-governance-and-invariants.md').matchAll(/^\*\*LBI-(\d{2}) — ([^.]+)\./gm)]
+    .map(([, id, property]) => ({ id: `LBI-${id}`, property }));
+  assert.deepEqual(invariantCrosswalk.invariants, canonical);
+  assert.equal(Object.keys(invariantCrosswalk.criteria).length, expected.length);
+  for (const row of expected) {
+    const mapping = invariantCrosswalk.criteria[row.id];
+    assert.ok(mapping, row.id);
+    assert.ok(Array.isArray(mapping.invariants), row.id);
+    const citations = [...new Set([...row.requirement.matchAll(/\bLBI-(\d{2})\b/g)].map(([, id]) => `LBI-${id}`))];
+    const canonicalCitations = canonical.map(item => item.id).filter(id => citations.includes(id));
+    assert.deepEqual(mapping.invariants, canonicalCitations, row.id);
+    assert.equal(mapping.classification, citations.length ? 'invariant-linked' : 'independent-acceptance', row.id);
+    assert.deepEqual(row.canonicalInvariantProperties, canonical.filter(item => citations.includes(item.id)), row.id);
+  }
+});
+for (const [name, mutate, message] of [
+  ['missing criterion', crosswalk => { delete crosswalk.criteria.A1; }, /criterion coverage mismatch/],
+  ['canonical property drift', crosswalk => { crosswalk.invariants[0].property = 'Wrong property'; }, /canonical invariant definitions differ/],
+  ['missing cited invariant', crosswalk => { crosswalk.criteria['LBI-02'].invariants = []; }, /normative requirement citations/],
+  ['unknown invariant', crosswalk => { crosswalk.criteria.A1.invariants = ['LBI-99']; crosswalk.criteria.A1.classification = 'invariant-linked'; }, /unknown or duplicate invariant/],
+  ['incorrect classification', crosswalk => { crosswalk.criteria.A1.classification = 'invariant-linked'; }, /classification mismatch/],
+]) test(`crosswalk rejects ${name}`, () => {
+  const changed = structuredClone(invariantCrosswalk);
+  mutate(changed);
+  const readChanged = file => file === invariantCrosswalkFile ? JSON.stringify(changed) : read(file);
+  assert.throws(() => requirements(readChanged), message);
+});
+test('evidence extraction rejects L5 invariant numbering or property drift', () => {
+  const readChanged = file => file === 'L5-verification/L5.0-test-matrix.md'
+    ? read(file).replace('| LBI-01 | Tenant isolation |', '| LBI-01 | Renamed tenant isolation |')
+    : read(file);
+  assert.throws(() => requirements(readChanged), /L5\.0 invariant numbering or properties/);
 });
 test('complete synthetic evidence is accepted by the structural release validator', () => {
   assert.equal(validate(complete(), expected, { releaseSha }).passed, expected.length);

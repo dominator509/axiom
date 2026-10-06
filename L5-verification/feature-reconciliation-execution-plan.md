@@ -52,10 +52,11 @@ push each accepted milestone, and advance only from current repository evidence.
    The existing sanitizer is file-level only and explicitly reports
    `externalProvenanceErased: false`; C2PA/external provenance/fingerprint
    removal is not an established feature and must not be claimed.
-4. **Provider/network nodes:** preserve L2.4's boundary: Native link-in-bio
-   is production-enabled; Fanlynks/Linktree/Beacons are optional planned
-   adapters, not required or enabled by a database row. Verify only explicitly
-   enabled provider contracts/OAuth/publish receipts, and finish customer
+4. **Provider/network nodes:** preserve L2.4 and the approved L5.0 A1 target:
+   Native, Fanlynks, Linktree, and Beacons are optional per-model providers;
+   Native works without external setup. Database state alone does not establish
+   a connected provider. Verify the supported lifecycle and provider-backed
+   receipts for each external adapter before reporting it available, and finish customer
    BYOVPN/WireGuard per-model fail-closed egress. AWS is rehearsal evidence.
 5. **UX acceptance node:** reconcile all backend capabilities to the
    signed-in desktop/mobile navigation, error/loading/empty states, dead-link
@@ -104,9 +105,10 @@ remain explicitly open; no provider, database, migration or live action occurred
   defines contracts; the L5 static audit records what is actually wired. A
   navigation label, table, unit test, or health endpoint is not feature or
   runtime acceptance by itself.
-- L2.4 explicitly keeps external link-in-bio adapters optional and hidden until
-  their provisioning/OAuth/revocation/synchronization/analytics lifecycle is
-  implemented. The Native provider is the current default.
+- L2.4 and L5.0 A1 define all four link-in-bio providers as the approved
+  optional per-model release target. Native is the no-setup default; external
+  providers remain unavailable until provisioning/connection, link sync,
+  readback, available analytics, revocation, and teardown are verified.
 - L2.9 explicitly distinguishes the repository's internal crash sink from the
   external GlitchTip/Sentry, Loki, Prometheus/Grafana and OpenTelemetry runtime
   integrations. Those integrations remain deployment evidence, not current

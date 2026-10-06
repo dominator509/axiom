@@ -38,6 +38,23 @@ at that SHA completed with 9 successful jobs, 0 failed and 0 cancelled. This
 current-main receipt supplements, and does not replace, the historical baseline
 receipts above.
 
+The latest refreshed main SHA is `89285e73359cdee3f0771bfbb2f70b53593ac2db`.
+Readback `gh run view 37501810909 --json jobs --jq ".jobs[] | [.name,.conclusion,.databaseId] | @tsv"`
+confirmed [post-merge CI run 37501810909](https://github.com/dominator509/axiom/actions/runs/37501810909)
+completed with 10 successful jobs, 0 failed and 0 cancelled at that exact SHA.
+The browser job was rerun after its first attempt failed; the successful retry is
+[job 112407323906](https://github.com/dominator509/axiom/actions/runs/37501810909/job/112407323906)
+and ran `node scripts/rehearse-browser.mjs --isolated-fixture` on GitHub Actions
+ubuntu-24.04 with Node 22.23.3. Its four positive journey reports each passed
+37/37 checks, with 0 failures and 0 skips. The negative-brand control reported
+4 passed and 1 expected rejection; the negative-cookie control reported 7 passed
+and 1 expected rejection; both had 0 skips. Fixture cleanup was verified. The
+raw browser job log SHA-256 is
+`5a36d3114f1cb679151c899e5dfe171fe3497842db0ade5bcfe61573d7474128`.
+The first browser attempt's transient schedule-page failure did not reproduce on
+the same-SHA retry, but its cause is not established; this receipt records that
+limitation and does not substitute for later candidate or final-SHA validation.
+
 The [container job](https://github.com/dominator509/axiom/actions/runs/37161757957/job/111316474875)
 built all seven images using the commands in `.github/workflows/ci.yml`. Build
 output recorded these local image IDs (not published registry manifest digests):
@@ -110,6 +127,16 @@ prior-lane dependencies, required receipt contents, and exact completion conditi
 Any addition, removal or textual change requires explicit reconciliation. Existing
 partial and historical tests are not blanket acceptance; rows without accepted
 lane receipts remain unverified with owning lanes and concrete next steps.
+
+`release-evidence-invariant-crosswalk.json` maps every stable acceptance ID to
+the exact canonical LBI property or marks it as independent acceptance. The
+evidence gate derives the canonical ID/property catalog from `L0.0`, compares
+the LBI numbering and names in `L5.0`, requires exact criterion coverage, and
+rejects missing, unknown, duplicate, renamed, or mismatched references. A
+criterion with no LBI citation remains an explicit independent acceptance row;
+no invariant is invented to make the numbering appear continuous. This
+crosswalk does not change normative requirement text or historical receipt
+hashes.
 
 `node scripts/check-release-evidence.mjs --check` validates coverage and receipt
 shape while permitting open rows. CI runs it and its negative-control suite.

@@ -40,7 +40,7 @@
 - **Plane** — an isolation/deployment boundary (BFF plane, Rust hot-path/egress plane, data plane).
 - **ToS engine** — local-vision classifier producing pass/review/block verdicts before publish.
 - **Consent & Records Vault** — encrypted store for adult-content compliance documents (2257/model release/ID).
-- **Native provider** — the built-in, self-hosted link-in-bio shipped in this release; external providers (Fanlynks/Linktree/Beacons) are future optional adapters and are not production-enabled yet.
+- **Link-in-bio providers** — the approved release target is Native, Fanlynks, Linktree, and Beacons as optional per-model providers. Native works without external setup. An external provider is unavailable until its supported lifecycle is verified; never represent configured intent as a connected account or invent analytics.
 - **BFF** — backend-for-frontend (Hono), the API surface the dashboard/PWA call.
 - **DEK/KEK** — data encryption key (per-org) wrapped by a key encryption key (in KMS).
 - **DLQ** — dead-letter queue (`job.state='dead'`), replayed idempotently.
