@@ -43,6 +43,9 @@ const redirects = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
+const secretMarker = typeof process.env.BROWSER_SECRET_SENTINEL === 'string'
+  ? Buffer.from(process.env.BROWSER_SECRET_SENTINEL)
+  : null;
 const diagnosticRedactions = new Set([process.env.BROWSER_SECRET_SENTINEL].filter(Boolean));
 const safeDiagnostic = error => {
   let message = `${error?.name ?? 'Error'}: ${error?.message ?? ''}`;
@@ -79,9 +82,12 @@ const observePage = observedPage => observedPage.on('response', response => {
   if (kind === 'script') scriptCount++;
   // Read while each response is available, before a later navigation can
   // evict it from Chromium's resource buffer. Retain only a boolean.
-  if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
-    .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
-    .catch(() => false));
+  if (['document', 'script'].includes(kind)) {
+    const resource = { path: safePath(response.url()), status: response.status(), kind };
+    deliveredBodies.push(response.body()
+      .then(body => ({ ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) }))
+      .catch(error => ({ ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' })));
+  }
 });
 try {
   const password = randomBytes(24).toString('base64url');
@@ -889,9 +895,23 @@ COMMIT;
   });
   await check('no server secret in delivered HTML or scripts', async () => {
     const sentinel = process.env.BROWSER_SECRET_SENTINEL;
-    expect(typeof sentinel === 'string' && sentinel.length >= 32).toBe(true);
-    expect(scriptCount).toBeGreaterThan(0);
-    expect((await Promise.all(deliveredBodies)).every(Boolean)).toBe(true);
+    const bodyResults = await Promise.all(deliveredBodies);
+    const unreadableResources = bodyResults.filter(result => !result.readable)
+      .map(({ path, status, kind, errorName }) => ({ path, status, kind, errorName }));
+    const sentinelMatches = bodyResults.filter(result => result.sentinelMatch)
+      .map(({ path, status, kind }) => ({ path, status, kind }));
+    failureContext = {
+      sentinelConfigured: typeof sentinel === 'string' && sentinel.length >= 32,
+      scriptCount,
+      inspectedBodyCount: bodyResults.length,
+      unreadableResources,
+      sentinelMatches,
+    };
+    expect(failureContext.sentinelConfigured, JSON.stringify(failureContext)).toBe(true);
+    expect(scriptCount, JSON.stringify(failureContext)).toBeGreaterThan(0);
+    expect(unreadableResources, JSON.stringify(failureContext)).toHaveLength(0);
+    expect(sentinelMatches, JSON.stringify(failureContext)).toHaveLength(0);
+    failureContext = null;
   });
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
