@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getAll: vi.fn(),
+  getHeader: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
-  cookies: async () => ({ getAll: mocks.getAll }),
+  headers: async () => ({ get: mocks.getHeader }),
 }));
 
 import { api, DEFAULT_SERVER_REQUEST_TIMEOUT_MS, getSession } from './api';
@@ -14,7 +14,7 @@ describe('dashboard server API client', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
-    mocks.getAll.mockReturnValue([]);
+    mocks.getHeader.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -37,6 +37,28 @@ describe('dashboard server API client', () => {
     expect(headers.get('Idempotency-Key')).toMatch(/^\S+$/);
     expect(headers.get('content-type')).toBe('application/json');
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('forwards the original cookie header verbatim for model and session reads', async () => {
+    const cookieHeader = 'better-auth.session_token=first%3Avalue; preference=en; better-auth.session_token=second%2Bvalue';
+    mocks.getHeader.mockImplementation((name: string) => name === 'cookie' ? cookieHeader : null);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'model' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: { id: 'operator' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.models.get('model');
+    await getSession();
+
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init?.headers).get('cookie')).toBe(cookieHeader);
+    }
   });
 
   it.each(['revise', 'reject'] as const)(

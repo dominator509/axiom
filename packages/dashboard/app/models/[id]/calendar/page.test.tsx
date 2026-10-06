@@ -61,7 +61,10 @@ vi.mock('@/lib/server-locale', () => ({ getServerLocale: async () => ({
 }) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); session.role = 'operator'; });
 
 async function render(query: Record<string, string | string[] | undefined> = {}) {
