@@ -75,6 +75,10 @@ const dashboardErrorSummaries = dashboard => {
   const lines = scrub((result.stdout ?? '') + '\n' + (result.stderr ?? '')).split(/\r?\n/);
   const summaries = [];
   for (let index = 0; index < lines.length; index++) {
+    if (lines[index].includes('[AXIOM_BROWSER_DIAGNOSTIC]')) {
+      summaries.push(lines[index].slice(lines[index].indexOf('[AXIOM_BROWSER_DIAGNOSTIC]')));
+      continue;
+    }
     if (!/(?:⨯|\b(?:Type|Reference|Range|Syntax)?Error:|Exception:|\bDigest:)/i.test(lines[index])) continue;
     const context = lines.slice(index, index + 4).join(' ').replace(/\s+/g, ' ');
     summaries.push(context
@@ -87,7 +91,7 @@ const dashboardErrorSummaries = dashboard => {
       .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
       .slice(0, 700));
   }
-  return summaries.slice(-3);
+  return summaries.slice(-10);
 };
 const owned = { containers: new Set(), networks: new Set(), volumes: new Set(), images: new Set() };
 const remove = (kind, name) => {
@@ -171,7 +175,7 @@ try {
     execute('runtime-role-' + repetition, ['exec', '-i', runner, 'sh', '-c', 'psql -X -q -v ON_ERROR_STOP=1 -d "$MIGRATOR_DATABASE_URL"'],
       { input: `ALTER ROLE axiom_app WITH LOGIN PASSWORD '${appPassword}';\n` });
     start(api, receipt.images.api, 'container:' + db, apiEnv);
-    start(dashboard, receipt.images.dashboard, 'container:' + db, { NODE_ENV: 'production', PORT: '3000', HOSTNAME: '0.0.0.0', BROWSER_SECRET_SENTINEL: sentinel });
+    start(dashboard, receipt.images.dashboard, 'container:' + db, { NODE_ENV: 'production', PORT: '3000', HOSTNAME: '0.0.0.0', BROWSER_SECRET_SENTINEL: sentinel, AXIOM_BROWSER_DIAGNOSTICS: '1' });
     const wait = async () => {
       for (let attempt = 0; attempt < 60; attempt++) {
         const probe = spawnSync('docker', ['exec', runner, 'node', '-e',

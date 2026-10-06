@@ -703,7 +703,7 @@ app.use(
 );
 app.use('*', logger());
 app.use('*', secureHeaders());
-// L3.0 contract: correlation_id on every request, then per-token rate limits.
+// L3.0 contract: correlation_id on every request, then per-credential rate limits.
 app.use('*', correlationId);
 app.use('/api/v1/*', rateLimit());
 // MCP is an authenticated agent surface, but it is outside the REST prefix;

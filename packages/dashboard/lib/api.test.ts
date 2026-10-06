@@ -19,6 +19,7 @@ describe('dashboard server API client', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it('adds an idempotency key to server-side API mutations', async () => {
@@ -59,6 +60,37 @@ describe('dashboard server API client', () => {
     for (const [, init] of fetchMock.mock.calls) {
       expect(new Headers(init?.headers).get('cookie')).toBe(cookieHeader);
     }
+  });
+
+  it('emits safe fixture-only status diagnostics without logging cookie values', async () => {
+    const cookieHeader = 'better-auth.session_token=do-not-log-this-value';
+    mocks.getHeader.mockImplementation((name: string) => name === 'cookie' ? cookieHeader : null);
+    vi.stubEnv('AXIOM_BROWSER_DIAGNOSTICS', '1');
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'not found' }), { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: { id: 'operator', role: 'operator' } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.models.get('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).rejects.toMatchObject({ status: 404 });
+    await getSession();
+
+    const diagnostics = info.mock.calls.map(([message]) => String(message));
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.join('\n')).not.toContain(cookieHeader);
+    expect(JSON.parse(diagnostics[0]!.replace('[AXIOM_BROWSER_DIAGNOSTIC] ', ''))).toEqual({
+      event: 'server-api-response',
+      method: 'GET',
+      path: '/api/v1/models/<fixture-id>',
+      status: 404,
+      cookieForwarded: true,
+    });
+    expect(JSON.parse(diagnostics[1]!.replace('[AXIOM_BROWSER_DIAGNOSTIC] ', ''))).toEqual({
+      event: 'server-session-response',
+      status: 200,
+      cookieForwarded: true,
+      userRole: 'operator',
+    });
   });
 
   it.each(['revise', 'reject'] as const)(
