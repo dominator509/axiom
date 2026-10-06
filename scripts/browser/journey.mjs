@@ -366,6 +366,9 @@ COMMIT;
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     expect(await status('/api/v1/models')).toBe(200);
   });
+  await check('authenticated model detail API resolves the selected talent', async () => {
+    expect(await status(`/api/v1/models/${ownModel}`)).toBe(200);
+  });
   await check('talent profile route opens from the roster', async () => {
     await page.locator('a.model-link').filter({ hasText: 'Visible fixture talent' }).click();
     await expect(page).toHaveURL(new RegExp(`/models/${ownModel}$`));

@@ -57,13 +57,13 @@ const apiRejectedRequestSummaries = api => {
   const lines = scrub((result.stdout ?? '') + '\n' + (result.stderr ?? '')).split(/\r?\n/);
   return lines.map(line => {
     const plain = line.replace(/\u001b\[[0-9;]*m/g, '');
-    const match = plain.match(/<--\s+(GET|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(404|429|5\d{2})\b/i);
+    const match = plain.match(/<--\s+(GET|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(401|403|404|429|5\d{2})\b/i);
     if (!match) return null;
     const path = match[2].split('?')[0]
       .replace(/\/[a-f0-9-]{36}(?=\/|$)/gi, '/<fixture-id>')
       .replace(/\/(?:[0-9]{1,20})(?=\/|$)/g, '/<id>');
     return match[1].toUpperCase() + ' ' + path + ' ' + match[3];
-  }).filter(Boolean).slice(-12);
+  }).filter(Boolean).slice(-30);
 };
 
 const dashboardErrorSummaries = dashboard => {
