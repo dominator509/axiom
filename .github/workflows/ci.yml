@@ -721,6 +721,29 @@ jobs:
             exit 1
           fi
           docker start "$vision_container" >/dev/null
-          wait_for_health "$vision_container"
-          curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8101/health | grep -q 'model_loaded'
-          echo "${vision_container}: scanner outage was visible and recovered after restart"
+          scanner_recovered=false
+          scanner_health_status=
+          for _ in $(seq 1 45); do
+            scanner_health_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 3 http://127.0.0.1:8101/health 2>/dev/null || true)"
+            scanner_running="$(docker inspect --format '{{.State.Running}}' "$vision_container")"
+            if [[ "$scanner_running" == "true" && "$scanner_health_status" == "503" ]]; then
+              scanner_recovered=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$scanner_recovered" != "true" ]]; then
+            echo "${vision_container}: scanner process did not recover with its expected model-unavailable readiness response"
+            docker logs "$vision_container"
+            exit 1
+          fi
+          scanner_health_body="$(curl --silent --show-error --max-time 3 http://127.0.0.1:8101/health)"
+          if ! printf '%s' "$scanner_health_body" | grep -q '"model_loaded":false'; then
+            echo "${vision_container}: scanner recovery did not retain the expected model-unavailable health state"
+            exit 1
+          fi
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8101/vision/nsfw-detect)" != "401" ]; then
+            echo "${vision_container}: unauthenticated inference route was not rejected after restart"
+            exit 1
+          fi
+          echo "${vision_container}: scanner process recovered; model readiness remains unavailable without the external artifact and inference remains protected"

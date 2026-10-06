@@ -26,7 +26,7 @@
   --radius-sm: 12px;
   --gold-deep: #418f87;
   --ivory: #f1f3ef;
-  --font-display: var(--font-montserrat), 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Montserrat Variable', 'Montserrat', ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
