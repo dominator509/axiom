@@ -139,6 +139,34 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, method, body, key: randomUUID() });
+  const fixtureSql = (input, variables = {}) => {
+    const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
+      ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
+    { encoding: 'utf8', timeout: 15000, input });
+    if (result.status !== 0) throw new Error('Disposable browser fixture SQL failed');
+    return result.stdout.trim();
+  };
+  const createRoleplayActor = () => {
+    const actorRef = `browser-llm-${randomUUID()}`;
+    const shiftId = randomUUID();
+    const inserted = fixtureSql(`
+INSERT INTO agent_permission (org_id, agent_ref, model_id, tier, can_publish, can_edit)
+VALUES (:'org', :'agent', :'model', 'operator', false, true);
+INSERT INTO team_shift (id, org_id, model_id, assignee_type, assignee_user_id, assignee_agent_ref, queue, starts_at, ends_at, status)
+VALUES (:'shift', :'org', :'model', 'llm', NULL, :'agent', 'chatter', statement_timestamp() - interval '1 minute', statement_timestamp() + interval '1 hour', 'active');
+SELECT id FROM team_shift WHERE id = :'shift';
+`, { org, model: ownModel, agent: actorRef, shift: shiftId });
+    if (inserted !== shiftId) throw new Error('Disposable roleplay actor was not created');
+    return { actorRef, shiftId };
+  };
+  const removeRoleplayActor = ({ actorRef, shiftId }) => {
+    const remaining = fixtureSql(`
+DELETE FROM team_shift WHERE id = :'shift';
+DELETE FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent';
+SELECT count(*) FROM team_shift WHERE id = :'shift';
+`, { org, model: ownModel, agent: actorRef, shift: shiftId });
+    if (remaining !== '0') throw new Error('Disposable roleplay actor cleanup was not verified');
+  };
   let relayRouteStatus = null;
   const signIn = async (identity, suppliedPassword) => {
     // These are separate user scenarios, not a rate-limit load test. Let the
@@ -249,6 +277,171 @@ COMMIT;
   });
   await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
+  });
+  let syntheticConsentId = null;
+  await check('consent vault saves an expired synthetic DNG and proves encrypted-document readback', async () => {
+    await page.goto(`/models/${ownModel}/consent`);
+    await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
+    const form = page.locator('form[aria-label="Add consent metadata"]');
+    const dng = Buffer.alloc(26, 0x5a);
+    dng.write('II', 0, 'ascii');
+    dng.writeUInt16LE(42, 2);
+    dng.writeUInt32LE(8, 4);
+    dng.writeUInt16LE(1, 8);
+    dng.writeUInt16LE(0xc612, 10);
+    dng.writeUInt16LE(1, 12);
+    dng.writeUInt32LE(4, 14);
+    dng.set([1, 4, 0, 0], 18);
+    dng.writeUInt32LE(0, 22);
+    await form.locator('input[name="platform"]').fill('instagram');
+    await form.locator('select[name="docKind"]').selectOption('id_verify');
+    await form.locator('input[name="subjectRef"]').fill('synthetic-consent-subject');
+    await form.locator('input[name="document"]').setInputFiles({
+      name: 'synthetic-driver-license.dng', mimeType: 'application/octet-stream', buffer: dng,
+    });
+    await form.locator('input[name="validFrom"]').fill('2020-01-01');
+    await form.locator('input[name="expiresAt"]').fill('2020-12-31');
+    const upload = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/consent-records`
+      && response.request().method() === 'POST');
+    await form.getByRole('button', { name: 'Save consent record' }).click();
+    const saved = await upload;
+    expect(saved.status()).toBe(201);
+    const savedBody = await saved.json();
+    syntheticConsentId = savedBody.data.id;
+    expect(savedBody.data).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    await expect(form.getByRole('status')).toContainText('Consent record saved with an encrypted document');
+    const expiredCard = page.locator('article.card').filter({ hasText: 'synthetic-consent-subject' });
+    await expect(expiredCard).toContainText('expired');
+
+    const list = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/consent-records`);
+    expect(list.status).toBe(200);
+    const record = list.body.data.find(entry => entry.id === syntheticConsentId);
+    expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length, expiresAt: '2020-12-31T23:59:59.999Z' });
+    expect(Object.keys(record)).not.toContain('documentCiphertext');
+    expect(record.sha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const downloaded = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        cacheControl: response.headers.get('cache-control'),
+        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+      };
+    }, `/api/v1/models/${ownModel}/consent-records/${syntheticConsentId}/document`);
+    expect(downloaded).toMatchObject({ status: 200, contentType: 'image/tiff' });
+    expect(downloaded.cacheControl).toContain('no-store');
+    expect(downloaded.bytes).toEqual(Array.from(dng));
+    const publishStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
+    expect(publishStatus.status).toBe(200);
+    expect(publishStatus.data.data.ok).toBe(false);
+    expect(await status(`/api/v1/models/${otherModel}/consent-records/${syntheticConsentId}/document`)).toBe(404);
+  });
+  await check('roleplay explains missing assignments, saves persona, and persists a handoff only after a synthetic active actor exists', async () => {
+    const roleplayUrl = `/models/${ownModel}/roleplay`;
+    await page.goto(roleplayUrl);
+    await expect(page.getByText('Handoff and context reload need an active assigned shift.', { exact: false })).toBeVisible();
+    await expect(page.locator(`a[href="/models/${ownModel}/team"]`)).toBeVisible();
+    const reloadContext = page.getByRole('button', { name: 'Reload bounded context' });
+    const summary = page.getByLabel('Last safe summary');
+    const nextAction = page.getByLabel('Allowed next action');
+    await expect(reloadContext).toBeDisabled();
+    await expect(summary).toBeDisabled();
+    await expect(nextAction).toBeDisabled();
+    const persona = page.getByPlaceholder('Write bounded character guidance…');
+    await expect(persona).toBeEnabled();
+    await persona.fill('Synthetic persona guidance used only by this disposable browser test.');
+    const personaSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/persona`
+      && response.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Save new persona revision' }).click();
+    expect([200, 201]).toContain((await personaSave).status());
+    const personaReadback = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/roleplay/persona`);
+    expect(personaReadback).toMatchObject({ status: 200, body: { data: { revision: 1, content: 'Synthetic persona guidance used only by this disposable browser test.' } } });
+
+    const fixtureActor = createRoleplayActor();
+    try {
+      await page.reload();
+      const actorSelect = page.getByLabel('Active actor');
+      await expect(actorSelect).toHaveValue(`llm:${fixtureActor.actorRef}`);
+      await expect(reloadContext).toBeEnabled();
+      const contextRead = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay`
+        && response.request().method() === 'GET');
+      await reloadContext.click();
+      expect((await contextRead).status()).toBe(200);
+      await expect(summary).toBeEnabled();
+      await expect(nextAction).toBeEnabled();
+      await summary.fill('Synthetic handoff summary; no provider turn was requested.');
+      await nextAction.fill('Review the fixture only.');
+      const handoffSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/handoff`
+        && response.request().method() === 'PUT');
+      await page.getByRole('button', { name: 'Save handoff' }).click();
+      expect([200, 201]).toContain((await handoffSave).status());
+      const contextReadback = await page.evaluate(async args => {
+        const query = new URLSearchParams({ actorType: 'llm', actorRef: args.actorRef });
+        const response = await fetch(`/api/v1/models/${args.modelId}/roleplay?${query}`, { cache: 'no-store' });
+        return { status: response.status, body: await response.json() };
+      }, { modelId: ownModel, actorRef: fixtureActor.actorRef });
+      expect(contextReadback.status).toBe(200);
+      expect(contextReadback.body.data).toMatchObject({
+        meta: { activeShiftId: fixtureActor.shiftId, actor: { type: 'llm', ref: fixtureActor.actorRef } },
+        handoff: { lastSafeSummary: 'Synthetic handoff summary; no provider turn was requested.', allowedNextAction: 'Review the fixture only.' },
+      });
+    } finally {
+      removeRoleplayActor(fixtureActor);
+    }
+  });
+  await check('Patreon and Snapchat missing credentials return a safe in-app explanation', async () => {
+    for (const platform of ['patreon', 'snapchat']) {
+      await page.goto(`/models/${ownModel}/network`);
+      const authorize = page.locator(`a[href^="/api/v1/connectors/${platform}/authorize?"]`);
+      await expect(authorize).toBeVisible();
+      const redirect = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/connectors/${platform}/authorize`);
+      await authorize.click();
+      expect((await redirect).status()).toBe(303);
+      await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/network\\?oauth=unavailable&platform=${platform}$`));
+      const providerName = platform === 'patreon' ? 'Patreon' : 'Snapchat';
+      await expect(page.locator('p[role="alert"]').filter({ hasText: `${providerName} OAuth is not configured on this service` })).toBeVisible();
+      await expect(page.locator('body')).not.toContainText('application/problem+json');
+    }
+  });
+  await check('Telegram setup never sends a message before a destination and token are supplied', async () => {
+    await page.goto(`/models/${ownModel}/network`);
+    const token = page.locator('input[type="password"][autocomplete="new-password"]');
+    await expect(token).toHaveCount(1);
+    const connect = page.getByRole('button', { name: 'Connect Telegram bot' });
+    await expect(connect).toBeDisabled();
+    expect(probes.some(probe => probe.path.includes('/connectTelegram'))).toBe(false);
+  });
+  await check('scrape rejects a private fixture URL before creating or dispatching a run', async () => {
+    await page.goto(`/models/${ownModel}/scraping`);
+    await page.getByLabel('Public HTTPS profile URL').fill('http://127.0.0.1/private-fixture');
+    const submit = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
+      && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Queue scrape' }).click();
+    expect((await submit).status()).toBe(400);
+    await expect(page.getByRole('alert')).toHaveText('Scrape was not queued. Check the request and try again.');
+    const history = await page.evaluate(async path => {
+      const response = await fetch(path, { cache: 'no-store' });
+      return { status: response.status, body: await response.json() };
+    }, `/api/v1/models/${ownModel}/scrape-runs`);
+    expect(history).toMatchObject({ status: 200, body: { data: [] } });
+  });
+  await check('automation page states its value in plain language instead of implementation jargon', async () => {
+    await page.goto(`/models/${ownModel}/triggers`);
+    await expect(page.getByText('Choose a platform, what to measure (such as likes, comments, or views), and a target.', { exact: false })).toBeVisible();
+    await expect(page.getByText('without checking every post by hand', { exact: false })).toBeVisible();
+    await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: true })).toBeVisible();
+    const thresholdMode = page.getByLabel('How should the target be set?');
+    await thresholdMode.selectOption('learned_p90');
+    await expect(page.getByText('Compare with recent performance', { exact: true })).toBeVisible();
+    await expect(page.getByText(/top 10% level of recent results/)).toBeVisible();
+    await expect(page.getByText(/Learned p90|worker gates|kill-switch/)).toHaveCount(0);
   });
   await check('link-in-bio starts with zero configured providers', async () => {
     await page.goto(`/models/${ownModel}/linkbio`);
@@ -385,6 +578,26 @@ COMMIT;
     expect(renderedLines).toBe(1);
     await page.setViewportSize({ width: 1440, height: 1000 });
     failureContext = null;
+  });
+  await check('all six supported interface languages save and read back in the settings UI', async () => {
+    await page.goto('/settings');
+    const localeForm = page.locator('form').first();
+    const localeSelect = localeForm.locator('select');
+    await expect(localeSelect).toHaveCount(1);
+    for (const locale of ['en', 'es', 'ja', 'it', 'pt-BR', 'de']) {
+      await localeSelect.selectOption(locale);
+      const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/ui-locale'
+        && response.request().method() === 'PATCH');
+      await localeForm.locator('button[type="submit"]').click();
+      expect((await saved).status()).toBe(200);
+      const readback = await page.evaluate(async () => {
+        const response = await fetch('/api/v1/ui-locale', { cache: 'no-store' });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(readback).toMatchObject({ status: 200, body: { data: { locale, userLocale: locale } } });
+      await expect(localeSelect).toHaveValue(locale);
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    }
   });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);

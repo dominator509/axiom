@@ -892,6 +892,7 @@ export const MESSAGE_KEYS = [
   'roleplay.modeManual',
   'roleplay.modeSuggested',
   'roleplay.noActiveActor',
+  'roleplay.noActiveActorHelp',
   'roleplay.none',
   'roleplay.noProviderTurns',
   'roleplay.noReplyStored',

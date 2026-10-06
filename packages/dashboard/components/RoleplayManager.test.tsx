@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CATALOGS, SUPPORTED_LOCALES } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
 import RoleplayManager, { formatRoleplayCount } from './RoleplayManager';
 
@@ -18,6 +19,18 @@ it('renders the same roleplay controls through the Spanish catalog', () => {
   expect(html).toContain('Personalidad sugerida');
   expect(html).toContain('Usar personalidad sugerida');
   expect(html).not.toContain('Suggested personality');
+});
+
+it('explains how an actor becomes active in every supported locale', () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale={locale}>
+        <RoleplayManager modelId="model" actorOptions={[]} canEdit />
+      </LocaleProvider>,
+    );
+    expect(html).toContain(CATALOGS[locale]['roleplay.noActiveActorHelp']);
+    expect(html).toContain('href="/models/model/team"');
+  }
 });
 
 it('formats roleplay revisions and character counts through the selected locale', () => {
