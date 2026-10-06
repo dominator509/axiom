@@ -257,15 +257,15 @@ describe('LLMGateway user-funded chat', () => {
   it('reports local provider cache counters and leaves absent counters unknown', async () => {
     const gw = gateway();
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        ...vllmResponse,
+      new Response(JSON.stringify({
+        ...vllmCompletion,
         usage: {
           prompt_tokens: 1000,
           completion_tokens: 25,
           total_tokens: 1025,
           prompt_tokens_details: { cached_tokens: 980 },
         },
-      }),
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
     const measured = await gw.chat(messages, { provider: 'vllm', model: 'first' });
     const unknown = await gw.chat([...messages, { role: 'user', content: 'different input' }], {
