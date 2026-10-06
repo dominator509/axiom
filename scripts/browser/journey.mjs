@@ -646,6 +646,10 @@ COMMIT;
     failureContext = null;
   });
   await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
+    // The full journey has just traversed several independent dashboard areas.
+    // Let the fixture IP burst bucket refill before the provider lifecycle
+    // checks; this is not a rate-limit load test and no acceptance is skipped.
+    await delay(6_500);
     const path = `/api/v1/models/${ownModel}/linkbio`;
     const nativeDisabled = await linkbioRequest(`${path}/native`, 'DELETE');
     expect(nativeDisabled.status).toBe(200);
@@ -656,9 +660,18 @@ COMMIT;
     ];
     for (const provider of independent) {
       const saved = await linkbioRequest(path, 'POST', { ...provider, isPrimary: true });
+      failureContext = { providerKind: provider.kind, saveStatus: saved.status };
       expect(saved.status).toBe(201);
       const current = await linkbioRequest(path);
-      const active = current.data.data.providers.filter(entry => entry.enabled);
+      failureContext = {
+        ...failureContext,
+        readbackStatus: current.status,
+        readbackDetail: typeof current.data?.detail === 'string' ? safeDiagnostic(new Error(current.data.detail)) : null,
+      };
+      expect(current.status, JSON.stringify(failureContext)).toBe(200);
+      const providers = current.data?.data?.providers;
+      expect(Array.isArray(providers), JSON.stringify(failureContext)).toBe(true);
+      const active = providers.filter(entry => entry.enabled);
       expect(active.map(entry => entry.kind)).toEqual([provider.kind]);
       expect(active[0].config.links.length).toBe(1);
       expect(active[0].config.links[0].path).toContain(`/linkbio/${provider.kind}/`);
@@ -674,6 +687,7 @@ COMMIT;
     }
     const empty = await linkbioRequest(path);
     expect(empty.data.data.providers.filter(entry => entry.enabled)).toEqual([]);
+    failureContext = null;
   });
   await check('all four providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
     const path = `/api/v1/models/${ownModel}/linkbio`;
