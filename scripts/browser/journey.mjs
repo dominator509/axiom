@@ -344,7 +344,14 @@ SELECT count(*) FROM team_shift WHERE id = :'shift';
     const roleplayUrl = `/models/${ownModel}/roleplay`;
     await page.goto(roleplayUrl);
     await expect(page.getByText('Handoff and context reload need an active assigned shift.', { exact: false })).toBeVisible();
-    await expect(page.locator(`a[href="/models/${ownModel}/team"]`)).toBeVisible();
+    const actorHelp = page.locator('p.notice').filter({ hasText: 'Handoff and context reload need an active assigned shift.' });
+    const assignmentLink = actorHelp.getByRole('link');
+    await expect(assignmentLink).toBeVisible();
+    const assignmentHref = await assignmentLink.getAttribute('href');
+    const assignmentPath = assignmentHref
+      ? decodeURIComponent(new URL(assignmentHref, page.url()).pathname).replace(/\/+$/, '')
+      : null;
+    expect(assignmentPath, `Unexpected actor assignment destination: ${assignmentHref}`).toBe(`/models/${ownModel}/team`);
     const reloadContext = page.getByRole('button', { name: 'Reload bounded context' });
     const summary = page.getByLabel('Last safe summary');
     const nextAction = page.getByLabel('Allowed next action');
