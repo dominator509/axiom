@@ -52,6 +52,28 @@ it('rejects HTTP social profile URLs before persisting or queueing a scrape', as
   expect(enqueueJob).not.toHaveBeenCalled();
 });
 
+it('queues a supported public HTTPS social profile URL', async () => {
+  const run = {
+    id: RUN_ID,
+    orgId: ORG_ID,
+    modelId: MODEL_ID,
+    kind: 'social',
+    state: 'queued',
+    error: null,
+    createdAt: new Date('2026-10-06T00:00:00Z'),
+    completedAt: null,
+  };
+  mockState.results = [[], [{ id: MODEL_ID }], [run]];
+  const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/scrape-runs`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'social', platform: 'instagram', profileUrl: 'https://www.instagram.com/synthetic-public-profile' }),
+  });
+  expect(response.status).toBe(202);
+  expect(await response.json()).toMatchObject({ data: { id: RUN_ID, modelId: MODEL_ID, kind: 'social', state: 'queued' } });
+  expect(enqueueJob).toHaveBeenCalledOnce();
+});
+
 it('returns bounded research history with a continuation cursor', async () => {
   mockState.result = [{ id: RUN_ID, orgId: ORG_ID, modelId: MODEL_ID, kind: 'social', state: 'completed', createdAt: new Date('2026-09-17T00:00:00Z') }];
   const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/scrape-runs?limit=1`);

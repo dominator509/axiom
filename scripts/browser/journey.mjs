@@ -492,9 +492,19 @@ COMMIT;
       && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Queue scrape' }).click();
     const queuedResponse = await queue;
+    const queuedPayload = await queuedResponse.json().catch(() => null);
+    if (queuedResponse.status() !== 202) {
+      const detail = queuedPayload && typeof queuedPayload.detail === 'string' ? queuedPayload.detail : 'No public problem detail';
+      failureContext = {
+        ...failureContext,
+        scrapeQueueStatus: queuedResponse.status(),
+        scrapeQueueContentType: queuedResponse.headers()['content-type'] ?? null,
+        scrapeQueueProblem: safeDiagnostic(new Error(detail)),
+      };
+    }
     expect(queuedResponse.status()).toBe(202);
     expect(scrapePosts).toHaveLength(1);
-    expect(await queuedResponse.json()).toMatchObject({ data: { kind: 'social', state: 'queued', modelId: ownModel, error: null } });
+    expect(queuedPayload).toMatchObject({ data: { kind: 'social', state: 'queued', modelId: ownModel, error: null } });
     const queuedHistory = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
