@@ -28,7 +28,7 @@ it('explains how an actor becomes active in every supported locale', () => {
         <RoleplayManager modelId="model" actorOptions={[]} canEdit />
       </LocaleProvider>,
     );
-    expect(html).toContain(CATALOGS[locale]['roleplay.noActiveActorHelp']);
+    expect(html).toContain(CATALOGS[locale]['roleplay.noActiveActorHelp'].replaceAll('&', '&amp;'));
     expect(html).toContain('href="/models/model/team"');
   }
 });

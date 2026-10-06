@@ -51,7 +51,7 @@ const createConsentSchema = z
     { message: 'validTo must not precede validFrom', path: ['validTo'] },
   );
 
-const MAX_MULTIPART_BYTES = MAX_CONSENT_DOCUMENT_BYTES + 64 * 1024;
+export const MAX_CONSENT_MULTIPART_BYTES = MAX_CONSENT_DOCUMENT_BYTES + 64 * 1024;
 
 function canManageConsent(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager' || role === 'operator';
@@ -79,10 +79,19 @@ async function readBoundedBody(request: Request, maxBytes: number): Promise<Buff
   }
 }
 
-async function readConsentForm(request: Request): Promise<FormData> {
+async function readConsentForm(
+  request: Request,
+  cachedBody?: ArrayBuffer | Promise<ArrayBuffer>,
+): Promise<FormData> {
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().startsWith('multipart/form-data;')) throw new Error('multipart form required');
-  const body = await readBoundedBody(request, MAX_MULTIPART_BYTES);
+  const body = cachedBody === undefined
+    ? await readBoundedBody(request, MAX_CONSENT_MULTIPART_BYTES)
+    : Buffer.from(new Uint8Array(await cachedBody));
+  if (body.byteLength > MAX_CONSENT_MULTIPART_BYTES) {
+    body.fill(0);
+    throw new Error('consent document request too large');
+  }
   const bounded = new Request(request.url, {
     method: 'POST',
     headers: { 'content-type': contentType },
@@ -163,7 +172,12 @@ router.post('/models/:modelId/consent-records', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   if (!canManageConsent(c.get('role'))) return apiError(c, 403, statusTitle(403), 'consent vault management role required');
   let form: FormData;
-  try { form = await readConsentForm(c.req.raw); }
+  try {
+    form = await readConsentForm(
+      c.req.raw,
+      c.req.bodyCache.arrayBuffer as unknown as ArrayBuffer | Promise<ArrayBuffer> | undefined,
+    );
+  }
   catch (error) {
     const tooLarge = error instanceof Error && error.message === 'consent document request too large';
     return apiError(c, tooLarge ? 413 : 400, statusTitle(tooLarge ? 413 : 400), tooLarge ? 'consent document request too large' : 'invalid consent document upload');
