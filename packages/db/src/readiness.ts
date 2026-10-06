@@ -27,15 +27,28 @@ export const databaseReadinessSql = `
     AND a.attname = required.column_name AND a.attnum > 0 AND NOT a.attisdropped
 `;
 
+// A dead database connection must not leave the readiness probe hanging until
+// the operating system expires the socket. Bound this dependency check so the
+// API can promptly report unavailable and recover when PostgreSQL returns.
+export const databaseReadinessQueryTimeoutMs = 2_000;
+
 export interface ReadinessQuery {
-  query(text: string, values: string[]): Promise<{ rows: { ready: boolean }[] }>;
+  query(config: {
+    text: string;
+    values: string[];
+    query_timeout: number;
+  }): Promise<{ rows: { ready: boolean }[] }>;
 }
 
 /** Connectivity plus required tables/columns and runtime read privileges.
  * Not a backup-integrity, full migration-checksum, RLS, or provider acceptance gate.
  */
 export async function assertDatabaseReady(database: ReadinessQuery): Promise<void> {
-  const result = await database.query(databaseReadinessSql, [JSON.stringify(databaseReadinessColumns)]);
+  const result = await database.query({
+    text: databaseReadinessSql,
+    values: [JSON.stringify(databaseReadinessColumns)],
+    query_timeout: databaseReadinessQueryTimeoutMs,
+  });
   if (result.rows.length !== 1 || result.rows[0]?.ready !== true) {
     throw new Error('Database schema is not ready');
   }

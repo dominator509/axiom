@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { assertDatabaseReady, databaseReadinessColumns, databaseReadinessSql } from './readiness.js';
+import {
+  assertDatabaseReady,
+  databaseReadinessColumns,
+  databaseReadinessQueryTimeoutMs,
+  databaseReadinessSql,
+} from './readiness.js';
 
 describe('database readiness', () => {
   it('checks current schema columns including authentication and the latest features', () => {
@@ -15,7 +20,11 @@ describe('database readiness', () => {
   it('requires an affirmative catalog/privilege result, not just connectivity', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ ready: true }] });
     await expect(assertDatabaseReady({ query })).resolves.toBeUndefined();
-    expect(query).toHaveBeenCalledWith(databaseReadinessSql, [JSON.stringify(databaseReadinessColumns)]);
+    expect(query).toHaveBeenCalledWith({
+      text: databaseReadinessSql,
+      values: [JSON.stringify(databaseReadinessColumns)],
+      query_timeout: databaseReadinessQueryTimeoutMs,
+    });
   });
 
   it.each([{ rows: [] }, { rows: [{ ready: false }] }, { rows: [{ ready: null }] }, { rows: [{ ready: 'true' }] }])(
