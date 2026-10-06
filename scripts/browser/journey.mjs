@@ -226,11 +226,13 @@ COMMIT;
       const [response] = await Promise.all([
         page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
           && response.request().method() === 'POST', { timeout: 15_000 }),
-        page.getByRole('button', { name: 'Sign out', exact: true }).first().click({ timeout: 15_000 }),
+        page.locator('.signout-button:visible').first().click({ timeout: 15_000 }),
       ]);
       signOutContext.responseStatus = response.status();
       expect(response.status()).toBe(200);
-      await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+      await expect(page).toHaveURL(url => url.pathname === '/login');
+      await expect(page.locator('.signout-button:visible')).toHaveCount(0);
+      await expect(page.locator('form').first()).toBeVisible();
       failureContext = null;
       return response;
     } finally {
