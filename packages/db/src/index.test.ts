@@ -11,12 +11,12 @@ const env = vi.hoisted(() => {
 const pgMock = vi.hoisted(() => {
   class FakePool {
     static instances: FakePool[] = [];
-    config: { connectionString?: string } | undefined;
+    config: Record<string, unknown> | undefined;
     query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
     connect = vi.fn();
     end = vi.fn(async () => {});
     on = vi.fn();
-    constructor(config?: { connectionString?: string }) {
+    constructor(config?: Record<string, unknown>) {
       this.config = config;
       FakePool.instances.push(this);
     }
@@ -33,8 +33,19 @@ import { db, schema } from './index.js';
 
 describe('@axiom/db index', () => {
   it('constructs a pg.Pool from DATABASE_URL', () => {
-    expect(pgMock.FakePool.instances).toHaveLength(1);
-    expect(pgMock.FakePool.instances[0].config?.connectionString).toBe(env.url);
+    expect(pgMock.FakePool.instances).toHaveLength(2);
+    expect(pgMock.FakePool.instances[0].config).toMatchObject({
+      connectionString: env.url,
+      max: 20,
+      application_name: 'axiom',
+    });
+    expect(pgMock.FakePool.instances[1].config).toMatchObject({
+      connectionString: env.url,
+      max: 1,
+      connectionTimeoutMillis: 2_000,
+      query_timeout: 2_000,
+      application_name: 'axiom-readiness',
+    });
   });
 
   it('re-exports the full schema object', () => {
