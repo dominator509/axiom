@@ -48,6 +48,24 @@ const apiErrorSummaries = api => {
   }
   return summaries.slice(-3);
 };
+const apiRejectedRequestSummaries = api => {
+  const result = spawnSync('docker', ['logs', '--tail', '500', api], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 4 * 1024 * 1024,
+  });
+  receipt.commands.push({ command: 'docker logs --tail 500 ' + api, exitCode: result.status });
+  if (result.status !== 0) return ['API response status detail unavailable'];
+  const lines = scrub((result.stdout ?? '') + '\n' + (result.stderr ?? '')).split(/\r?\n/);
+  return lines.map(line => {
+    const plain = line.replace(/\u001b\[[0-9;]*m/g, '');
+    const match = plain.match(/<--\s+(GET|POST|PUT|PATCH|DELETE|OPTIONS)\s+(\S+)\s+(404|429|5\d{2})\b/i);
+    if (!match) return null;
+    const path = match[2].split('?')[0]
+      .replace(/\/[a-f0-9-]{36}(?=\/|$)/gi, '/<fixture-id>')
+      .replace(/\/(?:[0-9]{1,20})(?=\/|$)/g, '/<id>');
+    return match[1].toUpperCase() + ' ' + path + ' ' + match[3];
+  }).filter(Boolean).slice(-12);
+};
+
 const dashboardErrorSummaries = dashboard => {
   const result = spawnSync('docker', ['logs', '--tail', '200', dashboard], {
     cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024,
@@ -175,7 +193,7 @@ try {
         const log = readFileSync(join(directory, `journey-${repetition}-${mode}.log`), 'utf8');
         const summary = log.split(/\r?\n/).find(line => line.startsWith('{"mode":'));
         receipt.journeys.push({ repetition, ...(summary ? JSON.parse(summary) : { mode, failed: 1, countsUnavailable: true }),
-          apiErrors: apiErrorSummaries(api), dashboardErrors: dashboardErrorSummaries(dashboard) });
+          apiErrors: apiErrorSummaries(api), apiRejectedRequests: apiRejectedRequestSummaries(api), dashboardErrors: dashboardErrorSummaries(dashboard) });
         save();
         throw error;
       }

@@ -41,6 +41,7 @@ const results = [];
 const probes = [];
 const redirects = [];
 const browserErrors = [];
+const pageResponses = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -81,6 +82,11 @@ const observePage = observedPage => {
   });
   observedPage.on('response', response => {
     const path = new URL(response.url()).pathname;
+    const kind = response.request().resourceType();
+    if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
+      pageResponses.push({ path: safePath(response.url()), status: response.status(), kind, check: currentCheck });
+      if (pageResponses.length > 24) pageResponses.shift();
+    }
     if (response.status() >= 300 && response.status() < 400) {
       const location = response.headers().location;
       if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
@@ -89,7 +95,7 @@ const observePage = observedPage => {
     if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/(?:calendar|linkbio|triggers))?$/.test(path)) {
       probes.push({ path: safePath(response.url()), status: response.status() });
     }
-    const kind = response.request().resourceType();
+
     if (kind === 'script') scriptCount++;
     // Read while each response is available, before a later navigation can
     // evict it from Chromium's resource buffer. Retain only a boolean.
@@ -938,7 +944,7 @@ COMMIT;
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
       failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects,
-      browserErrors }));
+      pageResponses, browserErrors }));
     process.exitCode = 1;
   }
 } finally {
