@@ -538,6 +538,34 @@ COMMIT;
     expect(response.data.data.providers.filter(provider => provider.enabled)).toEqual([]);
   });
   await check('Native provider and tracked destination can be configured from the dashboard', async () => {
+    const renderState = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/get-session', { cache: 'no-store' });
+      const session = await response.json().catch(() => null);
+      return {
+        sessionStatus: response.status,
+        sessionRole: session?.user?.role ?? null,
+        hasWorkspace: Boolean(session?.user?.orgId),
+        title: document.title,
+        bodyText: (document.body?.innerText ?? '').slice(0, 1600),
+        labeledInputs: Array.from(document.querySelectorAll('input')).map(input => ({
+          label: input.getAttribute('aria-label'),
+          type: input.type,
+          disabled: input.disabled,
+          visible: input.getClientRects().length > 0,
+        })),
+      };
+    });
+    failureContext = {
+      sessionStatus: renderState.sessionStatus,
+      sessionRole: renderState.sessionRole,
+      hasWorkspace: renderState.hasWorkspace,
+      pageTitle: safeDiagnostic(new Error(renderState.title)),
+      renderedBody: safeDiagnostic(new Error(renderState.bodyText)),
+      labeledInputs: renderState.labeledInputs,
+    };
+    expect(renderState.sessionStatus).toBe(200);
+    expect(renderState.sessionRole).toBe('operator');
+    await expect(page.getByLabel('Link label')).toBeVisible();
     await page.getByLabel('Link label').fill('Synthetic destination');
     await page.getByLabel('Link URL').fill('https://example.invalid/synthetic-destination');
     await page.getByRole('button', { name: 'Add link' }).click();
