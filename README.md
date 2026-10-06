@@ -15,7 +15,7 @@ registered domain a live deployment.
 
 This pack is a complete, execution-ready blueprint for a cost-optimized, self-hostable, multi-tenant CRM that manages multiple Fanvue models and their full social-media ecosystems. It is a hardened rewrite of the v1 architecture with the same feature surface (nothing removed) plus the explicitly requested additions:
 
-- Link-in-bio ships with the **native first-party provider**. Fanlynks / Linktree / Beacons remain design-only until their real provisioning/OAuth/analytics adapters are implemented; they are not exposed as enabled integrations.
+- The approved link-in-bio release target is **Native, Fanlynks, Linktree, and Beacons**, optional per model. Native works with no external setup; external providers remain unavailable until their supported connection/provisioning, link sync, real analytics readback, revocation, and teardown are verified. See `L1-product/L1.2-nfr-and-journeys.md`, `L2-architecture/L2.4-link-in-bio-providers.md`, and L5 criterion A1.
 - **First-class connectors for 10 networks:** Instagram, TikTok, X, YouTube (+ Shorts), Reddit, Threads, Discord, Telegram, Facebook, Snapchat — each with an honest capability matrix.
 - **Relay Control Channel:** on generation, a rich card (preview + caption variants + per-platform hashtags + ToS scores) is pushed to Telegram / Discord / iMessage / Signal and you control the entire lifecycle from your phone.
 - **Observability & Incident Plane:** automatic bug/crash reporting, structured logging, dead-letter replay, and auto-paging into the Relay.

@@ -9,6 +9,8 @@ export const documents = [
   'L5-verification/L5.0-test-matrix.md',
   'L5-verification/L5.2-acceptance-and-security-audit.md',
 ];
+const invariantDocument = 'L0-governance/L0.0-governance-and-invariants.md';
+const invariantCrosswalkDocument = 'L5-verification/release-evidence-invariant-crosswalk.json';
 const sha = /^[a-f0-9]{40}$/;
 const digest = value => createHash('sha256').update(value).digest('hex');
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
@@ -46,6 +48,44 @@ export function requirements(read) {
   }
   check(result.length > 40, 'Requirement extraction incomplete');
   check(new Set(result.map(row => row.id)).size === result.length, 'Duplicate requirement IDs');
+
+  const canonicalInvariants = [...read(invariantDocument).matchAll(/^\*\*LBI-(\d{2}) — ([^.]+)\./gm)]
+    .map(([, id, property]) => ({ id: `LBI-${id}`, property }));
+  check(canonicalInvariants.length === 12 && canonicalInvariants.every((item, index) =>
+    item.id === `LBI-${String(index + 1).padStart(2, '0')}` && nonempty(item.property)),
+  'Canonical LBI catalog must define LBI-01 through LBI-12 exactly once');
+  const matrixInvariants = read('L5-verification/L5.0-test-matrix.md').split(/\r?\n/)
+    .map(line => /^\| (LBI-\d{2}) \| ([^|]+) \|/.exec(line))
+    .filter(Boolean)
+    .map(([, id, property]) => ({ id, property: property.trim() }));
+  check(JSON.stringify(matrixInvariants) === JSON.stringify(canonicalInvariants),
+    'L5.0 invariant numbering or properties differ from the canonical L0 catalog');
+
+  const crosswalk = JSON.parse(read(invariantCrosswalkDocument));
+  check(crosswalk?.version === 1, 'invariant crosswalk: unsupported version');
+  check(crosswalk.canonicalSource === invariantDocument, 'invariant crosswalk: wrong canonical source');
+  check(JSON.stringify(crosswalk.invariants) === JSON.stringify(canonicalInvariants),
+    'invariant crosswalk: canonical invariant definitions differ');
+  const crosswalkRows = crosswalk.criteria;
+  const ids = result.map(row => row.id);
+  check(crosswalkRows && typeof crosswalkRows === 'object' && !Array.isArray(crosswalkRows) &&
+    Object.keys(crosswalkRows).length === ids.length && ids.every(id => Object.hasOwn(crosswalkRows, id)),
+  'invariant crosswalk: criterion coverage mismatch');
+  const byId = new Map(canonicalInvariants.map(item => [item.id, item]));
+  for (const row of result) {
+    const entry = crosswalkRows[row.id];
+    check(entry && Array.isArray(entry.invariants), `${row.id}: invariant crosswalk entry missing`);
+    check(entry.invariants.every(id => byId.has(id)) && new Set(entry.invariants).size === entry.invariants.length,
+      `${row.id}: invariant crosswalk contains an unknown or duplicate invariant`);
+    const cited = [...new Set([...row.requirement.matchAll(/\bLBI-(\d{2})\b/g)]
+      .map(([, id]) => `LBI-${id}`))];
+    const orderedCitations = canonicalInvariants.map(item => item.id).filter(id => cited.includes(id));
+    check(JSON.stringify(entry.invariants) === JSON.stringify(orderedCitations),
+      `${row.id}: invariant crosswalk differs from normative requirement citations`);
+    check(entry.classification === (entry.invariants.length ? 'invariant-linked' : 'independent-acceptance'),
+      `${row.id}: invariant crosswalk classification mismatch`);
+    row.canonicalInvariantProperties = entry.invariants.map(id => byId.get(id));
+  }
   return result;
 }
 
@@ -81,6 +121,9 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
       && verification.requiredEvidence.length > 0 && verification.requiredEvidence.every(nonempty),
     `${row.id}: missing required evidence`);
     check(nonempty(verification?.completionCondition), `${row.id}: missing completion condition`);
+    check(Array.isArray(requirement.canonicalInvariantProperties), `${row.id}: missing canonical invariant mapping`);
+    check(requirement.canonicalInvariantProperties.every(item =>
+      /^LBI-\d{2}$/.test(item.id) && nonempty(item.property)), `${row.id}: invalid canonical invariant mapping`);
     check(Array.isArray(row.evidence), `${row.id}: missing evidence array`);
     if (row.status === 'passed') check(row.evidence.length > 0, `${row.id}: evidence-free pass`);
     for (const receipt of row.evidence) {
