@@ -72,6 +72,18 @@ export { roleplayGateway } from '../roleplay-runtime.js';
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   try {
+    // The durable idempotency middleware hashes the raw request stream before
+    // this route runs, then keeps a bounded copy in Hono's body cache. Read
+    // that copy when present; the raw stream has already been consumed.
+    const cachedBody = c.req.bodyCache.arrayBuffer as
+      | ArrayBuffer
+      | Promise<ArrayBuffer>
+      | undefined;
+    if (cachedBody) {
+      const bytes = await cachedBody;
+      if (bytes.byteLength > 64 * 1024) throw new RequestBodyTooLargeError(64 * 1024);
+      return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    }
     return await readBoundedJson(c.req.raw, 64 * 1024);
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) throw error;

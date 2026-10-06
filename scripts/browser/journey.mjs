@@ -364,7 +364,9 @@ SELECT count(*) FROM team_shift WHERE id = :'shift';
     const personaSave = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/roleplay/persona`
       && response.request().method() === 'PUT');
     await page.getByRole('button', { name: 'Save new persona revision' }).click();
-    expect([200, 201]).toContain((await personaSave).status());
+    const personaResponse = await personaSave;
+    const personaBody = await personaResponse.json();
+    expect([200, 201], `Persona save rejected: ${JSON.stringify(personaBody)}`).toContain(personaResponse.status());
     const personaReadback = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
       return { status: response.status, body: await response.json() };
