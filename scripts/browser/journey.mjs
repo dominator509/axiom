@@ -453,6 +453,21 @@ COMMIT;
   });
   await check('scrape rejects a private fixture URL before creating or dispatching a run', async () => {
     await page.goto(`/models/${ownModel}/scraping`);
+    failureContext = await page.evaluate(() => {
+      const bodyText = document.body?.innerText ?? '';
+      const labels = Array.from(document.querySelectorAll('label'));
+      const form = document.querySelector('fieldset');
+      return {
+        hasExpectedHeading: bodyText.includes('Trend & competitor radar'),
+        hasStartForm: bodyText.includes('Start a research run'),
+        hasLoadFailure: bodyText.includes('Research runs could not be loaded'),
+        hasNoRuns: bodyText.includes('No scraper runs yet'),
+        hasProfileUrlLabel: labels.some(label => label.textContent?.includes('Public HTTPS profile URL')),
+        labelCount: labels.length,
+        inputTypes: Array.from(document.querySelectorAll('input')).map(input => input.type),
+        formDisabled: form instanceof HTMLFieldSetElement ? form.disabled : null,
+      };
+    });
     await page.getByLabel('Public HTTPS profile URL').fill('http://127.0.0.1/private-fixture');
     const submit = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/scrape-runs`
       && response.request().method() === 'POST');
@@ -464,6 +479,7 @@ COMMIT;
       return { status: response.status, body: await response.json() };
     }, `/api/v1/models/${ownModel}/scrape-runs`);
     expect(history).toMatchObject({ status: 200, body: { data: [] } });
+    failureContext = null;
   });
   await check('automation page states its value in plain language instead of implementation jargon', async () => {
     await page.goto(`/models/${ownModel}/triggers`);
