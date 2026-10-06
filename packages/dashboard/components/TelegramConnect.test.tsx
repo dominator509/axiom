@@ -15,6 +15,9 @@ it.each(SUPPORTED_LOCALES)('shows the destination instructions in %s', (locale) 
   );
 
   expect(html).toContain(CATALOGS[locale]['network.telegramTargetHint']);
+  const describedBy = html.match(/aria-describedby="([^"]+)"/)?.[1];
+  expect(describedBy).toBeDefined();
+  expect(html).toContain(`id="${describedBy}"`);
 });
 
 it.each([

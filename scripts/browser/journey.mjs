@@ -442,7 +442,7 @@ COMMIT;
   await check('Telegram setup never sends a message before a destination and token are supplied', async () => {
     await page.goto(`/models/${ownModel}/network`);
     const token = page.getByLabel(/^Telegram bot token\b/i);
-    const destination = page.getByLabel(/^Channel username or chat ID\b/i);
+    const destination = page.getByLabel('Channel username or chat ID', { exact: true });
     await expect(token).toHaveCount(1);
     await expect(destination).toHaveCount(1);
     await expect(token).toHaveValue('');
