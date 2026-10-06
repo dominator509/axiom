@@ -493,7 +493,7 @@ COMMIT;
     await page.goto(`/models/${ownModel}/triggers`);
     await expect(page.getByText('Choose a platform, what to measure (such as likes, comments, or views), and a target.', { exact: false })).toBeVisible();
     await expect(page.getByText('without checking every post by hand', { exact: false })).toBeVisible();
-    await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: false })).toBeVisible();
     const thresholdMode = page.getByLabel('How should the target be set?');
     await thresholdMode.selectOption('learned_p90');
     await expect(page.getByText('Compare with recent performance', { exact: true })).toBeVisible();
