@@ -258,7 +258,7 @@ try {
       INSERT INTO org_settings (org_id, publishing_enabled, kill_switch_reason, kill_switch_actor, kill_switch_at)
         VALUES (${sqlLiteral(orgId)}, false, 'restore rehearsal hold', 'recovery-dr-fixture', now());`);
 
-    docker(['exec', source, 'sh', '-c', 'printf "\\nlocal replication axiom trust\\n" >> "$PGDATA/pg_hba.conf" && pg_ctl -D "$PGDATA" reload']);
+    docker(['exec', '--user', 'postgres', source, 'sh', '-c', 'printf "\\nlocal replication axiom trust\\n" >> "$PGDATA/pg_hba.conf" && pg_ctl -D "$PGDATA" reload']);
     docker(['exec', '--user', 'postgres', source, 'pg_basebackup', '-h', '/var/run/postgresql', '-U', 'axiom',
       '-D', '/backup', '--format=plain', '--wal-method=stream', '--no-password'], { timeout: 300_000 });
     const baseSnapshot = archiveSnapshot(source);
