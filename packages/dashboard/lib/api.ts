@@ -68,6 +68,14 @@ export class ApiError extends Error {
   }
 }
 
+function emitBrowserDiagnostic(
+  event: string,
+  detail: Record<string, string | number | boolean | null>,
+): void {
+  if (process.env.AXIOM_BROWSER_DIAGNOSTICS !== '1') return;
+  console.info(`[AXIOM_BROWSER_DIAGNOSTIC] ${JSON.stringify({ event, ...detail })}`);
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const requestHeaders = await nextHeaders();
   const cookieHeader = requestHeaders.get('cookie');
@@ -94,6 +102,15 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       cache: 'no-store',
       signal: requestSignal.signal,
     });
+
+    if (!res.ok) {
+      emitBrowserDiagnostic('server-api-response', {
+        method,
+        path: path.split('?')[0].replace(/\/[a-f0-9-]{36}(?=\/|$)/gi, '/<fixture-id>'),
+        status: res.status,
+        cookieForwarded: headers.has('cookie'),
+      });
+    }
 
     if (!res.ok) {
       const raw = await readBoundedResponseText(
@@ -859,10 +876,22 @@ export async function getSession() {
       cache: 'no-store',
       signal: requestSignal.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      emitBrowserDiagnostic('server-session-response', {
+        status: res.status,
+        cookieForwarded: Boolean(cookieHeader),
+        userRole: null,
+      });
+      return null;
+    }
     const body = await readBoundedResponseJson<{
       user?: { id: string; name?: string | null; email?: string; orgId?: string | null; role?: string };
     } | null>(res);
+    emitBrowserDiagnostic('server-session-response', {
+      status: res.status,
+      cookieForwarded: Boolean(cookieHeader),
+      userRole: typeof body?.user?.role === 'string' ? body.user.role : null,
+    });
     return body?.user ? body : null;
   } catch {
     return null;
