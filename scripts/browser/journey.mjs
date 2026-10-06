@@ -40,6 +40,7 @@ await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
 const redirects = [];
+const browserErrors = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -58,6 +59,11 @@ const safeDiagnostic = error => {
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
     .split('\n').slice(0, 4).join('\n').slice(0, 1200);
 };
+const recordBrowserError = error => {
+  if (browserErrors.length >= 8) return;
+  const summary = safeDiagnostic(error);
+  if (!browserErrors.includes(summary)) browserErrors.push(summary);
+};
 const check = async (label, work) => {
   currentCheck = label;
   await work();
@@ -68,29 +74,35 @@ let context;
 let page;
 const deliveredBodies = [];
 let scriptCount = 0;
-const observePage = observedPage => observedPage.on('response', response => {
-  const path = new URL(response.url()).pathname;
-  if (response.status() >= 300 && response.status() < 400) {
-    const location = response.headers().location;
-    if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
-  }
-  if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
-  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/(?:calendar|linkbio))?$/.test(path)) {
-    probes.push({ path: safePath(response.url()), status: response.status() });
-  }
-  const kind = response.request().resourceType();
-  if (kind === 'script') scriptCount++;
-  // Read while each response is available, before a later navigation can
-  // evict it from Chromium's resource buffer. Retain only a boolean.
-  // Chromium follows redirects instead of rendering their response bodies as
-  // documents; the final destination response is observed separately.
-  if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
-    const resource = { path: safePath(response.url()), status: response.status(), kind };
-    deliveredBodies.push(response.body()
-      .then(body => ({ ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) }))
-      .catch(error => ({ ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' })));
-  }
-});
+const observePage = observedPage => {
+  observedPage.on('pageerror', recordBrowserError);
+  observedPage.on('console', message => {
+    if (message.type() === 'error') recordBrowserError(new Error(message.text()));
+  });
+  observedPage.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (response.status() >= 300 && response.status() < 400) {
+      const location = response.headers().location;
+      if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
+    }
+    if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
+    if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/(?:calendar|linkbio|triggers))?$/.test(path)) {
+      probes.push({ path: safePath(response.url()), status: response.status() });
+    }
+    const kind = response.request().resourceType();
+    if (kind === 'script') scriptCount++;
+    // Read while each response is available, before a later navigation can
+    // evict it from Chromium's resource buffer. Retain only a boolean.
+    // Chromium follows redirects instead of rendering their response bodies as
+    // documents; the final destination response is observed separately.
+    if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
+      const resource = { path: safePath(response.url()), status: response.status(), kind };
+      deliveredBodies.push(response.body()
+        .then(body => ({ ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) }))
+        .catch(error => ({ ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' })));
+    }
+  });
+};
 try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
@@ -925,7 +937,8 @@ COMMIT;
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
-      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
+      failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects,
+      browserErrors }));
     process.exitCode = 1;
   }
 } finally {
