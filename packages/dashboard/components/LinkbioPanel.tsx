@@ -39,6 +39,7 @@ interface ProviderRow {
   status?: string;
   integration?: ProviderIntegration;
   lastSyncedAt?: string | null;
+  updatedAt?: string;
   profileUrl?: string | null;
   clicks?: number;
   config?: Record<string, unknown> | null;
@@ -96,23 +97,25 @@ export default function LinkbioPanel({
 }) {
   const { locale = 'en', t } = useLocale();
   const router = useRouter();
-  const [kind, setKind] = useState<ProviderKind>((providers.find((provider) => provider.enabled)?.kind as ProviderKind) ?? 'native');
+  const initialEnabledProvider = providers.find((provider) => provider.enabled);
+  const initialKind = (initialEnabledProvider?.kind as ProviderKind) ?? 'native';
+  const initialProvider = providers.find((provider) => provider.kind === initialKind);
+  const initialActiveProvider = initialProvider?.enabled ? initialProvider : undefined;
+  const [kind, setKind] = useState<ProviderKind>(initialKind);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const intent = useRef<MutationIntent | null>(null);
-  const selectedProvider = providers.find((provider) => provider.kind === kind);
-  const activeProvider = selectedProvider?.enabled ? selectedProvider : undefined;
-  const [isPrimary, setIsPrimary] = useState(selectedProvider?.isPrimary ?? false);
-  const [links, setLinks] = useState<NativeLink[]>(() => readLinks(selectedProvider?.config));
-  const [profileUrl, setProfileUrl] = useState(selectedProvider?.profileUrl ?? '');
+  const [isPrimary, setIsPrimary] = useState(initialProvider?.isPrimary ?? false);
+  const [links, setLinks] = useState<NativeLink[]>(() => readLinks(initialProvider?.config));
+  const [profileUrl, setProfileUrl] = useState(initialProvider?.profileUrl ?? '');
   const [accentColor, setAccentColor] = useState(() => {
-    const value = selectedProvider?.config?.accentColor;
+    const value = initialProvider?.config?.accentColor;
     return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#f9fafb';
   });
   const [measurementId, setMeasurementId] = useState('');
-  const [propertyId, setPropertyId] = useState(activeProvider?.analyticsConnection?.propertyId ?? '');
+  const [propertyId, setPropertyId] = useState(initialActiveProvider?.analyticsConnection?.propertyId ?? '');
   const [clientEmail, setClientEmail] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [startDate, setStartDate] = useState(() => dateDaysAgo(7));
@@ -120,9 +123,22 @@ export default function LinkbioPanel({
   const [linkLabel, setLinkLabel] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [apiToken, setApiToken] = useState('');
+  const [confirmedProviders, setConfirmedProviders] = useState<Partial<Record<ProviderKind, ProviderRow>>>({});
+  const displayedProviders = KINDS.map((providerKind) => {
+    const serverProvider = providers.find((provider) => provider.kind === providerKind);
+    const confirmedProvider = confirmedProviders[providerKind];
+    if (!confirmedProvider) return serverProvider;
+    if (serverProvider && serverProvider.id === confirmedProvider.id && serverProvider.updatedAt
+      && (!confirmedProvider.updatedAt || Date.parse(serverProvider.updatedAt) >= Date.parse(confirmedProvider.updatedAt))) {
+      return serverProvider;
+    }
+    return confirmedProvider;
+  }).filter((provider): provider is ProviderRow => provider !== undefined);
+  const selectedProvider = displayedProviders.find((provider) => provider.kind === kind);
+  const activeProvider = selectedProvider?.enabled ? selectedProvider : undefined;
 
   function selectKind(next: ProviderKind) {
-    const provider = providers.find((entry) => entry.kind === next);
+    const provider = displayedProviders.find((entry) => entry.kind === next);
     setKind(next);
     setIsPrimary(provider?.isPrimary ?? false);
     setLinks(readLinks(provider?.config));
@@ -188,6 +204,28 @@ export default function LinkbioPanel({
           : t('linkbio.ga4.syncSucceeded', { count: Number(data.importedRows) }));
       } else if (request.action === 'analytics-disconnect') {
         setNotice(request.kind === 'fanlynks' ? t('linkbio.fanlynks.disconnected') : t('linkbio.ga4.disconnected'));
+      }
+      if (request.action === 'provider') {
+        const integration = data.integration && typeof data.integration === 'object'
+          ? data.integration as ProviderIntegration : selectedProvider?.integration;
+        const config = data.config && typeof data.config === 'object' && !Array.isArray(data.config)
+          ? data.config as Record<string, unknown> : selectedProvider?.config ?? {};
+        setConfirmedProviders((current) => ({
+          ...current,
+          [request.kind]: {
+            ...selectedProvider,
+            id: typeof data.id === 'string' ? data.id : selectedProvider?.id ?? request.kind,
+            kind: request.kind,
+            enabled: request.enabled === true,
+            isPrimary: typeof data.isPrimary === 'boolean' ? data.isPrimary : selectedProvider?.isPrimary ?? false,
+            ...(typeof data.status === 'string' ? { status: data.status } : {}),
+            ...(integration ? { integration } : {}),
+            ...(typeof data.profileUrl === 'string' || data.profileUrl === null
+              ? { profileUrl: data.profileUrl as string | null } : {}),
+            config,
+            ...(typeof data.updatedAt === 'string' ? { updatedAt: data.updatedAt } : {}),
+          },
+        }));
       }
       router.refresh();
     } catch {
@@ -282,10 +320,10 @@ export default function LinkbioPanel({
   const needsExternalSetup = kind === 'linktree' || kind === 'beacons';
   return (
     <div className="stack">
-      {providers.filter((provider) => provider.enabled).length > 0 && (
+      {displayedProviders.filter((provider) => provider.enabled).length > 0 && (
         <table>
           <thead><tr><th>{t('linkbio.kind')}</th><th>{t('linkbio.primary')}</th><th>{t('linkbio.clicks')}</th><th>{t('linkbio.status')}</th><th></th></tr></thead>
-          <tbody>{providers.filter((provider) => provider.enabled).map((provider) => (
+          <tbody>{displayedProviders.filter((provider) => provider.enabled).map((provider) => (
             <tr key={provider.id}>
               <td>{provider.kind}</td><td>{provider.isPrimary ? '★' : '—'}</td>
               <td>{formatNumber(provider.clicks ?? 0, locale)}</td>
