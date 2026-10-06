@@ -605,12 +605,40 @@ COMMIT;
     await page.getByLabel('Link label').fill('Synthetic destination');
     await page.getByLabel('Link URL').fill('https://example.invalid/synthetic-destination');
     await page.getByRole('button', { name: 'Add link' }).click();
+    const saveResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/linkbio`
+      && response.request().method() === 'POST', { timeout: 10_000 }).catch(() => null);
     await page.getByRole('button', { name: 'Enable provider' }).click();
+    const saveResponse = await saveResponsePromise;
+    const saveBody = saveResponse ? await saveResponse.json().catch(() => null) : null;
+    const savedReadback = saveResponse?.status() === 201 ? await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`) : null;
+    const nativeProvider = savedReadback?.data?.data?.providers?.find(provider => provider.kind === 'native');
+    failureContext = {
+      saveStatus: saveResponse?.status() ?? null,
+      saveDetail: typeof saveBody?.detail === 'string' ? safeDiagnostic(new Error(saveBody.detail))
+        : typeof saveBody?.error?.message === 'string' ? safeDiagnostic(new Error(saveBody.error.message)) : null,
+      saveProvider: saveBody?.data ? {
+        kind: saveBody.data.kind,
+        enabled: saveBody.data.enabled,
+        integrationState: saveBody.data.integration?.state ?? null,
+      } : null,
+      readbackStatus: savedReadback?.status ?? null,
+      readbackProvider: nativeProvider ? {
+        enabled: nativeProvider.enabled,
+        integrationState: nativeProvider.integration?.state ?? null,
+        linkCount: nativeProvider.config?.links?.length ?? null,
+      } : null,
+      renderedRows: await page.getByRole('row').allInnerTexts().catch(() => []),
+      visibleAlerts: await page.locator('[role="alert"]').allInnerTexts().catch(() => []),
+    };
+    expect(saveResponse?.status(), JSON.stringify(failureContext)).toBe(201);
+    expect(savedReadback?.status, JSON.stringify(failureContext)).toBe(200);
+    expect(nativeProvider, JSON.stringify(failureContext)).toMatchObject({ enabled: true, integration: { state: 'configured' } });
     const row = page.getByRole('row').filter({ hasText: 'native' });
     await expect(row).toContainText('Configured');
     const savedLink = page.getByRole('listitem').filter({ hasText: 'Synthetic destination' });
     await expect(savedLink).toContainText('https://example.invalid/synthetic-destination');
     expect(await status(`/linkbio/${ownModel}`)).toBe(200);
+    failureContext = null;
   });
   await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
     const path = `/api/v1/models/${ownModel}/linkbio`;
