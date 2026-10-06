@@ -90,6 +90,31 @@ async function blockedPublishFixture(tosReport) {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, target, job: result.rows[0] };
 }
+async function expiredConsentPublishFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
+  const document = docKind => ({
+    orgId: org, modelId: model, platform: 'instagram', consentType: 'fixture',
+    subjectRef: `l5-${model}`, docKind, granted: true,
+    blobRef: `isolated-l5://${randomUUID()}`, sha256: randomBytes(32),
+  });
+  await scoped(org, async tx => {
+    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.consentRecord).values([
+      document('2257'), document('model_release'), document('id_verify'),
+      { ...document('platform_consent'), expiresAt: new Date(Date.now() - 60_000) },
+    ]);
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'approved', captions: { instagram: 'Synthetic expired-consent fixture.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'instagram', score: 0, verdict: 'pass' }] } });
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'instagram', state: 'pending', idemKey: randomBytes(32) });
+    await tx.insert(schema.job).values({ id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+      payload: { targetId: target }, attempts: 0, maxAttempts: 1, lockedBy: 'l5-worker', lockedAt: new Date() });
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, target, job: result.rows[0] };
+}
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
   job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
@@ -191,6 +216,21 @@ try {
       assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
+  await check('publish.target: expired platform consent fails closed before dispatch', async () => {
+    const fixture = await expiredConsentPublishFixture();
+    assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'dead');
+    const records = await scoped(fixture.org, async tx => ({
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      dispatchMarkers: await tx.select().from(schema.prePostRun).where(and(
+        eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')),
+      ),
+    }));
+    assert.equal(records.job.state, 'dead');
+    assert.match(records.job.lastError, /platform_consent:instagram/);
+    assert.equal(records.target.state, 'pending');
+    assert.equal(records.dispatchMarkers.length, 0, 'Expired consent must stop before the provider dispatch marker');
+  });
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
     const fixture = await relayDispatchFixture();
     const originalCliPath = process.env.SIGNAL_CLI_PATH;
