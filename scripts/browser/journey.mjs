@@ -516,9 +516,45 @@ COMMIT;
   await check('automation page states its value in plain language instead of implementation jargon', async () => {
     await page.goto(`/models/${ownModel}/triggers`);
     const renderedDescription = await page.locator('.card p.subtle').first().innerText().catch(() => '<missing>');
+    const routeDiagnostics = renderedDescription === '<missing>'
+      ? await page.evaluate(async modelId => {
+          const read = async (label, path) => {
+            const response = await fetch(path, { cache: 'no-store' });
+            const body = await response.json().catch(() => null);
+            return {
+              label,
+              status: response.status,
+              detail: typeof body?.detail === 'string' ? body.detail.slice(0, 300)
+                : typeof body?.error?.message === 'string' ? body.error.message.slice(0, 300) : null,
+            };
+          };
+          const [sessionResponse, rules, social] = await Promise.all([
+            fetch('/api/auth/get-session', { cache: 'no-store' }),
+            read('trigger-rules', `/api/v1/models/${encodeURIComponent(modelId)}/trigger-rules`),
+            read('social-accounts', `/api/v1/social-accounts?modelId=${encodeURIComponent(modelId)}`),
+          ]);
+          const session = await sessionResponse.json().catch(() => null);
+          return {
+            sessionStatus: sessionResponse.status,
+            sessionRole: session?.user?.role ?? null,
+            hasWorkspace: Boolean(session?.user?.orgId),
+            rules,
+            social,
+          };
+        }, ownModel)
+      : null;
     failureContext = {
       pageLocale: await page.locator('html').getAttribute('lang'),
       automationDescription: safeDiagnostic(new Error(renderedDescription)),
+      pageTitle: safeDiagnostic(new Error(await page.title())),
+      renderedPage: safeDiagnostic(new Error(await page.locator('body').innerText().catch(() => '<missing>'))),
+      ...(routeDiagnostics ? {
+        routeDiagnostics: {
+          ...routeDiagnostics,
+          rules: { ...routeDiagnostics.rules, detail: routeDiagnostics.rules.detail ? safeDiagnostic(new Error(routeDiagnostics.rules.detail)) : null },
+          social: { ...routeDiagnostics.social, detail: routeDiagnostics.social.detail ? safeDiagnostic(new Error(routeDiagnostics.social.detail)) : null },
+        },
+      } : {}),
     };
     await expect(page.getByText('Choose a platform, what to measure (such as likes, comments, or views), and a target.', { exact: false })).toBeVisible();
     await expect(page.getByText('without checking every post by hand', { exact: false })).toBeVisible();
