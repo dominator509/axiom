@@ -41,6 +41,40 @@ jobs:
             if (!fs.existsSync(root)) throw new Error("Runtime receipt unavailable");
             for (const entry of fs.readdirSync(root)) console.log(fs.readFileSync(`${root}/${entry}/receipt.json`, "utf8"));
           '
+  recovery-dr:
+    # This job owns two independent physical PITR fixtures. Both clusters have
+    # Docker network=none; no ambient database, cloud credentials, or .env is used.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Setup pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+      - name: Reject unsafe recovery harness execution contexts
+        run: node scripts/test-recovery-harness-guards.mjs
+      - name: Run two isolated physical PITR drills
+        env:
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha "$TESTED_SHA"
+      - name: Preserve recovery receipt
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/recovery-dr";
+            if (!fs.existsSync(root)) throw new Error("Recovery receipt unavailable");
+            const entries = fs.readdirSync(root);
+            if (entries.length !== 1) throw new Error("Expected one source-bound recovery receipt");
+            const receipt = `${root}/${entries[0]}/receipt.json`;
+            if (!fs.existsSync(receipt)) throw new Error("Recovery receipt unavailable");
+            console.log(fs.readFileSync(receipt, "utf8"));
+          '
   browser:
     # Independent of the matrix. Owns its database, credentials and internal
     # network; no shared service, production URL or repository secret is used.
