@@ -441,8 +441,12 @@ COMMIT;
   });
   await check('Telegram setup never sends a message before a destination and token are supplied', async () => {
     await page.goto(`/models/${ownModel}/network`);
-    const token = page.locator('input[type="password"][autocomplete="new-password"]');
+    const token = page.getByLabel(/^Telegram bot token\b/i);
+    const destination = page.getByLabel(/^Channel username or chat ID\b/i);
     await expect(token).toHaveCount(1);
+    await expect(destination).toHaveCount(1);
+    await expect(token).toHaveValue('');
+    await expect(destination).toHaveValue('');
     const connect = page.getByRole('button', { name: 'Connect Telegram bot' });
     await expect(connect).toBeDisabled();
     expect(probes.some(probe => probe.path.includes('/connectTelegram'))).toBe(false);
