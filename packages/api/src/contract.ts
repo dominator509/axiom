@@ -547,10 +547,8 @@ function sessionCookieCredential(c: Context): string | undefined {
  * Per-credential rate limiter: API tokens and browser sessions get separate
  * budgets; requests without a credential share the caller-IP budget. Session
  * cookies are opaque credentials and are hashed before their bucket key is
- * retained. Safe reads from an authenticated browser session use a separate,
- * larger bounded bucket so parallel dashboard page loads do not consume the
- * write budget. API tokens, mutations, and anonymous requests keep their
- * configured limits.
+ * retained. This keeps dashboard users behind one proxy from consuming each
+ * other's burst budget without relaxing the existing per-credential limits.
  */
 export function rateLimit(
   opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
@@ -568,8 +566,6 @@ export function rateLimit(
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
     const sessionCookie = sessionCookieCredential(c);
-    const browserSession = !credential && !apiKey && Boolean(sessionCookie);
-    const sessionRead = browserSession && (c.req.method === 'GET' || c.req.method === 'HEAD');
     const peerAddress = transportPeerAddress(c);
     const forwardedFor = c.req
       .header('x-forwarded-for')
@@ -585,12 +581,9 @@ export function rateLimit(
       : sessionCookie
         ? `session:${sessionCookie}`
         : `ip:${clientAddress || 'anonymous'}`;
-    const bucketSource = sessionRead ? `${source}:read-only` : source;
-    const bucketCapacity = sessionRead ? capacity * 4 : capacity;
-    const bucketRefill = sessionRead ? refillPerSec * 4 : refillPerSec;
     // Retain only an irreversible fingerprint, never a live credential.
-    const bucketKey = createHash('sha256').update(bucketSource).digest('base64url');
-    const bucket = getBucket(buckets, bucketKey, bucketCapacity, bucketRefill, maxBuckets);
+    const bucketKey = createHash('sha256').update(source).digest('base64url');
+    const bucket = getBucket(buckets, bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
       const retryAfter =
