@@ -84,8 +84,9 @@ const observePage = observedPage => {
   observedPage.on('response', response => {
     const path = new URL(response.url()).pathname;
     const kind = response.request().resourceType();
+    let routeResponse;
     if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
-      const routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
+      routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
       pageResponses.push(routeResponse);
       if (pageResponses.length > 24) pageResponses.shift();
       if (new URL(response.url()).searchParams.has('_rsc')) {
@@ -120,9 +121,25 @@ const observePage = observedPage => {
     // documents; the final destination response is observed separately.
     if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
       const resource = { path: safePath(response.url()), status: response.status(), kind };
-      deliveredBodies.push(response.body()
-        .then(body => ({ ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) }))
-        .catch(error => ({ ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' })));
+      deliveredBodies.push(response.body().then(body => {
+        if (routeResponse && kind === 'document') {
+          const html = body.toString('utf8');
+          routeResponse.renderedRoute = {
+            bytes: body.length,
+            hasWorkspaceShell: html.includes('app-shell'),
+            hasTalentHeader: html.includes('talent-header'),
+            hasPageStack: html.includes('page-stack'),
+            hasLinkbioForm: /Link label/.test(html),
+            hasErrorTitle: /<title>\s*Error:/i.test(html),
+            hasApplicationError: html.includes('Application error: a server-side exception has occurred'),
+            hasNotFound: html.includes('404: This page could not be found.'),
+          };
+        }
+        return { ...resource, readable: true, sentinelMatch: secretMarker !== null && body.includes(secretMarker) };
+      }).catch(error => {
+        if (routeResponse && kind === 'document') routeResponse.renderedRoute = { bodyUnavailable: error?.name ?? 'Error' };
+        return { ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' };
+      }));
     }
   });
 };
@@ -953,7 +970,7 @@ COMMIT;
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
 } catch (error) {
-  await Promise.allSettled(pendingRouteBodySummaries);
+  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies]);
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
