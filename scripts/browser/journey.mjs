@@ -515,6 +515,11 @@ COMMIT;
   });
   await check('automation page states its value in plain language instead of implementation jargon', async () => {
     await page.goto(`/models/${ownModel}/triggers`);
+    const renderedDescription = await page.locator('.card p.subtle').first().innerText().catch(() => '<missing>');
+    failureContext = {
+      pageLocale: await page.locator('html').getAttribute('lang'),
+      automationDescription: safeDiagnostic(new Error(renderedDescription)),
+    };
     await expect(page.getByText('Choose a platform, what to measure (such as likes, comments, or views), and a target.', { exact: false })).toBeVisible();
     await expect(page.getByText('without checking every post by hand', { exact: false })).toBeVisible();
     await expect(page.getByText('Generated content still needs approval before it can be published.', { exact: false })).toBeVisible();
@@ -524,6 +529,7 @@ COMMIT;
     await expect(thresholdMode.locator('option:checked')).toHaveText('Compare with recent performance');
     await expect(page.getByText(/top 10% level of recent results/)).toBeVisible();
     await expect(page.getByText(/Learned p90|worker gates|kill-switch/)).toHaveCount(0);
+    failureContext = null;
   });
   await check('link-in-bio starts with zero configured providers', async () => {
     await page.goto(`/models/${ownModel}/linkbio`);
