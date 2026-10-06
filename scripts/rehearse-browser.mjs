@@ -48,6 +48,29 @@ const apiErrorSummaries = api => {
   }
   return summaries.slice(-3);
 };
+const dashboardErrorSummaries = dashboard => {
+  const result = spawnSync('docker', ['logs', '--tail', '200', dashboard], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024,
+  });
+  receipt.commands.push({ command: `docker logs --tail 200 ${dashboard}`, exitCode: result.status });
+  if (result.status !== 0) return ['Dashboard error detail unavailable'];
+  const lines = scrub((result.stdout ?? '') + '\n' + (result.stderr ?? '')).split(/\r?\n/);
+  const summaries = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (!/(?:⨯|\b(?:Type|Reference|Range|Syntax)?Error:|Exception:|\bDigest:)/i.test(lines[index])) continue;
+    const context = lines.slice(index, index + 4).join(' ').replace(/\s+/g, ' ');
+    summaries.push(context
+      .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted database URL]')
+      .replace(/https?:\/\/[^\s"'<>]+/gi, '[redacted URL]')
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted email]')
+      .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+      .replace(/((?:password|token|secret|authorization|cookie)\s*[=:]\s*)\S+/gi, '$1[redacted]')
+      .replace(/\b[a-f0-9-]{36}\b/gi, '[fixture-id]')
+      .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
+      .slice(0, 700));
+  }
+  return summaries.slice(-3);
+};
 const owned = { containers: new Set(), networks: new Set(), volumes: new Set(), images: new Set() };
 const remove = (kind, name) => {
   const format = kind === 'containers' ? '{{json .Config.Labels}}' : '{{json .Labels}}';
@@ -152,7 +175,7 @@ try {
         const log = readFileSync(join(directory, `journey-${repetition}-${mode}.log`), 'utf8');
         const summary = log.split(/\r?\n/).find(line => line.startsWith('{"mode":'));
         receipt.journeys.push({ repetition, ...(summary ? JSON.parse(summary) : { mode, failed: 1, countsUnavailable: true }),
-          apiErrors: apiErrorSummaries(api) });
+          apiErrors: apiErrorSummaries(api), dashboardErrors: dashboardErrorSummaries(dashboard) });
         save();
         throw error;
       }

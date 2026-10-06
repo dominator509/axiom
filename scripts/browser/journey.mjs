@@ -75,7 +75,7 @@ const observePage = observedPage => observedPage.on('response', response => {
     if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
   }
   if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
-  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
+  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/(?:calendar|linkbio))?$/.test(path)) {
     probes.push({ path: safePath(response.url()), status: response.status() });
   }
   const kind = response.request().resourceType();
