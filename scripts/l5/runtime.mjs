@@ -940,8 +940,10 @@ for (const kind of Object.keys(defaultExecutors)) {
       : defaultExecutors['incident.notify']({ tx, workerId: 'l5-worker', killSwitchEnabled: true,
         job: { org_id: org, payload: { incidentId: randomUUID(), message: `Synthetic incident ${index}` } } }))));
     const result = await scoped(org, tx => verifyAuditChain(tx, org));
-    assert.equal(result.rows, 12); assert.equal(result.valid, true);
-    assert.equal(result.fullyVerified, true); assert.equal(result.legacyRows, 0);
+    assert.equal(result.rows, 12, JSON.stringify(result));
+    assert.equal(result.valid, true, JSON.stringify(result));
+    assert.equal(result.fullyVerified, true, JSON.stringify(result));
+    assert.equal(result.legacyRows, 0, JSON.stringify(result));
   });
 } finally {
   await pool.end(); await admin.end();

@@ -7,7 +7,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { tosReportPassesForPlatforms, canonicalAuditPayload, legacyAuditPayload } from '@axiom/core';
-import { db, schema } from '@axiom/db';
+import { db, lockAuditChain, schema } from '@axiom/db';
 import { problem, problemResponse } from '../contract.js';
 
 /**
@@ -170,11 +170,8 @@ export async function writeAudit(
   target: string,
   detail: Record<string, unknown>,
 ): Promise<{ prevHash: Buffer; rowHash: Buffer }> {
-  // Serialize audit writers for one organization before reading the chain
-  // head. Use an advisory lock because callers may already hold a foreign-key
-  // key-share lock on org; upgrading that lock to FOR UPDATE in concurrent
-  // child-row inserts can deadlock before the audit append.
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${orgId}, 0))`);
+  // Lock acquisition is shared with worker-side audit appends.
+  await lockAuditChain(tx, orgId);
 
   // Latest chain head for this org
   const prev = await tx

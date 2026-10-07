@@ -43,6 +43,7 @@ export async function checkDatabase(): Promise<void> {
 }
 
 export { schema };
+export { lockAuditChain } from './audit-chain-lock.js';
 export {
   REQUIRED_CONSENT_DOCUMENT_KINDS,
   isCurrentConsentRecord,
