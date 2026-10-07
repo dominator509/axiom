@@ -10,7 +10,7 @@ const shell = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe'
 try {
   mkdirSync(join(root, 'scripts'));
   mkdirSync(join(root, '.agent/state'), { recursive: true });
-  for (const script of ['verify.sh', 'graph-next.sh'])
+  for (const script of ['verify.sh', 'graph-next.sh', 'step-markers.mjs'])
     writeFileSync(join(root, 'scripts', script), readFileSync(new URL(script, import.meta.url)));
   // Only preflight is controlled; phase parsing and marker checks run unchanged.
   writeFileSync(join(root, 'scripts/preflight.sh'), "printf 'preflight: ok\\n'\n");
@@ -19,6 +19,15 @@ try {
     mkdirSync(directory, { recursive: true });
     writeFileSync(join(directory, 'fixture.done'), 'fixture\n');
   }
+  mkdirSync(join(root, '.axiom/markers/L5.0'), { recursive: true });
+  mkdirSync(join(root, 'fixtures'), { recursive: true });
+  writeFileSync(join(root, 'fixtures/marker-input.txt'), 'satisfied step input\n');
+  const markerWrite = spawnSync(process.execPath, [
+    'scripts/step-markers.mjs', 'write', '--root', root,
+    '--marker', '.axiom/markers/L5.0/fixture.done', '--step', 'LBI-10',
+    '--input', 'fixtures/marker-input.txt',
+  ], { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10_000 });
+  assert.equal(markerWrite.status, 0, `${markerWrite.stdout} ${markerWrite.stderr}`);
   const done = phase => `2026-09-15 | DONE P${phase} - completed`;
   const cases = [
     ['empty', [], 'NEXT P0', 1],
@@ -42,7 +51,22 @@ try {
       else assert.equal(result.stdout.includes('verify: ok'), exitCode === 0, name);
     }
   }
-  console.log(`phase-gates: ${cases.length} scenarios passed for both real scripts`);
+  writeFileSync(join(root, '.agent/state/LEDGER.md'), `${[0, 1, 2, 3, 4].map(done).join('\n')}\n`);
+  const validMarker = spawnSync(shell, ['scripts/verify.sh'], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10_000,
+  });
+  assert.equal(validMarker.status, 0, `${validMarker.stdout} ${validMarker.stderr}`);
+  assert.match(validMarker.stdout, /SKIP LBI-10/);
+  assert.match(validMarker.stdout, /verify: ok/);
+
+  writeFileSync(join(root, 'fixtures/marker-input.txt'), 'changed step input\n');
+  const driftedMarker = spawnSync(shell, ['scripts/verify.sh'], {
+    cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10_000,
+  });
+  assert.notEqual(driftedMarker.status, 0, `${driftedMarker.stdout} ${driftedMarker.stderr}`);
+  assert.match(driftedMarker.stdout, /FAIL input checksum drift/);
+  assert.equal(driftedMarker.stdout.includes('verify: ok'), false);
+  console.log(`phase-gates: ${cases.length} scenarios passed for both real scripts; marker-integrity: 2 passed, 0 failed`);
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

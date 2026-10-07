@@ -207,6 +207,10 @@ jobs:
         if: matrix.task == 'typecheck'
         run: node scripts/test-phase-gates.mjs
 
+      - name: Verify checksummed step marker lifecycle
+        if: matrix.task == 'typecheck'
+        run: node scripts/test-step-markers.mjs
+
       - name: Verify release evidence coverage and fail-closed regressions
         if: matrix.task == 'typecheck'
         run: |

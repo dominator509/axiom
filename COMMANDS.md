@@ -18,6 +18,7 @@
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval` — real pgvector retrieval, evidence filtering and model/tenant sharing isolation in a disposable database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --variant-performance` — real API/PostgreSQL variant-performance query acceptance in a fresh disposable database; no provider or live workspace operations
 - `node scripts/test-phase-gates.mjs` — isolated regressions for exact phase tokens and missing prerequisite phases; no live ledger or marker changes
+- `node scripts/test-step-markers.mjs` — isolated marker lifecycle regressions for run/skip, explicit refresh, manifest/input checksum drift, path escape and cleanup; synthetic temporary files only
 - `node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>` — fail-closed Codex/Hermes task, source-pin, remote-ref, and worktree-binding reconciliation; no network or live action. The current-task manifest is generated after the final Git push and is intentionally ignored by Git so its pinned `SOURCE_REF_HEAD` cannot be invalidated by the manifest commit itself.
 - `sh infra/grok-cli/rand-regression/test-linux.sh` — default RNG regression plus explicit test-only syscall-backend entropy failure injection on Linux; accepts `--offline`
 - `cargo test --locked --manifest-path infra/grok-cli/rand-regression/Cargo.toml` — RNG logging callback regression; separate vulnerable baseline intentionally fails and must not replace the normal CI gate
@@ -79,7 +80,10 @@
 - `git tag green/P{phase}` — phase completion tags
 
 ## Marker System
-- `.axiom/markers/<execplan>/<step>.done` — step completion marker
-- SKIP = marker present + checksum match
-- FAIL = marker present + checksum mismatch
-- RUN = no marker present
+- `.axiom/markers/<execplan>/<step>.done` — JSON step manifest with the completed step ID and hashes of its input files; a sibling `.done.sha256` pins the manifest bytes
+- `node scripts/step-markers.mjs write --root <repo> --marker <relative.done> --step <id> --input <relative-file> [--input <relative-file> ...]` — create a marker only after the step is satisfied; rebind changed inputs only with explicit `--refresh`
+- `node scripts/step-markers.mjs check --root <repo> --marker <relative.done>` — return `SKIP` only when the marker and all input hashes match; return `RUN` when absent; fail closed on checksum drift
+- `node scripts/step-markers.mjs verify-all --root <repo> --directory .axiom/markers` — verify every canonical step marker and reject orphan checksum sidecars
+- SKIP = marker and checksum sidecar present + marker checksum and every recorded input checksum match
+- FAIL = marker pair present but malformed, missing a sidecar, or any checksum mismatch
+- RUN = no marker and no orphan checksum sidecar
