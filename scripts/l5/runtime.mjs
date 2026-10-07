@@ -124,11 +124,20 @@ async function blockedPublishFixture(tosReport) {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, target, job: result.rows[0] };
 }
-async function successfulPublishFixture() {
+function syntheticConsentRows(org, model) {
+  const today = new Date().toISOString().slice(0, 10);
+  return ['2257', 'model_release', 'id_verify', 'platform_consent'].map(docKind => ({
+    id: randomUUID(), orgId: org, modelId: model, platform: 'discord', consentType: `l5-${docKind}`,
+    docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), expiresAt: null, revokedAt: null,
+    subjectRef: 'synthetic-l5-fixture', blobRef: `l5-fixture/${docKind}`,
+    sha256: randomBytes(32), documentCiphertext: null, documentMimeType: null, documentSize: null,
+    validFrom: today, validTo: null,
+  }));
+}
+async function successfulPublishFixture({ includeConsent = true } = {}) {
   const { org, model } = await tenant();
   const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID(), connection = randomUUID();
   const idemKey = randomBytes(32);
-  const today = new Date().toISOString().slice(0, 10);
   const media = readFileSync('/app/var/media/fixture.png');
   const storageKey = 'fixture.png';
   await scoped(org, async tx => {
@@ -142,13 +151,7 @@ async function successfulPublishFixture() {
     await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
       platform: 'discord', displayName: 'L5 isolated provider fixture', encToken: randomBytes(32),
       encNonce: randomBytes(12), dekId: `l5-${randomUUID()}`, capabilities: ['publish'], status: 'connected' });
-    await tx.insert(schema.consentRecord).values(['2257', 'model_release', 'id_verify', 'platform_consent'].map(docKind => ({
-      id: randomUUID(), orgId: org, modelId: model, platform: 'discord', consentType: `l5-${docKind}`,
-      docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), expiresAt: null, revokedAt: null,
-      subjectRef: 'synthetic-l5-fixture', blobRef: `l5-fixture/${docKind}`,
-      sha256: randomBytes(32), documentCiphertext: null, documentMimeType: null, documentSize: null,
-      validFrom: today, validTo: null,
-    })));
+    if (includeConsent) await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model));
     await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
       platform: 'discord', connectionId: connection, state: 'pending', idemKey });
     await tx.insert(schema.job).values([
@@ -221,6 +224,20 @@ async function publishRecords(fixture) {
     markers: (await tx.select().from(schema.prePostRun).where(and(
       eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')))),
   }));
+}
+async function assertConsentBlocksPublish(fixture, provider) {
+  assert.equal(await processJob(fixture.job, {
+    ...defaultExecutors,
+    'publish.target': ctx => publishTarget(ctx, provider.resolver),
+  }, 'l5-worker', {}), 'dead');
+
+  const records = await publishRecords(fixture);
+  assert.equal(provider.deliveries.length, 0, 'Missing or out-of-scope consent must block before provider I/O');
+  assert.equal(records.job.state, 'dead');
+  assert.match(records.job.lastError, /valid, in-date consent records.*2257/);
+  assert.equal(records.target.state, 'pending');
+  assert.equal(records.ledger, null);
+  assert.equal(records.markers.length, 0, 'Blocked consent cannot create a dispatch marker');
 }
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
@@ -335,18 +352,57 @@ try {
           eq(schema.consentRecord.docKind, '2257'),
         )));
 
-      assert.equal(await processJob(fixture.job, {
-        ...defaultExecutors,
-        'publish.target': ctx => publishTarget(ctx, provider.resolver),
-      }, 'l5-worker', {}), 'dead');
-
-      const records = await publishRecords(fixture);
-      assert.equal(provider.deliveries.length, 0, 'Expired consent must block before provider I/O');
-      assert.equal(records.job.state, 'dead');
-      assert.match(records.job.lastError, /valid, in-date consent records.*2257/);
-      assert.equal(records.target.state, 'pending');
-      assert.equal(records.ledger, null);
-      assert.equal(records.markers.length, 0, 'Blocked consent cannot create a dispatch marker');
+      await assertConsentBlocksPublish(fixture, provider);
+    } finally {
+      await provider.close();
+    }
+  });
+  await check('publish.target: missing model consent blocks provider dispatch after approval', async () => {
+    const fixture = await successfulPublishFixture({ includeConsent: false });
+    const provider = await localDiscordProvider(fixture);
+    try {
+      const consent = await scoped(fixture.org, tx => tx.select({ id: schema.consentRecord.id })
+        .from(schema.consentRecord).where(and(
+          eq(schema.consentRecord.orgId, fixture.org), eq(schema.consentRecord.modelId, fixture.model),
+        )));
+      assert.equal(consent.length, 0, 'Target model must have no consent records');
+      await assertConsentBlocksPublish(fixture, provider);
+    } finally {
+      await provider.close();
+    }
+  });
+  await check('publish.target: sibling-model consent cannot authorize provider dispatch', async () => {
+    const fixture = await successfulPublishFixture({ includeConsent: false });
+    const provider = await localDiscordProvider(fixture);
+    try {
+      const siblingModel = randomUUID();
+      await admin.query('INSERT INTO model_profile(id,org_id,display_name,handle) VALUES($1,$2,$3,$4)',
+        [siblingModel, fixture.org, 'Synthetic sibling talent', siblingModel]);
+      await scoped(fixture.org, tx => tx.insert(schema.consentRecord).values(syntheticConsentRows(fixture.org, siblingModel)));
+      const siblingConsent = await scoped(fixture.org, tx => tx.select({ id: schema.consentRecord.id })
+        .from(schema.consentRecord).where(and(
+          eq(schema.consentRecord.orgId, fixture.org), eq(schema.consentRecord.modelId, siblingModel),
+        )));
+      assert.equal(siblingConsent.length, 4, 'Only the sibling model has the four valid consent records');
+      await assertConsentBlocksPublish(fixture, provider);
+    } finally {
+      await provider.close();
+    }
+  });
+  await check('publish.target: another tenant consent cannot authorize provider dispatch', async () => {
+    const fixture = await successfulPublishFixture({ includeConsent: false });
+    const provider = await localDiscordProvider(fixture);
+    try {
+      const otherTenant = await tenant();
+      await scoped(otherTenant.org, tx => tx.insert(schema.consentRecord).values(
+        syntheticConsentRows(otherTenant.org, otherTenant.model),
+      ));
+      const otherConsent = await scoped(otherTenant.org, tx => tx.select({ id: schema.consentRecord.id })
+        .from(schema.consentRecord).where(and(
+          eq(schema.consentRecord.orgId, otherTenant.org), eq(schema.consentRecord.modelId, otherTenant.model),
+        )));
+      assert.equal(otherConsent.length, 4, 'The other tenant has a separate complete synthetic consent set');
+      await assertConsentBlocksPublish(fixture, provider);
     } finally {
       await provider.close();
     }
