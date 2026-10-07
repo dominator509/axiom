@@ -687,6 +687,8 @@ try {
         AXIOM_L5_DISCORD_WEBHOOK_TOKEN: webhookToken,
         AXIOM_L5_DISCORD_TRANSPORT_PORT: String(provider.transportPort),
         AXIOM_ASSET_DELIVERY_BASE_URL: process.env.AXIOM_ASSET_DELIVERY_BASE_URL,
+        MEDIA_PLANE_URL: process.env.MEDIA_PLANE_URL,
+        MEDIA_PLANE_AUTH_TOKEN: process.env.MEDIA_PLANE_AUTH_TOKEN,
       };
       child = spawn(process.execPath, ['--input-type=module', '-e', childSource], {
         cwd: process.cwd(), env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
