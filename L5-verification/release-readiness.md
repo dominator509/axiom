@@ -1,8 +1,19 @@
 # Release readiness: evidence register and execution order
 
-Implementation baseline for this plan: `7c83cd3f7ec31c776d9f1723942003cf9484cb7a` on main, before this evidence-register refresh. The original evidence baseline was `490f01d16b2bba3bf4366b1b2706a4879df3004e`; historical receipts below remain preserved.
+Implementation baseline for this plan: `935bf5ef42050f25cf3f6bd5c8464de3dbff75ce` on main, after PR #92. Its post-merge CI run is [37572130871](https://github.com/dominator509/axiom/actions/runs/37572130871), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `7c83cd3f7ec31c776d9f1723942003cf9484cb7a` and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, and the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria.
+
+Exact-SHA verification was attempted with
+`node scripts/check-release-evidence.mjs --verify-receipts 935bf5ef42050f25cf3f6bd5c8464de3dbff75ce`
+and failed closed at `LBI-01: stale evidence SHA`: the five accepted rows in
+the tracked register have receipts from earlier commits. The 47 other criteria
+remain open. This is a receipt freshness gap, not evidence that those rows
+failed. The verifier now accepts a post-run external register while loading
+requirements and invariant mappings from the immutable tested commit; the
+external file cannot redefine acceptance criteria. Exact-SHA hosted readback
+is still required before any receipt is counted, and this does not authorize
+release.
 
 ## Verified baseline
 
