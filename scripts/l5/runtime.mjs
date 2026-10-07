@@ -36,6 +36,14 @@ function waitWithTimeout(promise, timeoutMs, message) {
     new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), timeoutMs); }),
   ]).finally(() => clearTimeout(timer));
 }
+function safeChildDiagnostics(output, secrets) {
+  let message = Buffer.isBuffer(output) ? output.toString('utf8') : String(output ?? '');
+  for (const secret of secrets.filter(value => typeof value === 'string' && value.length > 0)) {
+    message = message.replaceAll(secret, '[FIXTURE-REDACTED]');
+  }
+  message = message.replace(/(postgres(?:ql)?:\/\/[^:@\s/]+:)[^@\s/]+@/gi, '$1[FIXTURE-REDACTED]@');
+  return message.slice(-4_000);
+}
 async function check(name, operation) {
   try { await operation(); report.tests.push({ name, passed: true }); report.passed++; }
   catch (error) { report.tests.push({ name, passed: false, error: error.message }); report.failed++; }
@@ -641,6 +649,7 @@ try {
           discordChannelId: '123456789012345678',
         } };
         const transport = async (providerUrl, init) => {
+          console.error('l5-crash-worker: provider transport invoked');
           const url = new URL(String(providerUrl));
           assert.equal(url.protocol, 'https:');
           assert.equal(url.hostname, 'discord.com');
@@ -649,6 +658,7 @@ try {
           return fetch('http://127.0.0.1:' + port + '/publish', { ...init, redirect: 'error' });
         };
         const resolver = async (_tx, orgId, modelId, target) => {
+          console.error('l5-crash-worker: connector resolver invoked');
           assert.equal(orgId, process.env.AXIOM_L5_ORG_ID);
           assert.equal(modelId, process.env.AXIOM_L5_MODEL_ID);
           assert.equal(target.platform, 'discord');
@@ -656,8 +666,15 @@ try {
           return { connection: { id: process.env.AXIOM_L5_CONNECTION_ID },
             connector: createConnector('discord', auth, transport) };
         };
-        await workerTick({ workerId: 'l5-crash-worker', egressScope: { modelId: process.env.AXIOM_L5_MODEL_ID },
-          executors: { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, resolver) } });
+        console.error('l5-crash-worker: worker tick starting');
+        try {
+          const stats = await workerTick({ workerId: 'l5-crash-worker', egressScope: { modelId: process.env.AXIOM_L5_MODEL_ID },
+            executors: { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, resolver) } });
+          console.error('l5-crash-worker: worker tick returned claimed=' + stats.claimed + ' done=' + stats.done);
+        } catch (error) {
+          console.error('l5-crash-worker: worker tick failed type=' + (error?.name ?? 'Error') + ' code=' + (error?.code ?? 'none'));
+          process.exitCode = 1;
+        }
       `;
       const childEnv = {
         PATH: process.env.PATH,
@@ -672,14 +689,33 @@ try {
         AXIOM_ASSET_DELIVERY_BASE_URL: process.env.AXIOM_ASSET_DELIVERY_BASE_URL,
       };
       child = spawn(process.execPath, ['--input-type=module', '-e', childSource], {
-        cwd: process.cwd(), env: childEnv, stdio: 'ignore', windowsHide: true,
+        cwd: process.cwd(), env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
       });
+      let childOutput = Buffer.alloc(0);
+      const captureChildOutput = chunk => {
+        childOutput = Buffer.concat([childOutput, chunk]).subarray(-16_384);
+      };
+      child.stdout.on('data', captureChildOutput);
+      child.stderr.on('data', captureChildOutput);
       const exitedBeforeAcceptance = new Promise((_, reject) => {
         child.once('error', error => reject(new Error(`Crash fixture worker could not start: ${error.message}`)));
         child.once('exit', (code, signal) => reject(new Error(`Crash fixture worker exited before provider acceptance (${code}/${signal})`)));
       });
-      const acceptedPayload = await waitWithTimeout(Promise.race([provider.accepted, exitedBeforeAcceptance]),
-        15_000, 'Crash fixture worker did not reach the local provider');
+      let acceptedPayload;
+      try {
+        acceptedPayload = await waitWithTimeout(Promise.race([provider.accepted, exitedBeforeAcceptance]),
+          15_000, 'Crash fixture worker did not reach the local provider');
+      } catch (error) {
+        let rowState = 'database readback unavailable';
+        try {
+          const records = await waitWithTimeout(publishRecords(fixture), 5_000, 'fixture readback timeout');
+          rowState = `job=${records.job.state}/${records.job.lockedBy ?? 'unlocked'} target=${records.target.state} `
+            + `dispatch=${records.markers.map(({ status }) => status).join(',') || 'none'} ledger=${records.ledger ? 'present' : 'absent'}`;
+        } catch { /* preserve the original worker/transport failure */ }
+        const childDetails = safeChildDiagnostics(childOutput,
+          [webhookToken, process.env.DATABASE_URL]);
+        throw new Error(`${error.message}; ${rowState}${childDetails ? `; child output: ${childDetails}` : ''}`);
+      }
       assert.equal(provider.deliveries.length, 1, 'The local provider accepted one in-flight publish request');
       assert.equal(acceptedPayload?.embeds?.[0]?.image?.url, fixture.mediaUrl,
         'The real connector payload must include the model-scoped provider media URL');
