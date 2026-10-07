@@ -79,6 +79,12 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
     try {
       const verified = deps.commandRouter.verifyCommand(signature, nonce, action, cardId);
       if (!verified) {
+        // Record rejected signatures without echoing attacker-controlled card
+        // IDs or credential-bearing command material into logs.
+        logger.warn('Rejected relay command signature', {
+          action,
+          reason: 'invalid_or_expired_or_replayed',
+        });
         return c.json({ success: false, error: 'Invalid or expired command signature' }, 403);
       }
 

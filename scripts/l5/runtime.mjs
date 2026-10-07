@@ -4,10 +4,13 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
 import { sql, eq, and } from 'drizzle-orm';
 import { processJob, defaultExecutors, publishTarget, readKillSwitch } from '@axiom/worker';
+import { CommandRouter } from '@axiom/relay';
+import { createRelayApp } from './dist/index.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
 assert.match(process.env.AXIOM_L5_FIXTURE ?? '', /^[a-f0-9-]{36}$/);
@@ -76,6 +79,30 @@ async function relayDispatchFixture() {
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0] };
+}
+async function relayCommandFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), card = randomUUID();
+  await scoped(org, async tx => {
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'generated', captions: { instagram: 'Synthetic relay command fixture.' }, hashtags: [],
+      tosReport: { verdict: 'pending' } });
+    await tx.insert(schema.relayCard).values({ id: card, orgId: org, modelId: model, bundleId: bundle,
+      channel: 'telegram', externalRef: 'l5-fixture-chat', state: 'sent', title: 'Synthetic review', config: {} });
+  });
+  return { org, model, bundle, card };
+}
+async function viralIngestFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), target = randomUUID(), remoteId = `l5-${randomUUID()}`;
+  await scoped(org, async tx => {
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'published', captions: { instagram: 'Synthetic published post.' }, hashtags: [],
+      tosReport: { verdict: 'pass' } });
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle, platform: 'instagram',
+      state: 'published', remoteId, publishedAt: new Date(), idemKey: randomBytes(32) });
+  });
+  return { org, model, bundle, target, remoteId };
 }
 async function blockedPublishFixture(tosReport) {
   const { org, model } = await tenant();
@@ -434,6 +461,96 @@ try {
       if (originalAccount === undefined) delete process.env.SIGNAL_ACCOUNT;
       else process.env.SIGNAL_ACCOUNT = originalAccount;
     }
+  });
+  await check('signed Relay API command persists one safe mutation and rejects forged, expired, and replayed signatures', async () => {
+    const fixture = await relayCommandFixture();
+    const app = createRelayApp();
+    const signer = new CommandRouter(process.env.RELAY_SECRET, 5);
+    const requestCommand = (signature, nonce) => app.request('/api/v1/relay/command', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signature, nonce, action: 'hold', cardId: fixture.card }),
+    });
+    const nonce = signer.generateNonce();
+    const signature = signer.signCommand(nonce, 'hold', fixture.card);
+    const accepted = await requestCommand(signature, nonce);
+    assert.equal(accepted.status, 200);
+    assert.equal((await accepted.json()).success, true);
+
+    let rejectedOutput = '';
+    const originalWrite = process.stdout.write;
+    process.stdout.write = ((chunk) => {
+      rejectedOutput += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    });
+    try {
+      assert.equal((await requestCommand(signature, nonce)).status, 403, 'same nonce cannot be replayed');
+      const duplicateNonce = signer.generateNonce();
+      const duplicate = await requestCommand(signer.signCommand(duplicateNonce, 'hold', fixture.card), duplicateNonce);
+      assert.equal(duplicate.status, 200, 'durable duplicate is acknowledged without a second mutation');
+      assert.match((await duplicate.json()).error, /already processed/);
+
+      const forgedNonce = signer.generateNonce();
+      assert.equal((await requestCommand('f'.repeat(64), forgedNonce)).status, 403);
+      const expiredBytes = randomBytes(16);
+      expiredBytes.writeUInt32BE(Math.floor(Date.now() / 1000) - 301, 0);
+      const expiredNonce = expiredBytes.toString('hex');
+      assert.equal((await requestCommand(signer.signCommand(expiredNonce, 'hold', fixture.card), expiredNonce)).status, 403);
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+
+    assert.ok(rejectedOutput.includes('Rejected relay command signature'));
+    assert.equal((rejectedOutput.match(/"message":"Rejected relay command signature"/g) ?? []).length, 3,
+      'nonce replay, forged signature, and expired signature must each be logged');
+    assert.ok(!rejectedOutput.includes(fixture.card), 'rejection logs must omit card identifiers');
+    assert.ok(!rejectedOutput.includes(nonce), 'rejection logs must omit the replayed nonce');
+    assert.ok(!rejectedOutput.includes(signature), 'rejection logs must omit the command signature');
+    const records = await scoped(fixture.org, async tx => ({
+      bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
+      cards: await tx.select().from(schema.relayCommand).where(eq(schema.relayCommand.cardId, fixture.card)),
+      jobs: await tx.select().from(schema.job).where(eq(schema.job.orgId, fixture.org)),
+      audit: await verifyAuditChain(tx, fixture.org),
+    }));
+    assert.equal(records.bundle.state, 'hold');
+    assert.equal(records.cards.length, 1);
+    assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0);
+    assert.equal(records.audit.rows, 1);
+    assert.equal(records.audit.valid, true);
+  });
+  await check('Relay metrics ingest is authenticated, durable, and never queues publishing', async () => {
+    const fixture = await viralIngestFixture();
+    const app = createRelayApp();
+    const body = { postId: fixture.remoteId, metrics: {
+      postId: fixture.remoteId, platform: 'instagram', modelName: 'synthetic-l5', impressions: 100,
+      likes: 5, comments: 1, shares: 1, saves: 2, engagementRate: 0.09, timestamp: Date.now(),
+    } };
+    assert.equal((await app.request('/api/v1/viral/ingest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })).status, 401, 'unscoped Relay ingest must not write metrics');
+    const authenticated = new Hono();
+    authenticated.use('/api/v1/viral/ingest', async (c, next) => {
+      c.set('orgId', fixture.org);
+      await next();
+    });
+    authenticated.route('/', app);
+    const response = await authenticated.request('/api/v1/viral/ingest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.success, true);
+    assert.ok(['viral', 'strong', 'baseline', 'weak'].includes(result.label));
+    const records = await scoped(fixture.org, async tx => ({
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      metrics: await tx.select().from(schema.postMetric).where(eq(schema.postMetric.postTargetId, fixture.target)),
+      jobs: await tx.select().from(schema.job).where(eq(schema.job.orgId, fixture.org)),
+    }));
+    assert.equal(records.target.state, 'published');
+    assert.equal(records.target.remoteId, fixture.remoteId);
+    assert.equal(records.metrics.length, 1);
+    assert.equal(records.metrics[0].source, 'manual');
+    assert.equal(records.jobs.filter(job => job.kind === 'viral.label').length, 1);
+    assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0);
   });
   await check('audit chain round-trips nested JSON through PostgreSQL', async () => {
     const { org } = await tenant();
