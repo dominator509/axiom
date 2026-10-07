@@ -284,21 +284,31 @@ try {
       assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
-  await check('publish.target: real worker and connector persist one remote outcome across approval replay', async () => {
+  await check('publish.target: concurrent duplicate approval and ledger replay persist one remote outcome', async () => {
     const fixture = await successfulPublishFixture();
     const provider = await localDiscordProvider(fixture);
     try {
       const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
-      assert.equal(await processJob(fixture.job, executors, 'l5-worker', {}), 'done');
+      const duplicateApprovalId = randomUUID();
+      await scoped(fixture.org, tx => tx.insert(schema.job).values({ id: duplicateApprovalId,
+        orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: fixture.target }, attempts: 0, maxAttempts: 1,
+        lockedBy: 'l5-worker-duplicate', lockedAt: new Date() }));
+      const duplicateApproval = await scoped(fixture.org, tx =>
+        tx.execute(sql`SELECT * FROM job WHERE id=${duplicateApprovalId}`));
+      assert.deepEqual(await Promise.all([
+        processJob(fixture.job, executors, 'l5-worker', {}),
+        processJob(duplicateApproval.rows[0], executors, 'l5-worker-duplicate', {}),
+      ]), ['done', 'done']);
       let records = await publishRecords(fixture);
-      assert.equal(provider.deliveries.length, 1);
+      assert.equal(provider.deliveries.length, 1, 'Concurrent duplicate approvals must yield one provider request');
       assert.equal(records.target.state, 'published');
       assert.equal(records.target.remoteId, 'fixture-message-1');
       assert.equal(records.ledger?.responseHash, 'fixture-message-1');
       assert.deepEqual(records.markers.map(({ status }) => status), ['success']);
 
       // Simulate a stale restored target row while retaining the committed
-      // idempotency ledger. The worker must restore its durable result locally.
+      // idempotency ledger. A later replay must restore its durable result locally.
       await scoped(fixture.org, tx => tx.update(schema.postTarget)
         .set({ state: 'pending', remoteId: null, publishedAt: null })
         .where(eq(schema.postTarget.id, fixture.target)));
