@@ -90,6 +90,17 @@ network-disabled Docker/PostgreSQL/model fixtures: 46 passed, 0 failed,
 handoff, fail-closed publish gates, uncertain Relay outcomes and audit-chain
 tamper detection. Its raw log SHA-256 is
 `83a987826306796e728ce7a25925e013919a6a9e46561ae8de950dab67fb4907`.
+The later candidate at SHA `d46c875b340afd4acda22f244a0db7356a745987` passed the
+expanded publish-idempotency rehearsal twice: 50 passed, 0 failed, 0 skipped,
+with cleanup verified. The [candidate CI run](https://github.com/dominator509/axiom/actions/runs/37563868575)
+completed with all 10 jobs successful; its [L5 runtime job](https://github.com/dominator509/axiom/actions/runs/37563868575/job/112607045675)
+ran `node scripts/rehearse-l5-runtime.mjs --isolated-fixture`. The raw job-log
+SHA-256 is `ef649d9de924c3dd595d4202f72e43098fe768cac4603c508d02201230807c53`.
+Concurrent approvals produced one loopback-fixture request, ledger replay made
+no second request, and the injected persistence fault left an unknown marker
+that blocked retry. This is internal idempotency evidence only; the Discord
+transport used a local loopback service, so external delivery/readback remains
+open. The final release SHA still requires the complete acceptance rerun.
 The current [container job](https://github.com/dominator509/axiom/actions/runs/37551519602/job/112567879347)
 also built and smoke-tested all seven application images. The job's raw log
 SHA-256 is `76767e6e3c07ebfe71ca688cd31e1a712cc277032d44c743026c9fab3ab51229`.
