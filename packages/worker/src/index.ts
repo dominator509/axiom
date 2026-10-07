@@ -11,7 +11,7 @@ export type { EnqueueJobInput } from './enqueue.js';
 export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';
 export type { ClaimResult } from './claim.js';
-export { defaultExecutors } from './executors/index.js';
+export { defaultExecutors, publishTarget } from './executors/index.js';
 export { triggerEvaluate } from './executors/trigger.js';
 export {
   METRICS_PUBLISH_AGE_OFFSETS_MS,

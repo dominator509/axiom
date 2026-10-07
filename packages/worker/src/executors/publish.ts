@@ -19,7 +19,7 @@ import { matchingCaptionGuidance } from '../caption-guidance.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
-import type { Executor, ExecutorContext } from './context.js';
+import type { ExecutorContext } from './context.js';
 import { readTrustedThumbnailFeatures } from '../thumbnail-features.js';
 import type { RelayHandoff } from '@axiom/connectors';
 
@@ -288,7 +288,10 @@ export function publishDispatchMarkerValues(
   };
 }
 
-export const publishTarget: Executor = async (ctx: ExecutorContext) => {
+export async function publishTarget(
+  ctx: ExecutorContext,
+  resolveConnector: typeof connectorForTarget = connectorForTarget,
+): Promise<void> {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
   const targetId = payload.targetId;
@@ -415,7 +418,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // 3. Resolve the target's org/model/platform connection and its healthy
   // model-scoped egress client. Never fall back to deployment-wide env auth.
   const platform = asPlatform(target.platform);
-  const { connection, connector } = await connectorForTarget(tx, job.org_id, model.id, {
+  const { connection, connector } = await resolveConnector(tx, job.org_id, model.id, {
     connectionId: target.connectionId,
     platform,
   });
@@ -716,4 +719,4 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       dedupeParts: ['metrics.poll', targetId, job.id],
     });
   }
-};
+}
