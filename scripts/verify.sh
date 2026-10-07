@@ -46,4 +46,10 @@ for phase in P0 P1 P2 P3 P4; do
     fi
 done
 
+# Validate checksum-bound greenfield step markers when present. Legacy phase
+# markers under .agent/markers remain governed by the phase gate above.
+if [ -d ".axiom/markers" ]; then
+    node scripts/step-markers.mjs verify-all --root "$PWD" --directory ".axiom/markers"
+fi
+
 echo "verify: ok"
