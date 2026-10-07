@@ -603,7 +603,12 @@ SELECT count(*) FROM model_profile WHERE id = :'fixture_model' AND org_id = :'fi
       headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
       body: JSON.stringify({ agentRef, tier: 'manager', canPublish: true }),
     });
-    assert.equal(permissionResponse.status, 201, 'Owner must be able to create a model-scoped synthetic agent grant');
+    const permissionResult = await permissionResponse.clone().json().catch(() => null);
+    const permissionDetail = typeof permissionResult?.detail === 'string'
+      ? permissionResult.detail.replace(/[\r\n\t]/g, ' ').slice(0, 200)
+      : 'no safe API detail';
+    assert.equal(permissionResponse.status, 201,
+      `Owner must be able to create a model-scoped synthetic agent grant (HTTP ${permissionResponse.status}: ${permissionDetail})`);
     const permission = (await permissionResponse.json()).data;
     assert.equal(permission.modelId, modelId);
     const tokenResponse = await request(`/api/v1/models/${modelId}/agent-permissions/${permission.id}/tokens`, {
