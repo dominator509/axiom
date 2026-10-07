@@ -99,13 +99,18 @@ async function blockedPublishFixture(tosReport) {
 }
 async function successfulPublishFixture() {
   const { org, model } = await tenant();
-  const bundle = randomUUID(), target = randomUUID(), job = randomUUID(), connection = randomUUID();
+  const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID(), connection = randomUUID();
   const idemKey = randomBytes(32);
   const today = new Date().toISOString().slice(0, 10);
+  const media = readFileSync('/app/var/media/fixture.png');
+  const storageKey = 'fixture.png';
   await scoped(org, async tx => {
     await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
+      fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey,
+      sha256: createHash('sha256').update(media).digest() });
     await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
-      state: 'approved', captions: { discord: 'Synthetic L5 publish acceptance.' }, hashtags: [],
+      assetId: asset, state: 'approved', captions: { discord: 'Synthetic L5 publish acceptance.' }, hashtags: [],
       tosReport: { verdict: 'pass', scores: [{ platform: 'discord', score: 0, verdict: 'pass' }] } });
     await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
       platform: 'discord', displayName: 'L5 isolated provider fixture', encToken: randomBytes(32),
@@ -128,7 +133,8 @@ async function successfulPublishFixture() {
     ]);
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
-  return { org, model, bundle, target, job: result.rows[0], connection, idemKey };
+  return { org, model, bundle, target, job: result.rows[0], connection, idemKey,
+    mediaUrl: 'https://media.example.invalid/assets/fixture.png' };
 }
 async function localDiscordProvider(fixture) {
   const deliveries = [];
@@ -316,6 +322,8 @@ try {
       assert.deepEqual(outcomes, ['done', 'done'], `Publish executor errors: ${JSON.stringify(jobErrors)}`);
       let records = await publishRecords(fixture);
       assert.equal(provider.deliveries.length, 1, 'Concurrent duplicate approvals must yield one provider request');
+      assert.equal(provider.deliveries[0]?.embeds?.[0]?.image?.url, fixture.mediaUrl,
+        'The real connector payload must include the model-scoped provider media URL');
       assert.equal(records.target.state, 'published');
       assert.equal(records.target.remoteId, 'fixture-message-1');
       assert.equal(records.ledger?.responseHash, 'fixture-message-1');
@@ -368,6 +376,8 @@ try {
       assert.equal(outcome, 'dead', `Publish executor error: ${safeFixtureError(records.job.lastError)}`);
       assert.equal(provider.deliveries.length, 1,
         `The isolated provider accepted exactly one request; executor error: ${safeFixtureError(records.job.lastError)}`);
+      assert.equal(provider.deliveries[0]?.embeds?.[0]?.image?.url, fixture.mediaUrl,
+        'The accepted connector payload must include the model-scoped provider media URL');
       assert.equal(records.job.state, 'dead');
       assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'));
       assert.equal(records.target.state, 'pending', 'The failed transaction cannot claim local publication');

@@ -110,6 +110,7 @@ try {
       L5_OWNER_DATABASE_URL: `postgresql://axiom:${password}@127.0.0.1:5432/axiom_test`,
       AXIOM_VISION_AUTH_TOKEN: token, MEDIA_PLANE_AUTH_TOKEN: token,
       RELAY_SECRET: relaySecret, AXIOM_L5_DISCORD_WEBHOOK_TOKEN: hookToken,
+      AXIOM_ASSET_DELIVERY_BASE_URL: 'https://media.example.invalid/assets/',
       VISION_ENGINE_URL: 'http://127.0.0.1:8101', MEDIA_PLANE_URL: 'http://127.0.0.1:8100',
     }, ['--cap-drop=ALL', '--cap-add=CHOWN', '--security-opt=no-new-privileges',
       '--mount', `type=volume,source=${media},target=/app/var/media`, '--mount', `type=volume,source=${models},target=/models`],
