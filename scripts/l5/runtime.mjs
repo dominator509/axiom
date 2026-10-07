@@ -11,6 +11,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { processJob, defaultExecutors, publishTarget, readKillSwitch } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
 import { createRelayApp } from './dist/index.js';
+import { bundlesRouter } from './dist/routes/bundles.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
 assert.match(process.env.AXIOM_L5_FIXTURE ?? '', /^[a-f0-9-]{36}$/);
@@ -62,6 +63,78 @@ async function jobFixture(kind = 'tos.scan', mediaKind = 'image', lostLease = fa
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0], hash: hash.toString('hex') };
+}
+function bundleApprovalApp(fixture) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    c.set('orgId', fixture.org);
+    c.set('userId', 'l5-operator');
+    c.set('role', 'owner');
+    await next();
+  });
+  app.route('/', bundlesRouter);
+  return app;
+}
+async function requestBundleApproval(fixture) {
+  const body = { platforms: ['discord'] };
+  if (fixture.connection) body.connectionIds = { discord: fixture.connection };
+  return bundleApprovalApp(fixture).request(`/${fixture.bundle}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+async function assertApprovalRejectedWithoutMutation(fixture, response, expectedDetail) {
+  const detail = await response.text();
+  assert.equal(response.status, 409, detail);
+  assert.ok(detail.includes(expectedDetail), `Expected safe rejection detail ${expectedDetail}: ${detail}`);
+  const records = await scoped(fixture.org, async tx => ({
+    bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
+    targets: await tx.select().from(schema.postTarget).where(eq(schema.postTarget.bundleId, fixture.bundle)),
+    publishJobs: await tx.select().from(schema.job).where(and(
+      eq(schema.job.orgId, fixture.org), eq(schema.job.kind, 'publish.target'),
+    )),
+    approvals: await tx.select().from(schema.auditLog).where(and(
+      eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.action, 'bundle.approve'),
+    )),
+  }));
+  assert.equal(records.bundle.state, 'generated', 'A rejected approval must preserve the reviewable state');
+  assert.equal(records.targets.length, 0, 'A rejected approval must not create post targets');
+  assert.equal(records.publishJobs.length, 0, 'A rejected approval must not enqueue publishing');
+  assert.equal(records.approvals.length, 0, 'A rejected approval must not write a success audit event');
+}
+async function preparePassingApprovalFixture(fixture, scanState) {
+  const connection = randomUUID();
+  await scoped(fixture.org, async tx => {
+    await tx.update(schema.contentBundle).set({ tosReport: {
+      verdict: 'pass', scores: [{ platform: 'discord', score: 0, verdict: 'pass' }],
+    } }).where(eq(schema.contentBundle.id, fixture.bundle));
+    await tx.insert(schema.consentRecord).values(syntheticConsentRows(fixture.org, fixture.model));
+    await tx.insert(schema.platformConnection).values({
+      id: connection,
+      orgId: fixture.org,
+      modelId: fixture.model,
+      platform: 'discord',
+      displayName: 'L5 isolated approval fixture',
+      encToken: randomBytes(32),
+      encNonce: randomBytes(12),
+      dekId: `l5-${randomUUID()}`,
+      capabilities: ['publish'],
+      status: 'connected',
+    });
+    if (scanState === 'failed') {
+      await tx.update(schema.job).set({
+        state: 'dead',
+        attempts: 1,
+        lastError: 'L5 controlled scanner failure',
+        lockedBy: null,
+        lockedAt: null,
+        completedAt: new Date(),
+      }).where(eq(schema.job.id, fixture.job.id));
+    }
+  });
+  fixture.connection = connection;
+  return fixture;
 }
 async function relayDispatchFixture() {
   const { org, model } = await tenant();
@@ -306,6 +379,29 @@ try {
       } finally { process.env.VISION_ENGINE_URL = original; }
     });
   }
+  await check('bundles.approve: block, review, and incomplete reports create no publishing work', async () => {
+    for (const [tosReport, expectedDetail] of [
+      [{ verdict: 'block', scores: [{ platform: 'discord', verdict: 'block' }] }, 'ToS block'],
+      [{ verdict: 'review', scores: [{ platform: 'discord', verdict: 'review' }] }, 'ToS check unavailable'],
+      [{ verdict: 'pass', scores: [] }, 'ToS check unavailable'],
+    ]) {
+      const fixture = await jobFixture();
+      await scoped(fixture.org, tx => tx.update(schema.contentBundle).set({ tosReport })
+        .where(eq(schema.contentBundle.id, fixture.bundle)));
+      const response = await requestBundleApproval(fixture);
+      await assertApprovalRejectedWithoutMutation(fixture, response, expectedDetail);
+    }
+  });
+  await check('bundles.approve: failed scan cannot approve a passing report', async () => {
+    const fixture = await preparePassingApprovalFixture(await jobFixture(), 'failed');
+    const response = await requestBundleApproval(fixture);
+    await assertApprovalRejectedWithoutMutation(fixture, response, 'ToS scan failed');
+  });
+  await check('bundles.approve: running scan cannot approve a passing report', async () => {
+    const fixture = await preparePassingApprovalFixture(await jobFixture(), 'running');
+    const response = await requestBundleApproval(fixture);
+    await assertApprovalRejectedWithoutMutation(fixture, response, 'ToS scan is still running');
+  });
   for (const kind of ['publish.target', 'relay.card']) {
     await check(`${kind}: missing and disabled safety state parks real executor`, async () => {
       for (const configured of [false, true]) {

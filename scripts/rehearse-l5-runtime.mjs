@@ -140,7 +140,7 @@ try {
     const result = docker(['exec', runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
     const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
-    assert.equal(report.total, 31, 'All thirty-one runtime cases must execute');
+    assert.equal(report.total, 34, 'All thirty-four runtime cases must execute');
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
     if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');
