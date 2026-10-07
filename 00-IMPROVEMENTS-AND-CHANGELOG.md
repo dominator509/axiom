@@ -9,13 +9,13 @@ This document is the audit trail of every deviation from `FanvueArch.md` (v1). G
 ### A1. Link-in-bio is now optional and provider-pluggable
 **v1:** The CRM auto-provisioned a Fanlynks instance (Docker/Vercel subdomain) on every model creation. Fanlynks was first-class and effectively required; Linktree/Beacons were bolt-ons.
 
-**v2:** Introduced a `LinkInBioProvider` abstraction with four interchangeable implementations:
+**v2:** Introduced a `LinkInBioProvider` abstraction. The current release target has three selectable choices:
 - **Native** (default) — a CRM-hosted link page rendered from the same app at the edge. Requires **nothing** external, is the cheapest and fastest, and is what a model gets by default.
 - **Fanlynks** (optional) — self-hosted deploy, provisioned only if enabled.
-- **Linktree** (optional) — originally proposed via API; excluded from the current release target because no public API is available.
-- **Beacons** (optional) — via API.
+- **Beacons.ai** (optional) — external link page; its API lifecycle remains unverified, so the integration stays unavailable until its supported contract is proven.
+- **Linktree** — previously proposed, now excluded from the release target because no public API is available. Its persisted identifier remains only for legacy read/removal compatibility.
 
-A model may have **zero, one, or several providers active at once**. Analytics are normalized across all active providers into one dashboard. The deployment engine provisions only what is toggled on. This satisfies: *"shouldn't require deployment of fanlynks or linktree or both … allow them as optional (one or more at the same time)."* See `L2-architecture/L2.4-link-in-bio-providers.md`.
+A model may have **zero, one, or several supported providers active at once**. Analytics are normalized across active providers only when real provider data is available. The deployment engine provisions only what is toggled on; no external provider is represented as connected before its lifecycle is verified. Beacon CRM is a separate records API, not a link-in-bio provider. See `L2-architecture/L2.4-link-in-bio-providers.md`.
 
 ### A2. First-class support for 10 social networks
 **v1:** Only X + Instagram + Reddit were meaningfully specified; the framework was implied.

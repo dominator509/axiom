@@ -742,7 +742,7 @@ COMMIT;
     expect(await status(`/linkbio/${ownModel}`)).toBe(200);
     failureContext = null;
   });
-  await check('Fanlynks, Linktree, and Beacons each configure independently with honest capability readback', async () => {
+  await check('Fanlynks and Beacons configure independently; Linktree writes are rejected', async () => {
     // The full journey has just traversed several independent dashboard areas.
     // Let the fixture IP burst bucket refill before the provider lifecycle
     // checks; this is not a rate-limit load test and no acceptance is skipped.
@@ -752,7 +752,6 @@ COMMIT;
     expect(nativeDisabled.status).toBe(200);
     const independent = [
       { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
-      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
       { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] } },
     ];
     for (const provider of independent) {
@@ -782,11 +781,19 @@ COMMIT;
       expect(disabled.status).toBe(200);
       expect(disabled.data.data.enabled).toBe(false);
     }
+    const linktreeWrite = await linkbioRequest(path, 'POST', {
+      kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', isPrimary: true,
+      config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] },
+    });
+    expect(linktreeWrite.status).toBe(410);
+    const linktreeReadback = await linkbioRequest(path);
+    expect(linktreeReadback.status).toBe(200);
+    expect(linktreeReadback.data.data.providers.some(entry => entry.kind === 'linktree')).toBe(false);
     const empty = await linkbioRequest(path);
     expect(empty.data.data.providers.filter(entry => entry.enabled)).toEqual([]);
     failureContext = null;
   });
-  await check('all four providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
+  await check('all supported providers compose, primary selection is exclusive, and external APIs stay honestly unavailable', async () => {
     const path = `/api/v1/models/${ownModel}/linkbio`;
     const native = await linkbioRequest(path, 'POST', {
       kind: 'native', isPrimary: false,
@@ -795,26 +802,17 @@ COMMIT;
     expect(native.status).toBe(201);
     const providers = [
       { kind: 'fanlynks', config: { links: [{ label: 'Fanlynks test', url: 'https://example.invalid/fanlynks' }] } },
-      { kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] } },
       { kind: 'beacons', profileUrl: 'https://synthetic-creator.beacons.ai/', config: { links: [{ label: 'Beacons test', url: 'https://example.invalid/beacons' }] }, isPrimary: true },
     ];
     for (const provider of providers) {
       const response = await linkbioRequest(path, 'POST', { isPrimary: false, ...provider });
       expect(response.status).toBe(201);
     }
-    const configured = await linkbioRequest(path, 'POST', {
-      kind: 'linktree', profileUrl: 'https://linktr.ee/synthetic_creator', isPrimary: true,
-      config: { links: [{ label: 'Linktree test', url: 'https://example.invalid/linktree' }] },
-    });
-    expect(configured.status).toBe(201);
     const readback = await linkbioRequest(path);
     expect(readback.status).toBe(200);
     const active = readback.data.data.providers.filter(provider => provider.enabled);
-    expect(active.map(provider => provider.kind).sort()).toEqual(['beacons', 'fanlynks', 'linktree', 'native']);
-    expect(readback.data.data.primary.kind).toBe('linktree');
-    expect(active.find(provider => provider.kind === 'linktree').integration).toMatchObject({
-      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', revocation: 'manual',
-    });
+    expect(active.map(provider => provider.kind).sort()).toEqual(['beacons', 'fanlynks', 'native']);
+    expect(readback.data.data.primary.kind).toBe('beacons');
     expect(active.find(provider => provider.kind === 'beacons').integration).toMatchObject({
       state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
     });
@@ -828,7 +826,7 @@ COMMIT;
     expect(response.data.data.integration).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
     const readback = await linkbioRequest(`/api/v1/models/${ownModel}/linkbio`);
     expect(readback.data.data.providers.filter(provider => provider.enabled).map(provider => provider.kind).sort())
-      .toEqual(['fanlynks', 'linktree', 'native']);
+      .toEqual(['fanlynks', 'native']);
     const nativePage = await status(`/linkbio/${ownModel}`);
     expect(nativePage).toBe(200);
   });

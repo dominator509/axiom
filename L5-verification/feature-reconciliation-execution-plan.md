@@ -105,10 +105,11 @@ remain explicitly open; no provider, database, migration or live action occurred
   defines contracts; the L5 static audit records what is actually wired. A
   navigation label, table, unit test, or health endpoint is not feature or
   runtime acceptance by itself.
-- L2.4 and L5.0 A1 define all four link-in-bio providers as the approved
-  optional per-model release target. Native is the no-setup default; external
-  providers remain unavailable until provisioning/connection, link sync,
-  readback, available analytics, revocation, and teardown are verified.
+- L2.4 and L5.0 A1 define Native, Fanlynks, and Beacons.ai as the optional
+  per-model release target. Linktree is excluded by owner decision; Beacon CRM
+  is a separate records API. Native is the no-setup default; external providers
+  remain unavailable until provisioning/connection, link sync, readback,
+  available analytics, revocation, and teardown are verified.
 - L2.9 explicitly distinguishes the repository's internal crash sink from the
   external GlitchTip/Sentry, Loki, Prometheus/Grafana and OpenTelemetry runtime
   integrations. Those integrations remain deployment evidence, not current
