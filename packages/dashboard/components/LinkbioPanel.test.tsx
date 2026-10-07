@@ -135,7 +135,7 @@ it('does not offer Linktree as a new provider choice', () => {
   hooks.index = 0;
   const html = renderToStaticMarkup(panel(false));
   expect(html).not.toContain('<option value="linktree">');
-  expect(html).toContain('<option value="native">');
+  expect(html).toMatch(/<option value="native"[^>]*>/);
 });
 
 it('does not expose provider mutations to read-only users', () => {

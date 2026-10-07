@@ -10,7 +10,8 @@ import { useLocale } from './LocaleProvider';
 // Linktree remains a recognized persisted kind for existing rows, but is no
 // longer offered as a new connection because its public API contract is absent.
 const KINDS = ['native', 'fanlynks', 'beacons'] as const;
-type ProviderKind = (typeof KINDS)[number];
+const DISPLAY_KINDS = [...KINDS, 'linktree'] as const;
+type ProviderKind = (typeof DISPLAY_KINDS)[number];
 
 interface ProviderAnalyticsConnection {
   analyticsConnected: boolean;
@@ -99,7 +100,7 @@ export default function LinkbioPanel({
 }) {
   const { locale = 'en', t } = useLocale();
   const router = useRouter();
-  const initialEnabledProvider = providers.find((provider) => provider.enabled);
+  const initialEnabledProvider = providers.find((provider) => provider.enabled && provider.kind !== 'linktree');
   const initialKind = (initialEnabledProvider?.kind as ProviderKind) ?? 'native';
   const initialProvider = providers.find((provider) => provider.kind === initialKind);
   const initialActiveProvider = initialProvider?.enabled ? initialProvider : undefined;
@@ -126,7 +127,7 @@ export default function LinkbioPanel({
   const [linkUrl, setLinkUrl] = useState('');
   const [apiToken, setApiToken] = useState('');
   const [confirmedProviders, setConfirmedProviders] = useState<Partial<Record<ProviderKind, ProviderRow>>>({});
-  const displayedProviders = KINDS.map((providerKind) => {
+  const displayedProviders = DISPLAY_KINDS.map((providerKind) => {
     const serverProvider = providers.find((provider) => provider.kind === providerKind);
     const confirmedProvider = confirmedProviders[providerKind];
     if (!confirmedProvider) return serverProvider;
