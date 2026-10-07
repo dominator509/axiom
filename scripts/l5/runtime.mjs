@@ -147,7 +147,8 @@ async function localDiscordProvider(fixture) {
   });
   const address = server.address();
   assert.ok(address && typeof address === 'object');
-  const webhookToken = secret();
+  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN ?? '';
+  assert.match(webhookToken, /^[a-f0-9]{64}$/, 'A fixture-only webhook token is required');
   const auth = { accessToken: '', extra: {
     webhookUrl: `https://discord.com/api/webhooks/123456789012345678/${webhookToken}`,
     discordChannelId: '123456789012345678',

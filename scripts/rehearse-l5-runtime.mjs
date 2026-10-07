@@ -92,7 +92,7 @@ try {
     for (const volume of [media, models]) {
       docker(['volume', 'create', ...labels, volume]); owned.volumes.add(volume);
     }
-    const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret();
+    const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret(), discordWebhookToken = secret();
     create(db, receipt.images.database, 'none', { POSTGRES_USER: 'axiom', POSTGRES_PASSWORD: password, POSTGRES_DB: 'axiom_test' });
     let databaseReady = false;
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -109,7 +109,7 @@ try {
       DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
       L5_OWNER_DATABASE_URL: `postgresql://axiom:${password}@127.0.0.1:5432/axiom_test`,
       AXIOM_VISION_AUTH_TOKEN: token, MEDIA_PLANE_AUTH_TOKEN: token,
-      RELAY_SECRET: relaySecret,
+      RELAY_SECRET: relaySecret, AXIOM_L5_DISCORD_WEBHOOK_TOKEN: discordWebhookToken,
       VISION_ENGINE_URL: 'http://127.0.0.1:8101', MEDIA_PLANE_URL: 'http://127.0.0.1:8100',
     }, ['--cap-drop=ALL', '--cap-add=CHOWN', '--security-opt=no-new-privileges',
       '--mount', `type=volume,source=${media},target=/app/var/media`, '--mount', `type=volume,source=${models},target=/models`],
