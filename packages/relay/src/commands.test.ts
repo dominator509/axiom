@@ -105,13 +105,23 @@ describe('compact provider command tokens', () => {
     expect(router.verifyCommandToken(token)).toBeNull();
   });
 
-  it('allows a token to be used again only after its TTL expires', () => {
+  it('rejects a replay after the signed token TTL expires', () => {
     const token = router.createCommandToken('hold', 'card-1');
     expect(router.verifyCommandToken(token)).not.toBeNull();
 
     vi.useFakeTimers();
     vi.setSystemTime(Date.now() + 6 * 60 * 1000);
-    expect(router.verifyCommandToken(token)).toEqual({ action: 'hold', cardId: 'card-1' });
+    expect(router.verifyCommandToken(token)).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('rejects an unused token after its signed expiry', () => {
+    const token = router.createCommandToken('approve', 'card-1');
+
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 6 * 60 * 1000);
+    expect(router.peekCommandToken(token)).toBeNull();
+    expect(router.verifyCommandToken(token)).toBeNull();
     vi.useRealTimers();
   });
 });
@@ -133,15 +143,14 @@ describe('nonce reuse protection', () => {
     expect(router.verifyCommand(sig, nonce, 'approve', 'bundle-1')).toBe(true);
   });
 
-  it('allows reuse of an expired nonce (entry cleaned up)', () => {
+  it('rejects a signed nonce after its TTL even when its replay entry was cleaned', () => {
     const nonce = router.generateNonce();
     const sig = router.signCommand(nonce, 'hold', 'bundle-1');
     expect(router.verifyCommand(sig, nonce, 'hold', 'bundle-1')).toBe(true);
 
     vi.useFakeTimers();
     vi.setSystemTime(Date.now() + 6 * 60 * 1000); // past the 5-minute TTL
-    // Re-verification of the same (now expired) nonce succeeds again
-    expect(router.verifyCommand(sig, nonce, 'hold', 'bundle-1')).toBe(true);
+    expect(router.verifyCommand(sig, nonce, 'hold', 'bundle-1')).toBe(false);
     vi.useRealTimers();
   });
 });
@@ -160,8 +169,8 @@ describe('cleanupExpiredNonces', () => {
     router.verifyCommand(s2, n2, 'approve', 'b2'); // stored with fresh TTL
 
     router.cleanupExpiredNonces();
-    // n1 expired → deleted; n2 still valid
-    expect(router.verifyCommand(s1, n1, 'approve', 'b1')).toBe(true); // re-usable: was cleaned
+    // n1's signed expiry rejects it even after the in-memory entry is deleted.
+    expect(router.verifyCommand(s1, n1, 'approve', 'b1')).toBe(false);
     expect(router.verifyCommand(s2, n2, 'approve', 'b2')).toBe(false); // still stored → reuse rejected
     vi.useRealTimers();
   });
