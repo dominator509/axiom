@@ -92,7 +92,7 @@ try {
     for (const volume of [media, models]) {
       docker(['volume', 'create', ...labels, volume]); owned.volumes.add(volume);
     }
-    const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret(), hookToken = secret();
+    const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret(), hookToken = secret(), authSecret = secret();
     create(db, receipt.images.database, 'none', { POSTGRES_USER: 'axiom', POSTGRES_PASSWORD: password, POSTGRES_DB: 'axiom_test' });
     let databaseReady = false;
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -108,6 +108,7 @@ try {
       NODE_ENV: 'production', AXIOM_L5_FIXTURE: id,
       DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
       L5_OWNER_DATABASE_URL: `postgresql://axiom:${password}@127.0.0.1:5432/axiom_test`,
+      BETTER_AUTH_SECRET: authSecret, BETTER_AUTH_URL: 'https://l5-fixture.invalid',
       AXIOM_VISION_AUTH_TOKEN: token, MEDIA_PLANE_AUTH_TOKEN: token,
       RELAY_SECRET: relaySecret, AXIOM_L5_DISCORD_WEBHOOK_TOKEN: hookToken,
       AXIOM_ASSET_DELIVERY_BASE_URL: 'https://media.example.invalid/assets/',
@@ -139,7 +140,7 @@ try {
     const result = docker(['exec', runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
     const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
-    assert.equal(report.total, 25, 'All twenty-five runtime cases must execute');
+    assert.equal(report.total, 27, 'All twenty-seven runtime cases must execute');
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
     if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');

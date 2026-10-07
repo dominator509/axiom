@@ -123,6 +123,33 @@ describe('POST /api/v1/relay/card', () => {
 });
 
 describe('POST /api/v1/relay/command', () => {
+  it('logs rejected command signatures without exposing command material', async () => {
+    const nonce = deps.commandRouter.generateNonce();
+    const signature = 'd'.repeat(64);
+    let output = '';
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
+      output += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    }) as typeof process.stdout.write);
+
+    try {
+      const res = await postJson('/api/v1/relay/command', {
+        signature,
+        nonce,
+        action: 'approve',
+        cardId: 'private-card-sentinel',
+      });
+
+      expect(res.status).toBe(403);
+      expect(output).toContain('Rejected relay command signature');
+      expect(output).not.toContain(nonce);
+      expect(output).not.toContain(signature);
+      expect(output).not.toContain('private-card-sentinel');
+    } finally {
+      write.mockRestore();
+    }
+  });
+
   it('processes a command signed by the router', async () => {
     const nonce = deps.commandRouter.generateNonce();
     const sig = deps.commandRouter.signCommand(nonce, 'approve', 'bundle-1');
