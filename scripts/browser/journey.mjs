@@ -814,7 +814,7 @@ COMMIT;
     expect(active.map(provider => provider.kind).sort()).toEqual(['beacons', 'fanlynks', 'native']);
     expect(readback.data.data.primary.kind).toBe('beacons');
     expect(active.find(provider => provider.kind === 'beacons').integration).toMatchObject({
-      state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
+      state: 'unavailable', reason: 'beacons_linkbio_api_unavailable', linkManagement: 'manual', revocation: 'manual',
     });
     expect(active.filter(provider => ['native', 'fanlynks'].includes(provider.kind))
       .every(provider => provider.integration.state === 'configured')).toBe(true);
