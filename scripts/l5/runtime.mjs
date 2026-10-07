@@ -718,7 +718,7 @@ try {
       assert.equal(records.ledger, null);
       assert.deepEqual(records.markers.map(({ status }) => status), ['pending']);
       await assert.rejects(scoped(fixture.org, tx => publishTarget({
-        tx, job: records.job, workerId: 'l5-recovery-worker', killSwitchEnabled: false,
+        tx, job: fixture.job, workerId: 'l5-recovery-worker', killSwitchEnabled: false,
         markExternalSideEffect: () => {},
       }, provider.resolver)), /unresolved dispatch marker .* provider reconciliation required before retry/);
       assert.equal(provider.deliveries.length, 1, 'Neither recovery nor a manual executor retry may send a second request');
