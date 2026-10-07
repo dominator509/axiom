@@ -429,8 +429,8 @@ try {
     const response = await requestBundleApproval(fixture);
     await assertApprovalRejectedWithoutMutation(fixture, response, 'ToS scan is still running');
   });
-  for (const kind of ['publish.target', 'relay.card']) {
-    await check(`${kind}: missing and disabled safety state parks real executor`, async () => {
+for (const kind of Object.keys(defaultExecutors)) {
+    await check(`${kind}: missing and disabled organization safety state parks queued work`, async () => {
       for (const configured of [false, true]) {
         const fixture = await jobFixture(kind);
         if (configured) await scoped(fixture.org, tx => tx.insert(schema.orgSettings).values({ orgId: fixture.org, publishingEnabled: false }));
@@ -438,7 +438,10 @@ try {
         assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'parked');
         const records = await state(fixture);
         assert.equal(records.job.state, 'ready'); assert.equal(records.job.lockedBy, null);
+        assert.equal(records.job.attempts, 0, 'Pausing work must not consume a job attempt');
         assert.match(records.job.lastError, /kill switch/i);
+        assert.equal(records.cards.length, 0, 'A paused queue must not create relay cards');
+        assert.equal(records.relayMarkers.length, 0, 'A paused queue must not create relay outcomes');
       }
     });
   }
