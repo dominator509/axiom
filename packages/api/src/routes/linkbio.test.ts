@@ -93,6 +93,29 @@ describe('GET /models/:modelId/linkbio', () => {
     expect(body.data.primary).toBeNull();
     expect(body.data.nativeEnabled).toBe(false);
   });
+
+  it('chooses an enabled provider as the fallback primary', async () => {
+    mockState.result = [
+      { id: PROVIDER_ID, kind: 'native', enabled: false, isPrimary: false, status: 'disabled', config: { links: [] } },
+      { id: '44444444-4444-4444-8444-444444444444', kind: 'fanlynks', enabled: true, isPrimary: false, status: 'configured', config: { links: [] } },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(body.data.primary).toMatchObject({ kind: 'fanlynks', enabled: true });
+    expect(body.data.nativeEnabled).toBe(false);
+  });
+
+  it('returns no primary when every configured provider is disabled', async () => {
+    mockState.result = [
+      { id: PROVIDER_ID, kind: 'native', enabled: false, isPrimary: false, status: 'disabled', config: { links: [] } },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(body.data.primary).toBeNull();
+    expect(body.data.nativeEnabled).toBe(false);
+  });
 });
 
 describe('per-post attribution links', () => {

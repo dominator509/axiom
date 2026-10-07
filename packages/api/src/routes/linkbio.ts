@@ -448,12 +448,13 @@ router.get('/models/:modelId/linkbio', async (c) => {
     });
     return { ...row, config, integration: linkbioIntegrationContract(row.kind as LinkbioProviderKind, row.enabled) };
   });
+  const enabledRows = safeRows.filter((row: { enabled: boolean }) => row.enabled);
   return c.json({
     data: {
       providers: safeRows,
-      primary: safeRows.find((r: { isPrimary?: boolean | null }) => r.isPrimary) ?? safeRows[0] ?? null,
-      nativeEnabled: safeRows.some(
-        (r: { kind?: string | null; enabled?: boolean | null }) => r.kind === 'native' && r.enabled,
+      primary: enabledRows.find((r: { isPrimary?: boolean | null }) => r.isPrimary) ?? enabledRows[0] ?? null,
+      nativeEnabled: enabledRows.some(
+        (r: { kind?: string | null }) => r.kind === 'native',
       ),
     },
   });
