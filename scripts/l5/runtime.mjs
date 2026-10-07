@@ -1,11 +1,13 @@
 // Runs only inside the owned network-disabled fixture, against real production code.
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { db, pool, schema } from '@axiom/db';
+import { createConnector } from '@axiom/connectors';
 import { sql, eq, and } from 'drizzle-orm';
-import { processJob, defaultExecutors, readKillSwitch } from '@axiom/worker';
+import { processJob, defaultExecutors, publishTarget, readKillSwitch } from '@axiom/worker';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
 assert.match(process.env.AXIOM_L5_FIXTURE ?? '', /^[a-f0-9-]{36}$/);
@@ -17,6 +19,11 @@ const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
 const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0 };
+function safeFixtureError(error) {
+  const message = String(error ?? '');
+  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN;
+  return webhookToken ? message.replaceAll(webhookToken, '[FIXTURE-REDACTED]') : message;
+}
 async function check(name, operation) {
   try { await operation(); report.tests.push({ name, passed: true }); report.passed++; }
   catch (error) { report.tests.push({ name, passed: false, error: error.message }); report.failed++; }
@@ -89,6 +96,104 @@ async function blockedPublishFixture(tosReport) {
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, target, job: result.rows[0] };
+}
+async function successfulPublishFixture() {
+  const { org, model } = await tenant();
+  const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID(), connection = randomUUID();
+  const idemKey = randomBytes(32);
+  const today = new Date().toISOString().slice(0, 10);
+  const media = readFileSync('/app/var/media/fixture.png');
+  const storageKey = 'fixture.png';
+  await scoped(org, async tx => {
+    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
+      fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey,
+      sha256: createHash('sha256').update(media).digest() });
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      assetId: asset, state: 'approved', captions: { discord: 'Synthetic L5 publish acceptance.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'discord', score: 0, verdict: 'pass' }] } });
+    await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
+      platform: 'discord', displayName: 'L5 isolated provider fixture', encToken: randomBytes(32),
+      encNonce: randomBytes(12), dekId: `l5-${randomUUID()}`, capabilities: ['publish'], status: 'connected' });
+    await tx.insert(schema.consentRecord).values(['2257', 'model_release', 'id_verify', 'platform_consent'].map(docKind => ({
+      id: randomUUID(), orgId: org, modelId: model, platform: 'discord', consentType: `l5-${docKind}`,
+      docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), expiresAt: null, revokedAt: null,
+      subjectRef: 'synthetic-l5-fixture', blobRef: `l5-fixture/${docKind}`,
+      sha256: randomBytes(32), documentCiphertext: null, documentMimeType: null, documentSize: null,
+      validFrom: today, validTo: null,
+    })));
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'discord', connectionId: connection, state: 'pending', idemKey });
+    await tx.insert(schema.job).values([
+      { id: randomUUID(), orgId: org, queue: 'media', kind: 'tos.scan', state: 'done',
+        payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1 },
+      { id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: target }, attempts: 0, maxAttempts: 1,
+        lockedBy: 'l5-worker', lockedAt: new Date() },
+    ]);
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, model, bundle, target, job: result.rows[0], connection, idemKey,
+    mediaUrl: 'https://media.example.invalid/assets/fixture.png' };
+}
+async function localDiscordProvider(fixture) {
+  const deliveries = [];
+  const server = createServer(async (request, response) => {
+    try {
+      assert.equal(request.method, 'POST');
+      assert.equal(request.url, '/publish');
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      deliveries.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ id: `fixture-message-${deliveries.length}`, type: 0, channel_id: '123456789012345678' }));
+    } catch {
+      response.writeHead(500);
+      response.end();
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN ?? '';
+  assert.match(webhookToken, /^[a-f0-9]{64}$/, 'A fixture-only webhook token is required');
+  const auth = { accessToken: '', extra: {
+    webhookUrl: `https://discord.com/api/webhooks/123456789012345678/${webhookToken}`,
+    discordChannelId: '123456789012345678',
+  } };
+  const transport = async (providerUrl, init) => {
+    const url = new URL(String(providerUrl));
+    assert.equal(url.protocol, 'https:');
+    assert.equal(url.hostname, 'discord.com');
+    assert.match(url.pathname, /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+$/);
+    assert.equal(url.searchParams.get('wait'), 'true');
+    return fetch(`http://127.0.0.1:${address.port}/publish`, { ...init, redirect: 'error' });
+  };
+  const resolver = async (_tx, orgId, modelId, target) => {
+    assert.equal(orgId, fixture.org);
+    assert.equal(modelId, fixture.model);
+    assert.equal(target.platform, 'discord');
+    assert.equal(target.connectionId, fixture.connection);
+    return { connection: { id: fixture.connection }, connector: createConnector('discord', auth, transport) };
+  };
+  return {
+    deliveries,
+    resolver,
+    close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())),
+  };
+}
+async function publishRecords(fixture) {
+  return scoped(fixture.org, async tx => ({
+    target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+    job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
+    ledger: (await tx.select().from(schema.idempotencyLedger).where(eq(
+      schema.idempotencyLedger.idemKey, fixture.idemKey.toString('hex'))))[0] ?? null,
+    markers: (await tx.select().from(schema.prePostRun).where(and(
+      eq(schema.prePostRun.targetId, fixture.target), eq(schema.prePostRun.script, 'publish.dispatch')))),
+  }));
 }
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
@@ -191,6 +296,108 @@ try {
       assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
+  await check('publish.target: concurrent duplicate approval and ledger replay persist one remote outcome', async () => {
+    const fixture = await successfulPublishFixture();
+    const provider = await localDiscordProvider(fixture);
+    try {
+      const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
+      const duplicateApprovalId = randomUUID();
+      await scoped(fixture.org, tx => tx.insert(schema.job).values({ id: duplicateApprovalId,
+        orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: fixture.target }, attempts: 0, maxAttempts: 1,
+        lockedBy: 'l5-worker-duplicate', lockedAt: new Date() }));
+      const duplicateApproval = await scoped(fixture.org, tx =>
+        tx.execute(sql`SELECT * FROM job WHERE id=${duplicateApprovalId}`));
+      const outcomes = await Promise.all([
+        processJob(fixture.job, executors, 'l5-worker', {}),
+        processJob(duplicateApproval.rows[0], executors, 'l5-worker-duplicate', {}),
+      ]);
+      const jobErrors = await Promise.all([fixture.job.id, duplicateApprovalId].map(jobId =>
+        scoped(fixture.org, async tx => {
+          const row = (await tx.select({ lastError: schema.job.lastError }).from(schema.job)
+            .where(eq(schema.job.id, jobId)))[0];
+          return safeFixtureError(row?.lastError);
+        }),
+      ));
+      assert.deepEqual(outcomes, ['done', 'done'], `Publish executor errors: ${JSON.stringify(jobErrors)}`);
+      let records = await publishRecords(fixture);
+      assert.equal(provider.deliveries.length, 1, 'Concurrent duplicate approvals must yield one provider request');
+      assert.equal(provider.deliveries[0]?.embeds?.[0]?.image?.url, fixture.mediaUrl,
+        'The real connector payload must include the model-scoped provider media URL');
+      assert.equal(records.target.state, 'published');
+      assert.equal(records.target.remoteId, 'fixture-message-1');
+      assert.equal(records.ledger?.responseHash, 'fixture-message-1');
+      assert.deepEqual(records.markers.map(({ status }) => status), ['success']);
+
+      // Simulate a stale restored target row while retaining the committed
+      // idempotency ledger. A later replay must restore its durable result locally.
+      await scoped(fixture.org, tx => tx.update(schema.postTarget)
+        .set({ state: 'pending', remoteId: null, publishedAt: null })
+        .where(eq(schema.postTarget.id, fixture.target)));
+      const replayJobId = randomUUID();
+      await scoped(fixture.org, tx => tx.insert(schema.job).values({ id: replayJobId, orgId: fixture.org,
+        queue: 'publish', kind: 'publish.target', state: 'running', payload: { targetId: fixture.target },
+        attempts: 0, maxAttempts: 1, lockedBy: 'l5-worker', lockedAt: new Date() }));
+      const replay = await scoped(fixture.org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${replayJobId}`));
+      assert.equal(await processJob(replay.rows[0], executors, 'l5-worker', {}), 'done');
+      records = await publishRecords(fixture);
+      assert.equal(provider.deliveries.length, 1, 'A ledger hit must not send a second provider request');
+      assert.equal(records.target.state, 'published');
+      assert.equal(records.target.remoteId, 'fixture-message-1');
+      assert.equal(records.ledger?.responseHash, 'fixture-message-1');
+      assert.deepEqual(records.markers.map(({ status }) => status), ['success']);
+    } finally {
+      await provider.close();
+    }
+  });
+  await check('publish.target: accepted provider outcome survives a persistence fault and blocks blind retry', async () => {
+    const fixture = await successfulPublishFixture();
+    const provider = await localDiscordProvider(fixture);
+    const identifier = randomUUID().replaceAll('-', '');
+    const functionName = `l5_publish_fault_${identifier}`;
+    const triggerName = `l5_publish_fault_${identifier}`;
+    try {
+      await admin.query(`CREATE FUNCTION public.${functionName}() RETURNS trigger LANGUAGE plpgsql AS $fault$
+        BEGIN
+          IF NEW.id = '${fixture.target}'::uuid AND NEW.state = 'published' THEN
+            RAISE EXCEPTION 'L5 controlled post-provider persistence fault';
+          END IF;
+          RETURN NEW;
+        END;
+      $fault$`);
+      await admin.query(`CREATE TRIGGER ${triggerName} BEFORE UPDATE ON public.post_target
+        FOR EACH ROW EXECUTE FUNCTION public.${functionName}()`);
+      const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
+      const outcome = await processJob(fixture.job, executors, 'l5-worker', {});
+      await admin.query(`DROP TRIGGER IF EXISTS ${triggerName} ON public.post_target`);
+      await admin.query(`DROP FUNCTION IF EXISTS public.${functionName}()`);
+
+      let records = await publishRecords(fixture);
+      assert.equal(outcome, 'dead', `Publish executor error: ${safeFixtureError(records.job.lastError)}`);
+      assert.equal(provider.deliveries.length, 1,
+        `The isolated provider accepted exactly one request; executor error: ${safeFixtureError(records.job.lastError)}`);
+      assert.equal(provider.deliveries[0]?.embeds?.[0]?.image?.url, fixture.mediaUrl,
+        'The accepted connector payload must include the model-scoped provider media URL');
+      assert.equal(records.job.state, 'dead');
+      assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'));
+      assert.equal(records.target.state, 'pending', 'The failed transaction cannot claim local publication');
+      assert.equal(records.ledger, null, 'A rolled-back publication cannot leave a success ledger entry');
+      assert.deepEqual(records.markers.map(({ status }) => status), ['pending']);
+
+      await assert.rejects(scoped(fixture.org, tx => publishTarget({
+        tx, job: fixture.job, workerId: 'l5-worker', killSwitchEnabled: false,
+        markExternalSideEffect: () => {},
+      }, provider.resolver)), /unresolved dispatch marker .* provider reconciliation required before retry/);
+      records = await publishRecords(fixture);
+      assert.equal(provider.deliveries.length, 1, 'Unknown provider outcome requires reconciliation before any second send');
+      assert.equal(records.markers.length, 1);
+      assert.equal(records.markers[0].status, 'pending');
+    } finally {
+      await admin.query(`DROP TRIGGER IF EXISTS ${triggerName} ON public.post_target`);
+      await admin.query(`DROP FUNCTION IF EXISTS public.${functionName}()`);
+      await provider.close();
+    }
+  });
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
     const fixture = await relayDispatchFixture();
     const originalCliPath = process.env.SIGNAL_CLI_PATH;

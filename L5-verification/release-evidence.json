@@ -128,9 +128,30 @@
       "requirement": "| LBI-03 | Publish idempotency | double-approve/retry produces one remote post; a ledger hit skips a second call | integration |",
       "requirementSha256": "27e65ab8af90855191d2dbf6fe6604c0d8389476a3da21b323a517931ab5c453",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance on the final release SHA; complete external provider acceptance separately.",
+      "evidence": [
+        {
+          "criterion": "LBI-03",
+          "sha": "d46c875b340afd4acda22f244a0db7356a745987",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; labeled disposable Docker, PostgreSQL and pinned-model fixtures; synthetic data; worker network disabled; no live provider credentials.",
+          "scope": "Two complete harness repetitions, 25 checks each. The production worker and Discord connector sent one request to a loopback provider fixture for concurrent approvals; ledger replay restored the durable target without another request. The controlled post-acceptance persistence fault left an unresolved marker and blocked blind retry. Cleanup was verified.",
+          "limitations": "The Discord HTTP transport was redirected to an isolated loopback service. This proves internal dispatch/idempotency behavior, not external Discord delivery, provider entitlement, or remote readback. Image identifiers are local Docker image IDs, not published registry manifests.",
+          "observedAt": "2026-10-07T02:56:37Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37563868575",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37563868575/job/112607045675",
+          "logSha256": "ef649d9de924c3dd595d4202f72e43098fe768cac4603c508d02201230807c53",
+          "counts": { "passed": 50, "failed": 0, "skipped": 0, "total": 50, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:fef9e4eb706e5405f1b167453e61378a8bcecfda6704b02b7db7e681f1ced4f7",
+            "sha256:bde216d60e2e7f8a2384127ba878adffc8de866ab7d45caf4c5ba53a78056329",
+            "sha256:eb50ff0bf24b29d5fb2c022fdf2bea1cc040e122f3a2595e0b15eaf5f46464df",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "double-approve/retry produces one remote post; a ledger hit skips a second call",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",

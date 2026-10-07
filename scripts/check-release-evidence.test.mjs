@@ -45,7 +45,7 @@ function incremental() {
 
 test('current register is structurally complete without implying release acceptance', () => {
   assert.equal(validate(current, expected).criteria, expected.length);
-  assert.equal(validate(current, expected).passed, 4);
+  assert.equal(validate(current, expected).passed, 5);
   assert.throws(() => validate(current, expected, { releaseSha: currentSha }));
 });
 test('accepts an immutable local Docker image ID as image provenance', () => {
