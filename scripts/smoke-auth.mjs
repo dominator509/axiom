@@ -545,7 +545,10 @@ SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
     'Safety status acceptance must start from a missing org settings row');
   const ownerSession = await request('/api/auth/get-session', { headers: { cookie } });
   assert.equal(ownerSession.status, 200);
-  assert.equal((await ownerSession.json()).user.role, 'owner', 'Session must reflect the server-assigned role');
+  const ownerSessionBody = await ownerSession.json();
+  assert.equal(ownerSessionBody.user.role, 'owner', 'Session must reflect the server-assigned role');
+  assert.ok(typeof ownerSessionBody.user.id === 'string' && ownerSessionBody.user.id.length > 0,
+    'Owner identity must be available for audited safety actions');
   const ownerSwitchStatus = await request('/api/v1/killswitch', { headers: { cookie } });
   assert.equal(ownerSwitchStatus.status, 200);
   assert.deepEqual((await ownerSwitchStatus.json()).data, {
@@ -561,15 +564,173 @@ SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
   assert.equal(settingsRows.status, 0, 'Read-only safety status verification must execute');
   assert.equal(settingsRows.stdout.trim(), '0', 'GET safety status must not create settings');
   console.log('safety status HTTP smoke: operator denied; owner read fails closed and creates no settings');
+
+  // Prepare two real model-scoped MCP capabilities and two durable publish
+  // queue entries in this one disposable organization. Keep the jobs delayed
+  // until after the audited org pause so the live CI worker cannot race setup.
+  const safetyReady = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+INSERT INTO org_settings (org_id, publishing_enabled)
+VALUES (:'fixture_org', true)
+ON CONFLICT (org_id) DO UPDATE SET
+  publishing_enabled = true,
+  kill_switch_reason = NULL,
+  kill_switch_actor = NULL,
+  kill_switch_at = NULL;
+SELECT publishing_enabled FROM org_settings WHERE org_id = :'fixture_org';
+` });
+  assert.equal(safetyReady.status, 0, 'Disposable safety settings must be explicitly enabled for the baseline');
+  assert.equal(safetyReady.stdout.trim(), 't', 'Baseline org safety state must be enabled before the pause action');
+
+  const secondModelId = randomUUID();
+  const secondModelHandle = `l5-${randomBytes(8).toString('hex')}`;
+  const secondModelFixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_model=${secondModelId}`, '-v', `fixture_handle=${secondModelHandle}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+INSERT INTO model_profile (id, org_id, display_name, handle)
+VALUES (:'fixture_model', :'fixture_org', 'L5 second synthetic model', :'fixture_handle');
+SELECT count(*) FROM model_profile WHERE id = :'fixture_model' AND org_id = :'fixture_org';
+` });
+  assert.equal(secondModelFixture.status, 0, 'Second synthetic model must be created in the disposable organization');
+  assert.equal(secondModelFixture.stdout.trim(), '1', 'Cross-model pause fixture must contain its second model');
+
+  const createAgentCapability = async (modelId, agentRef) => {
+    const permissionResponse = await request(`/api/v1/models/${modelId}/agent-permissions`, {
+      method: 'POST',
+      headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify({ agentRef, tier: 'manager', canPublish: true }),
+    });
+    assert.equal(permissionResponse.status, 201, 'Owner must be able to create a model-scoped synthetic agent grant');
+    const permission = (await permissionResponse.json()).data;
+    assert.equal(permission.modelId, modelId);
+    const tokenResponse = await request(`/api/v1/models/${modelId}/agent-permissions/${permission.id}/tokens`, {
+      method: 'POST',
+      headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+      body: '{}',
+    });
+    assert.equal(tokenResponse.status, 201, 'Owner must be able to issue a short-lived synthetic agent token');
+    const grant = (await tokenResponse.json()).data;
+    assert.ok(grant.token && grant.tokenId, 'Token issuance must return its one-time token and durable token ID');
+    return { modelId, permissionId: permission.id, tokenId: grant.tokenId, token: grant.token };
+  };
+  const modelIds = [createdBody.data.id, secondModelId];
+  const capabilities = await Promise.all(modelIds.map((modelId, index) =>
+    createAgentCapability(modelId, `l5-killswitch-${index}-${randomBytes(4).toString('hex')}`)));
+  const callAgentToolsList = (capability) => request('/api/mcp', {
+    method: 'POST',
+    headers: {
+      ...headers,
+      authorization: `Bearer ${capability.token}`,
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: randomUUID(), method: 'tools/list', params: {} }),
+  });
+  for (const capability of capabilities) {
+    const activeAgent = await callAgentToolsList(capability);
+    assert.equal(activeAgent.status, 200, 'Each synthetic model agent must authenticate before the org pause');
+  }
+
+  const publishJobIds = [randomUUID(), randomUUID()];
+  const queuedPublishFixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+    '-v', `fixture_model_a=${modelIds[0]}`, '-v', `fixture_model_b=${modelIds[1]}`,
+    '-v', `fixture_target_a=${randomUUID()}`, '-v', `fixture_target_b=${randomUUID()}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+INSERT INTO job (id, org_id, queue, kind, state, payload, attempts, max_attempts, run_after)
+VALUES
+  (:'fixture_job_a', :'fixture_org', 'publish', 'publish.target', 'ready',
+   jsonb_build_object('modelId', :'fixture_model_a', 'targetId', :'fixture_target_a'), 0, 3, now() + interval '1 hour'),
+  (:'fixture_job_b', :'fixture_org', 'publish', 'publish.target', 'ready',
+   jsonb_build_object('modelId', :'fixture_model_b', 'targetId', :'fixture_target_b'), 0, 3, now() + interval '1 hour');
+SELECT count(DISTINCT payload->>'modelId') FROM job
+WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid) AND org_id = :'fixture_org';
+` });
+  assert.equal(queuedPublishFixture.status, 0, 'Synthetic publishing work must be delayed in the disposable database');
+  assert.equal(queuedPublishFixture.stdout.trim(), '2', 'Queued publishing work must cover both models');
+
   const pauseStarted = Date.now();
   const paused = await request('/api/v1/killswitch/enable', {
     method: 'POST',
     headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
-    body: JSON.stringify({ reason: 'Disposable egress-plane control smoke' }),
+    body: JSON.stringify({ reason: 'L5 cross-model kill-switch acceptance' }),
   });
   assert.equal(paused.status, 200, 'owner pause must persist and receive egress-plane readback');
   assert.ok(Date.now() - pauseStarted < 5_000, 'organization egress pause must complete within five seconds');
   assert.equal((await (await request('/api/v1/killswitch', { headers: { cookie } })).json()).data.enabled, true);
+
+  const enableAudit = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_user=${ownerSessionBody.user.id}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+SELECT
+  (SELECT count(*) FROM kill_switch WHERE org_id = :'fixture_org' AND scope = 'org'
+   AND action = 'enable' AND reason = 'L5 cross-model kill-switch acceptance' AND actor_ref = :'fixture_user') || '|' ||
+  (SELECT count(*) FROM audit_log WHERE org_id = :'fixture_org' AND action = 'killswitch.enable'
+   AND target = :'fixture_org' AND detail->>'reason' = 'L5 cross-model kill-switch acceptance' AND actor_ref = :'fixture_user');
+` });
+  assert.equal(enableAudit.status, 0, 'Pause action audit records must be readable from the disposable database');
+  assert.equal(enableAudit.stdout.trim(), '1|1', 'One operator action must create one durable kill-switch event and one chained audit event');
+
+  for (const capability of capabilities) {
+    const pausedAgent = await callAgentToolsList(capability);
+    assert.equal(pausedAgent.status, 423, 'The same org pause must deny each model-scoped agent surface');
+  }
+
+  const publishJobsDue = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+UPDATE job SET run_after = now() WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid);
+SELECT count(*) FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid) AND run_after <= now();
+` });
+  assert.equal(publishJobsDue.status, 0, 'Synthetic publishing jobs must become due only after the org pause');
+  assert.equal(publishJobsDue.stdout.trim(), '2', 'Both model publishing jobs must be released to the live worker while paused');
+
+  const workerPauseDeadline = pauseStarted + 5_000;
+  let parkedPublishJobs = '0';
+  while (Date.now() < workerPauseDeadline) {
+    const workerReadback = spawnSync('psql', [
+      '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+      '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+    ], { encoding: 'utf8', timeout: 2_000, input: `
+SELECT count(*) FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid)
+  AND state = 'ready' AND attempts = 0 AND locked_by IS NULL
+  AND last_error ILIKE '%organization kill switch enabled%';
+` });
+    assert.equal(workerReadback.status, 0, 'Worker pause readback must use the disposable database');
+    parkedPublishJobs = workerReadback.stdout.trim();
+    if (parkedPublishJobs === '2') break;
+    await delay(100);
+  }
+  assert.equal(parkedPublishJobs, '2', 'Live worker must park both models’ publish jobs without consuming attempts within five seconds');
+  const parkedModels = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+SELECT count(DISTINCT payload->>'modelId') || '|' ||
+       count(*) FILTER (WHERE state = 'ready' AND attempts = 0 AND locked_by IS NULL
+                        AND last_error ILIKE '%organization kill switch enabled%')
+FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid);
+` });
+  assert.equal(parkedModels.status, 0, 'Cross-model worker state must be readable');
+  assert.equal(parkedModels.stdout.trim(), '2|2', 'Both distinct models must remain parked before any publishing executor runs');
+
+  const deferCleanupJobs = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+UPDATE job SET run_after = now() + interval '1 hour'
+WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid);
+SELECT count(*) FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid)
+  AND run_after > now();
+` });
+  assert.equal(deferCleanupJobs.status, 0, 'Parked fixture jobs must be held before separate re-enable');
+  assert.equal(deferCleanupJobs.stdout.trim(), '2', 'No synthetic publish job may race the re-enable action');
+
   const resumed = await request('/api/v1/killswitch/disable', {
     method: 'POST',
     headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
@@ -577,7 +738,56 @@ SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
   });
   assert.equal(resumed.status, 200, 'owner resume must receive egress-plane readback');
   assert.equal((await (await request('/api/v1/killswitch', { headers: { cookie } })).json()).data.enabled, false);
-  console.log(`organization kill-switch HTTP smoke: plane drain/readback and release/readback passed in ${Date.now() - pauseStarted}ms`);
+  for (const capability of capabilities) {
+    const resumedAgent = await callAgentToolsList(capability);
+    assert.equal(resumedAgent.status, 200, 'Model-scoped agent access must return only after the separate re-enable action');
+  }
+
+  const fullAudit = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_user=${ownerSessionBody.user.id}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+SELECT
+  (SELECT count(*) FROM kill_switch WHERE org_id = :'fixture_org' AND scope = 'org'
+   AND action = 'enable' AND reason = 'L5 cross-model kill-switch acceptance' AND actor_ref = :'fixture_user') || '|' ||
+  (SELECT count(*) FROM kill_switch WHERE org_id = :'fixture_org' AND scope = 'org'
+   AND action = 'disable' AND actor_ref = :'fixture_user') || '|' ||
+  (SELECT count(*) FROM audit_log WHERE org_id = :'fixture_org' AND action = 'killswitch.enable'
+   AND target = :'fixture_org' AND detail->>'reason' = 'L5 cross-model kill-switch acceptance' AND actor_ref = :'fixture_user') || '|' ||
+  (SELECT count(*) FROM audit_log WHERE org_id = :'fixture_org' AND action = 'killswitch.disable'
+   AND target = :'fixture_org' AND actor_ref = :'fixture_user');
+` });
+  assert.equal(fullAudit.status, 0, 'Enable and re-enable audit rows must remain readable');
+  assert.equal(fullAudit.stdout.trim(), '1|1|1|1', 'Enable and separate re-enable must each persist one operator event and one audit-chain entry');
+
+  for (const capability of capabilities) {
+    const revoked = await request(
+      `/api/v1/models/${capability.modelId}/agent-permissions/${capability.permissionId}/tokens/${capability.tokenId}/revoke`,
+      { method: 'POST', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() }, body: '{}' },
+    );
+    assert.equal(revoked.status, 200, 'Synthetic agent token must be revoked during cleanup');
+    const removed = await request(`/api/v1/models/${capability.modelId}/agent-permissions/${capability.permissionId}`, {
+      method: 'DELETE', headers: { ...headers, cookie },
+    });
+    assert.equal(removed.status, 200, 'Synthetic agent permission must be removed during cleanup');
+  }
+  const cleanup = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_job_a=${publishJobIds[0]}`, '-v', `fixture_job_b=${publishJobIds[1]}`,
+    '-v', `fixture_model=${secondModelId}`,
+    '-v', `fixture_token_a=${capabilities[0].tokenId}`, '-v', `fixture_token_b=${capabilities[1].tokenId}`,
+    '-v', `fixture_org=${orgId}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `
+DELETE FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid);
+DELETE FROM mcp_token_revocation WHERE token_id IN (:'fixture_token_a', :'fixture_token_b');
+DELETE FROM model_profile WHERE id = :'fixture_model' AND org_id = :'fixture_org';
+SELECT (SELECT count(*) FROM job WHERE id IN (:'fixture_job_a'::uuid, :'fixture_job_b'::uuid)) || '|' ||
+       (SELECT count(*) FROM model_profile WHERE id = :'fixture_model' AND org_id = :'fixture_org');
+` });
+  assert.equal(cleanup.status, 0, 'Synthetic cross-model kill-switch resources must be removed from the disposable database');
+  assert.equal(cleanup.stdout.trim(), '0|0', 'Synthetic jobs and second model must be absent after cleanup');
+  console.log('LBI-11 acceptance result: 1 passed, 0 failed, 0 skipped');
+  console.log(`LBI-11 smoke: one audited owner action paused two model agents and two publish jobs within five seconds; separate audited re-enable restored agents; cleanup verified (${Date.now() - pauseStarted}ms)`);
 
   const apiContainer = process.env.AXIOM_CI_API_CONTAINER;
   if (apiContainer) {
