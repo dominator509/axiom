@@ -50,6 +50,7 @@ export interface WorkerStats {
 }
 
 const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
+const KILL_SWITCH_PARK_DELAY_MS = 5_000;
 
 class JobLeaseLostError extends Error {
   constructor(jobId: string) {
@@ -188,6 +189,12 @@ export async function processJob(
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
       const killSwitchEnabled = await readKillSwitch(tx, job.org_id);
+      if (killSwitchEnabled) {
+        throw new ParkJobError(
+          'organization kill switch enabled; queued work is paused',
+          KILL_SWITCH_PARK_DELAY_MS,
+        );
+      }
       await executor({
         tx,
         job,

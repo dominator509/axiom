@@ -103,7 +103,9 @@ describe('workerTick with empty queue', () => {
 
   it('reports the handled job error for the long-running loop', async () => {
     const job = makeJob({ kind: 'test.fail' });
-    mockState.result = [job];
+    // The worker now pauses every queue when org settings are missing or
+    // disabled, so this error-path fixture must explicitly enable publishing.
+    mockState.result = [{ ...job, publishingEnabled: true }];
     mockState.executeResult = { rows: [job] };
 
     const stats = await workerTick({
@@ -171,6 +173,18 @@ describe('processJob state transitions', () => {
     const outcome = await processJob(job, { 'test.ok': executor }, 'w1', {});
     expect(outcome).toBe('done');
     expect(executor).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(Object.keys(defaultExecutors))('pauses queued %s work before invoking an executor when the org kill switch is enabled', async (kind) => {
+    mockState.result = [{ id: 'job-1', publishingEnabled: false }];
+    const job = makeJob({ kind });
+    const executor = vi.fn(async () => {});
+
+    const outcome = await processJob(job, { [kind]: executor }, 'w1', {});
+
+    expect(outcome).toBe('parked');
+    expect(executor).not.toHaveBeenCalled();
+    expect(mockState.updates.at(-1)).toMatchObject({ state: 'ready' });
   });
 
   it('retries with backoff on executor failure (attempts+1, run_after future)', async () => {

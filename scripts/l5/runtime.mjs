@@ -56,6 +56,7 @@ async function tenant() {
   const org = randomUUID(), model = randomUUID();
   await admin.query('INSERT INTO org(id,name,slug) VALUES($1,$2,$3)', [org, 'Owned L5 fixture', org]);
   await admin.query('INSERT INTO model_profile(id,org_id,display_name,handle) VALUES($1,$2,$3,$4)', [model, org, 'Synthetic talent', model]);
+  await scoped(org, tx => tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true }));
   return { org, model };
 }
 async function vision(port, path, body, authorized = true) {
@@ -156,7 +157,6 @@ async function relayDispatchFixture() {
   const { org, model } = await tenant();
   const bundle = randomUUID(), job = randomUUID();
   await scoped(org, async tx => {
-    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
     await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
       state: 'generated', captions: { instagram: 'Synthetic approval fixture.' }, hashtags: [],
       tosReport: { verdict: 'pass', scores: [{ platform: 'instagram', score: 0, verdict: 'pass' }] } });
@@ -197,7 +197,6 @@ async function blockedPublishFixture(tosReport) {
   const { org, model } = await tenant();
   const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
   await scoped(org, async tx => {
-    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
     await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
       state: 'approved', captions: { instagram: 'Synthetic blocked publish fixture.' }, hashtags: [], tosReport });
     await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
@@ -230,7 +229,6 @@ async function successfulPublishFixture({ includeConsent = true, startReady = fa
   const media = readFileSync('/app/var/media/fixture.png');
   const storageKey = 'fixture.png';
   await scoped(org, async tx => {
-    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
     await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
       fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey,
       sha256: createHash('sha256').update(media).digest() });
@@ -429,16 +427,26 @@ try {
     const response = await requestBundleApproval(fixture);
     await assertApprovalRejectedWithoutMutation(fixture, response, 'ToS scan is still running');
   });
-  for (const kind of ['publish.target', 'relay.card']) {
-    await check(`${kind}: missing and disabled safety state parks real executor`, async () => {
+for (const kind of Object.keys(defaultExecutors)) {
+    await check(`${kind}: missing and disabled organization safety state parks queued work`, async () => {
       for (const configured of [false, true]) {
         const fixture = await jobFixture(kind);
-        if (configured) await scoped(fixture.org, tx => tx.insert(schema.orgSettings).values({ orgId: fixture.org, publishingEnabled: false }));
+        if (configured) {
+          await scoped(fixture.org, tx => tx.update(schema.orgSettings).set({ publishingEnabled: false })
+            .where(eq(schema.orgSettings.orgId, fixture.org)));
+        } else {
+          await scoped(fixture.org, tx => tx.delete(schema.orgSettings)
+            .where(eq(schema.orgSettings.orgId, fixture.org)));
+        }
         assert.equal(await scoped(fixture.org, tx => readKillSwitch(tx, fixture.org)), true);
         assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'parked');
         const records = await state(fixture);
         assert.equal(records.job.state, 'ready'); assert.equal(records.job.lockedBy, null);
+        assert.equal(records.job.attempts, 0, 'Pausing work must not consume a job attempt');
         assert.match(records.job.lastError, /kill switch/i);
+        assert.deepEqual(records.cards.map(card => card.id), kind === 'relay.card' ? [fixture.job.id] : [],
+          'Pausing work must not enqueue an additional relay.card job');
+        assert.equal(records.relayMarkers.length, 0, 'A paused queue must not create relay outcomes');
       }
     });
   }
