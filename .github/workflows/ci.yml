@@ -781,3 +781,12 @@ jobs:
             exit 1
           fi
           echo "${vision_container}: scanner process recovered; model readiness remains unavailable without the external artifact and inference remains protected"
+
+      # Temporary lane-2 control: only the dedicated non-production PR branch
+      # fails after its test matrix leg completes. Remove after verifying that
+      # fail-fast=false lets the other matrix legs finish independently.
+      - name: Controlled CI independence failure
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'codex/ci-independence-rehearsal' && matrix.task == 'test'
+        run: |
+          echo "Intentional lane-2 failure control for the non-production rehearsal branch."
+          exit 86
