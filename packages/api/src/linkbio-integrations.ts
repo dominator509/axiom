@@ -5,7 +5,7 @@ export const LINKBIO_PROVIDER_KINDS = ['native', 'fanlynks', 'linktree', 'beacon
 export type LinkbioProviderKind = typeof LINKBIO_PROVIDER_KINDS[number];
 
 export type LinkbioConnectionState = 'configured' | 'verified' | 'unavailable' | 'failed';
-export type LinkbioIntegrationReason = 'provider_disabled' | 'linktree_partner_access_required' | 'beacons_api_endpoints_unavailable';
+export type LinkbioIntegrationReason = 'provider_disabled' | 'linktree_not_supported' | 'beacons_linkbio_api_unavailable';
 
 /**
  * Describes capabilities this deployment can actually provide. External link
@@ -22,10 +22,10 @@ export function linkbioIntegrationContract(kind: LinkbioProviderKind, enabled: b
     return { state: 'unavailable' as const, reason: 'provider_disabled' as const, linkManagement, analytics, revocation };
   }
   if (kind === 'linktree') {
-    return { state: 'unavailable' as const, reason: 'linktree_partner_access_required' as const, linkManagement, analytics, revocation };
+    return { state: 'unavailable' as const, reason: 'linktree_not_supported' as const, linkManagement, analytics, revocation };
   }
   if (kind === 'beacons') {
-    return { state: 'unavailable' as const, reason: 'beacons_api_endpoints_unavailable' as const, linkManagement, analytics, revocation };
+    return { state: 'unavailable' as const, reason: 'beacons_linkbio_api_unavailable' as const, linkManagement, analytics, revocation };
   }
   return { state: 'configured' as const, reason: null, linkManagement, analytics, revocation };
 }

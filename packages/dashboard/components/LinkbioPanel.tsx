@@ -7,8 +7,11 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
-const KINDS = ['native', 'fanlynks', 'linktree', 'beacons'] as const;
-type ProviderKind = (typeof KINDS)[number];
+// Linktree remains a recognized persisted kind for existing rows, but is no
+// longer offered as a new connection because its public API contract is absent.
+const KINDS = ['native', 'fanlynks', 'beacons'] as const;
+const DISPLAY_KINDS = [...KINDS, 'linktree'] as const;
+type ProviderKind = (typeof DISPLAY_KINDS)[number];
 
 interface ProviderAnalyticsConnection {
   analyticsConnected: boolean;
@@ -97,7 +100,7 @@ export default function LinkbioPanel({
 }) {
   const { locale = 'en', t } = useLocale();
   const router = useRouter();
-  const initialEnabledProvider = providers.find((provider) => provider.enabled);
+  const initialEnabledProvider = providers.find((provider) => provider.enabled && provider.kind !== 'linktree');
   const initialKind = (initialEnabledProvider?.kind as ProviderKind) ?? 'native';
   const initialProvider = providers.find((provider) => provider.kind === initialKind);
   const initialActiveProvider = initialProvider?.enabled ? initialProvider : undefined;
@@ -124,7 +127,7 @@ export default function LinkbioPanel({
   const [linkUrl, setLinkUrl] = useState('');
   const [apiToken, setApiToken] = useState('');
   const [confirmedProviders, setConfirmedProviders] = useState<Partial<Record<ProviderKind, ProviderRow>>>({});
-  const displayedProviders = KINDS.map((providerKind) => {
+  const displayedProviders = DISPLAY_KINDS.map((providerKind) => {
     const serverProvider = providers.find((provider) => provider.kind === providerKind);
     const confirmedProvider = confirmedProviders[providerKind];
     if (!confirmedProvider) return serverProvider;
@@ -277,13 +280,11 @@ export default function LinkbioPanel({
       ...(kind === 'fanlynks' ? { accentColor } : {}),
       ...(kind === 'fanlynks' ? { publicTracking } : {}),
     };
-    if (kind === 'linktree' || kind === 'beacons') {
+    if (kind === 'beacons') {
       try {
         const parsed = new URL(profileUrl.trim());
         const host = parsed.hostname.toLowerCase();
-        const validHost = kind === 'linktree'
-          ? host === 'linktr.ee' || host.endsWith('.linktr.ee')
-          : host === 'beacons.ai' || host.endsWith('.beacons.ai');
+        const validHost = host === 'beacons.ai' || host.endsWith('.beacons.ai');
         if (parsed.protocol !== 'https:' || !validHost) throw new Error();
       } catch {
         setError(t('linkbio.error.profileUrl'));
@@ -302,7 +303,7 @@ export default function LinkbioPanel({
     runMutation({
       path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio`,
       method: 'POST',
-      body: JSON.stringify({ kind, config, ...((kind === 'linktree' || kind === 'beacons' || (kind === 'fanlynks' && profileUrl.trim())) ? { profileUrl: profileUrl.trim() } : {}), isPrimary }),
+      body: JSON.stringify({ kind, config, ...((kind === 'beacons' || (kind === 'fanlynks' && profileUrl.trim())) ? { profileUrl: profileUrl.trim() } : {}), isPrimary }),
       label: t('linkbio.saveProvider'), action: 'provider', kind, enabled: true,
     });
   }
@@ -321,7 +322,7 @@ export default function LinkbioPanel({
     ? profileUrl.trim() || `/linkbio/fanlynks/${encodeURIComponent(modelId)}`
     : kind === 'native' ? `/linkbio/${encodeURIComponent(modelId)}` : null;
   const analyticsConnection = activeProvider?.analyticsConnection;
-  const needsExternalSetup = kind === 'linktree' || kind === 'beacons';
+  const needsExternalSetup = kind === 'beacons';
   return (
     <div className="stack">
       {displayedProviders.filter((provider) => provider.enabled).length > 0 && (
@@ -356,8 +357,8 @@ export default function LinkbioPanel({
               {KINDS.map((providerKind) => <option key={providerKind} value={providerKind}>{providerKind}</option>)}
             </select>
           </label>
-          {(kind === 'linktree' || kind === 'beacons' || kind === 'fanlynks') && <label>{t('linkbio.profileUrl')}
-            <input aria-label={t('linkbio.profileUrl')} type="url" maxLength={2048} value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={kind === 'linktree' ? 'https://linktr.ee/creator' : kind === 'beacons' ? 'https://beacons.ai/creator' : 'https://your-fanlynks.example/creator'} />
+          {(kind === 'beacons' || kind === 'fanlynks') && <label>{t('linkbio.profileUrl')}
+            <input aria-label={t('linkbio.profileUrl')} type="url" maxLength={2048} value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={kind === 'beacons' ? 'https://beacons.ai/creator' : 'https://your-fanlynks.example/creator'} />
           </label>}
           {kind === 'fanlynks' && <label>{t('linkbio.ga4.measurementId')}
             <input aria-label={t('linkbio.ga4.measurementId')} maxLength={23} value={measurementId} onChange={(event) => setMeasurementId(event.target.value.toUpperCase())} placeholder="G-XXXXXXXXXX" />

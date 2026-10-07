@@ -432,14 +432,14 @@
     {
       "id": "A1",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works |",
-      "requirementSha256": "18c4d7d66f914b92be979e1625f99279d7d6df531efcc94bbab46236e61df6a7",
+      "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, and Beacons.ai work individually and simultaneously; disabling one leaves the others working; Native always works; Linktree is excluded; Beacon CRM is not a link-in-bio provider |",
+      "requirementSha256": "06b41ede05f612efe985b22a67a39bdedbf8a4957a0fd1b88fbf58fd31606c0d",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
       "evidence": [],
       "verification": {
-        "test": "runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works",
+        "test": "runs with 0 providers; Native, Fanlynks, and Beacons.ai work individually and simultaneously; disabling one leaves the others working; Native always works; Linktree is excluded; Beacon CRM is not a link-in-bio provider",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
         "dependencies": [
           1,
@@ -451,7 +451,7 @@
           "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
           "Verified cleanup for created resources and immutable image digests when containers are used."
         ],
-        "completionCondition": "Satisfy this exact acceptance requirement: | A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, Linktree, and Beacons work individually and simultaneously; disabling one leaves the others working; Native always works |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+        "completionCondition": "Satisfy this exact acceptance requirement: | A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, and Beacons.ai work individually and simultaneously; disabling one leaves the others working; Native always works; Linktree is excluded; Beacon CRM is not a link-in-bio provider |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
       }
     },
     {
@@ -858,14 +858,14 @@
     {
       "id": "FUNCTIONAL-3",
       "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
-      "requirement": "- [ ] **Link-in-bio** works with zero providers and with Native, Fanlynks, Linktree, and Beacons independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly.",
-      "requirementSha256": "3d9e7b26509d211c0ce84b417a72184286381fbcb14878444a64c1aeaaf7f975",
+      "requirement": "- [ ] **Link-in-bio** works with zero providers and with Native, Fanlynks, and Beacons.ai independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly. Linktree is excluded by owner decision; Beacon CRM is a separate records API.",
+      "requirementSha256": "7bf5937ab35cb129e30f803132a12c18e2c820b2692ff3b0f1cb00b5c3c6faf9",
       "lane": 3,
       "status": "unverified",
       "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
       "evidence": [],
       "verification": {
-        "test": "Exercise zero providers and each of the four link-in-bio providers alone and together; verify synchronization, available analytics, primary selection, disable, and teardown.",
+        "test": "Exercise zero providers and each supported link-in-bio provider (Native, Fanlynks, Beacons.ai) alone and together; verify synchronization, available analytics, primary selection, disable, and teardown. Linktree is excluded; Beacon CRM is not a link-in-bio provider.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
         "dependencies": [
           1,
@@ -877,7 +877,7 @@
           "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
           "Verified cleanup for created resources and immutable image digests when containers are used."
         ],
-        "completionCondition": "Satisfy this exact acceptance requirement: **Link-in-bio** works with zero providers and with Native, Fanlynks, Linktree, and Beacons independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+        "completionCondition": "Satisfy this exact acceptance requirement: **Link-in-bio** works with zero providers and with Native, Fanlynks, and Beacons.ai independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly. Linktree is excluded by owner decision; Beacon CRM is a separate records API.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
       }
     },
     {

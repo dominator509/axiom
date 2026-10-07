@@ -582,7 +582,10 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
   if (!linkbioWriteRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot configure link-in-bio providers');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
-  const externalKind = body.kind === 'linktree' || body.kind === 'beacons';
+  if (body.kind === 'linktree') {
+    return apiError(c, 410, statusTitle(410), 'Linktree is not a supported link-in-bio provider');
+  }
+  const externalKind = body.kind === 'beacons';
   const profileUrl = body.profileUrl === undefined ? null
     : body.kind === 'fanlynks' ? safeFanlynksProfileUrl(body.profileUrl)
       : safeExternalProfileUrl(body.profileUrl, body.kind);

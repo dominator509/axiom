@@ -24,8 +24,8 @@ vi.mock('./LocaleProvider', () => ({
         'linkbio.status': 'Status', 'linkbio.statusConfigured': 'Configured',
         'linkbio.statusConnected': 'Integration verified', 'linkbio.statusSyncError': 'Connection failed',
         'linkbio.statusUnavailable': 'Manual setup only',
-        'linkbio.reason.linktree_partner_access_required': 'Linktree partner API access is unavailable.',
-        'linkbio.reason.beacons_api_endpoints_unavailable': 'Beacons link API is unavailable.',
+        'linkbio.reason.linktree_not_supported': 'Linktree is no longer supported. Remove this saved legacy entry.',
+        'linkbio.reason.beacons_linkbio_api_unavailable': 'Beacons.ai link management is not available through this integration.',
         'linkbio.statusDisabled': 'Disabled', 'linkbio.disable': 'Disable',
         'linkbio.trackedLinks': 'Tracked destination links', 'linkbio.noLinks': 'No links configured.',
         'linkbio.remove': 'Remove', 'linkbio.linkLabel': 'Link label', 'linkbio.linkUrl': 'Link URL',
@@ -123,12 +123,19 @@ it('shows external provider API unavailability instead of treating analytics syn
   hooks.index = 0;
   const html = renderToStaticMarkup(LinkbioPanel({ modelId: 'model', canEdit: false, providers: [{
     id: 'linktree', kind: 'linktree', enabled: true, isPrimary: true, status: 'connected',
-    integration: { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+    integration: { state: 'unavailable', reason: 'linktree_not_supported', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
     profileUrl: 'https://linktr.ee/creator', config: { links: [] },
   }] }));
   expect(html).toContain('Manual setup only');
-  expect(html).toContain('Linktree partner API access is unavailable.');
+  expect(html).toContain('Linktree is no longer supported. Remove this saved legacy entry.');
   expect(html).not.toContain('Integration verified');
+});
+
+it('does not offer Linktree as a new provider choice', () => {
+  hooks.index = 0;
+  const html = renderToStaticMarkup(panel(false));
+  expect(html).not.toContain('<option value="linktree">');
+  expect(html).toMatch(/<option value="native"[^>]*>/);
 });
 
 it('does not expose provider mutations to read-only users', () => {
