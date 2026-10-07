@@ -444,7 +444,8 @@ for (const kind of Object.keys(defaultExecutors)) {
         assert.equal(records.job.state, 'ready'); assert.equal(records.job.lockedBy, null);
         assert.equal(records.job.attempts, 0, 'Pausing work must not consume a job attempt');
         assert.match(records.job.lastError, /kill switch/i);
-        assert.equal(records.cards.length, 0, 'A paused queue must not create relay cards');
+        assert.deepEqual(records.cards.map(card => card.id), kind === 'relay.card' ? [fixture.job.id] : [],
+          'Pausing work must not enqueue an additional relay.card job');
         assert.equal(records.relayMarkers.length, 0, 'A paused queue must not create relay outcomes');
       }
     });
