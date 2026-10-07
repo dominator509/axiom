@@ -323,6 +323,34 @@ try {
       assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
+  await check('publish.target: expired model consent blocks provider dispatch after approval', async () => {
+    const fixture = await successfulPublishFixture();
+    const provider = await localDiscordProvider(fixture);
+    try {
+      await scoped(fixture.org, tx => tx.update(schema.consentRecord)
+        .set({ expiresAt: new Date(Date.now() - 60_000) })
+        .where(and(
+          eq(schema.consentRecord.orgId, fixture.org),
+          eq(schema.consentRecord.modelId, fixture.model),
+          eq(schema.consentRecord.docKind, '2257'),
+        )));
+
+      assert.equal(await processJob(fixture.job, {
+        ...defaultExecutors,
+        'publish.target': ctx => publishTarget(ctx, provider.resolver),
+      }, 'l5-worker', {}), 'dead');
+
+      const records = await publishRecords(fixture);
+      assert.equal(provider.deliveries.length, 0, 'Expired consent must block before provider I/O');
+      assert.equal(records.job.state, 'dead');
+      assert.match(records.job.lastError, /valid, in-date consent records.*2257/);
+      assert.equal(records.target.state, 'pending');
+      assert.equal(records.ledger, null);
+      assert.equal(records.markers.length, 0, 'Blocked consent cannot create a dispatch marker');
+    } finally {
+      await provider.close();
+    }
+  });
   await check('publish.target: concurrent duplicate approval and ledger replay persist one remote outcome', async () => {
     const fixture = await successfulPublishFixture();
     const provider = await localDiscordProvider(fixture);
