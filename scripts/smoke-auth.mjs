@@ -284,6 +284,18 @@ COMMIT;
   assert.equal(queuedScan.status, 0, 'ToS job verification must execute successfully');
   assert.equal(queuedScan.stdout.trim(), '1', 'Generation replay must leave exactly one durable ToS scan job');
   if (waitForToS) {
+    const workerSafetyFixture = spawnSync('psql', [
+      '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+      '-v', `fixture_org=${orgId}`,
+    ], {
+      encoding: 'utf8', timeout: 10_000,
+      input: `INSERT INTO org_settings (org_id, publishing_enabled)
+VALUES (:'fixture_org', true)
+ON CONFLICT (org_id) DO UPDATE SET publishing_enabled = EXCLUDED.publishing_enabled;
+SELECT publishing_enabled FROM org_settings WHERE org_id = :'fixture_org';`,
+    });
+    assert.equal(workerSafetyFixture.status, 0, 'Worker acceptance must explicitly enable its disposable tenant');
+    assert.equal(workerSafetyFixture.stdout.trim(), 't', 'A real worker smoke must run only after explicit fixture re-enable');
     const deadline = Date.now() + 20_000;
     let completed = false;
     while (Date.now() < deadline) {
@@ -520,6 +532,17 @@ UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = 
   });
   assert.equal(ownerFixture.status, 0, 'Disposable owner fixture must apply successfully');
   assert.equal(ownerFixture.stdout.trim(), '1', 'Only the synthetic operator may be assigned ownership');
+  const missingSafetyFixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `DELETE FROM org_settings WHERE org_id = :'fixture_org';
+SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
+  });
+  assert.equal(missingSafetyFixture.status, 0, 'Disposable missing-settings fixture must reset successfully');
+  assert.equal(missingSafetyFixture.stdout.trim().split(/\r?\n/).at(-1), '0',
+    'Safety status acceptance must start from a missing org settings row');
   const ownerSession = await request('/api/auth/get-session', { headers: { cookie } });
   assert.equal(ownerSession.status, 200);
   assert.equal((await ownerSession.json()).user.role, 'owner', 'Session must reflect the server-assigned role');

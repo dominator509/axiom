@@ -15,6 +15,9 @@ const orgId = '11111111-1111-4111-8111-111111111111';
 // claim-loop tests their own model so they cannot consume another suite's jobs.
 const modelId = randomUUID();
 let fixtureModelCreated = false;
+let originalPublishingEnabled: boolean | null = null;
+let fixtureOrgSettingsExisted = false;
+let fixtureOrgSettingsCaptured = false;
 const videoHash = process.env.AXIOM_VIDEO_REHEARSAL_HASH;
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>) => db.transaction(async tx => {
@@ -32,6 +35,19 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(target.pathname).toMatch(/^\/(?:axiom_test|axiom_workspace_test_[0-9a-f]{16})$/);
     const role = await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user');
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    const existingSettings = await scoped(tx => tx.select({ publishingEnabled: schema.orgSettings.publishingEnabled })
+      .from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1));
+    fixtureOrgSettingsCaptured = true;
+    fixtureOrgSettingsExisted = existingSettings.length > 0;
+    originalPublishingEnabled = existingSettings[0]?.publishingEnabled ?? null;
+    await scoped(async tx => {
+      if (fixtureOrgSettingsExisted) {
+        await tx.update(schema.orgSettings).set({ publishingEnabled: true })
+          .where(eq(schema.orgSettings.orgId, orgId));
+      } else {
+        await tx.insert(schema.orgSettings).values({ orgId, publishingEnabled: true });
+      }
+    });
     await scoped(tx => tx.insert(schema.modelProfile).values({ id: modelId, orgId,
       handle: modelId, displayName: 'Isolated worker media fixture' }));
     fixtureModelCreated = true;
@@ -39,7 +55,20 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
   afterAll(async () => {
     try {
       if (fixtureModelCreated) await scoped(tx => tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, modelId)));
-    } finally { await pool.end(); }
+    } finally {
+      try {
+        if (fixtureOrgSettingsCaptured) {
+          await scoped(async tx => {
+            if (fixtureOrgSettingsExisted) {
+              await tx.update(schema.orgSettings).set({ publishingEnabled: originalPublishingEnabled! })
+                .where(eq(schema.orgSettings.orgId, orgId));
+            } else {
+              await tx.delete(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId));
+            }
+          });
+        }
+      } finally { await pool.end(); }
+    }
   });
 
   it.each(['assigned', 'missing', 'different-user', 'revoked-during-preparation', 'role-revoked-during-preparation'])('checks Creator generation against real assignments: %s', async mode => {
