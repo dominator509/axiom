@@ -18,10 +18,10 @@ describe('link-in-bio provider integrations', () => {
       state: 'configured', reason: null, linkManagement: 'first_party', revocation: 'local',
     });
     expect(linkbioIntegrationContract('linktree', true)).toMatchObject({
-      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', revocation: 'manual',
+      state: 'unavailable', reason: 'linktree_not_supported', linkManagement: 'manual', revocation: 'manual',
     });
     expect(linkbioIntegrationContract('beacons', true)).toMatchObject({
-      state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', revocation: 'manual',
+      state: 'unavailable', reason: 'beacons_linkbio_api_unavailable', linkManagement: 'manual', revocation: 'manual',
     });
     expect(linkbioIntegrationContract('native', false)).toMatchObject({ state: 'unavailable', reason: 'provider_disabled' });
   });

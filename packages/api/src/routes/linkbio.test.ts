@@ -80,8 +80,8 @@ describe('GET /models/:modelId/linkbio', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.data.providers.map((provider: any) => provider.integration)).toEqual([
-      { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
-      { state: 'unavailable', reason: 'beacons_api_endpoints_unavailable', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+      { state: 'unavailable', reason: 'linktree_not_supported', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
+      { state: 'unavailable', reason: 'beacons_linkbio_api_unavailable', linkManagement: 'manual', analytics: 'ga4_import', revocation: 'manual' },
     ]);
   });
 
@@ -314,19 +314,13 @@ describe('POST /models/:modelId/linkbio', () => {
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind: 'linktree' }),
+      body: JSON.stringify({ kind: 'beacons' }),
     });
     expect(res.status).toBe(422);
     expect(mockState.insertValues).toEqual([]);
   });
 
-  it('enables Linktree with validated profile details and tracked destination configuration', async () => {
-    const saved = {
-      id: PROVIDER_ID, kind: 'linktree', enabled: true, isPrimary: true,
-      profileUrl: 'https://linktr.ee/luna', status: 'configured',
-      config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
-    };
-    mockState.results = [[], [{ orgId: ORG_ID }], [], [saved]];
+  it('rejects new Linktree connections while retaining legacy records for read and removal', async () => {
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -334,16 +328,9 @@ describe('POST /models/:modelId/linkbio', () => {
         config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
       }),
     });
-    expect(res.status).toBe(201);
-    expect(mockState.insertValues[0]).toMatchObject({
-      orgId: ORG_ID, modelId: MODEL_ID, kind: 'linktree', profileUrl: 'https://linktr.ee/luna',
-      config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
-    });
-    expect(mockState.updates[0]).toMatchObject({ isPrimary: false });
-    expect(await res.json()).toMatchObject({ data: {
-      kind: 'linktree', profileUrl: 'https://linktr.ee/luna', enabled: true,
-      integration: { state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual' },
-    } });
+    expect(res.status).toBe(410);
+    expect(mockState.insertValues).toEqual([]);
+    expect(mockState.updates).toEqual([]);
   });
 
   it('rejects an external profile URL on the wrong provider host', async () => {
@@ -436,7 +423,7 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
     expect(body.data.totalClicks).toBe(5);
     expect(body.data.totals).toEqual({ trackedClicks: 5 });
     expect(body.data.providers.find((provider: any) => provider.kind === 'linktree').integration).toMatchObject({
-      state: 'unavailable', reason: 'linktree_partner_access_required', linkManagement: 'manual',
+      state: 'unavailable', reason: 'linktree_not_supported', linkManagement: 'manual',
     });
     expect(body.data.providers).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'native-provider', clicks: 2 }),

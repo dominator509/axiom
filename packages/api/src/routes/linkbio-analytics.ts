@@ -128,7 +128,7 @@ router.get('/models/:modelId/linkbio/:kind/analytics-connection', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const kind = linkbioKind(c.req.param('kind'));
   if (!kind) return apiError(c, 404, statusTitle(404), 'unknown link-in-bio provider');
-  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for Fanlynks, Linktree, and Beacons pages');
+  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for external link-in-bio pages');
   const role = c.get('role') ?? '';
   if (!syncRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot read link-in-bio analytics settings');
   const rows = await withOrgContext(orgId, async (tx) => {
@@ -189,7 +189,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
   if (!credentialRoles.has(role)) return apiError(c, 403, statusTitle(403), 'only an owner or manager can connect analytics');
   const kind = linkbioKind(c.req.param('kind'));
   if (!kind) return apiError(c, 404, statusTitle(404), 'unknown link-in-bio provider');
-  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for Fanlynks, Linktree, and Beacons pages');
+  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for external link-in-bio pages');
   const modelId = c.req.param('modelId');
   const body = c.req.valid('json');
   const provider = await withOrgContext(orgId, async (tx) => {
@@ -297,7 +297,7 @@ router.delete('/models/:modelId/linkbio/:kind/analytics-connection', async (c) =
   if (!credentialRoles.has(role)) return apiError(c, 403, statusTitle(403), 'only an owner or manager can revoke analytics access');
   const kind = linkbioKind(c.req.param('kind'));
   if (!kind) return apiError(c, 404, statusTitle(404), 'unknown link-in-bio provider');
-  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for Fanlynks, Linktree, and Beacons pages');
+  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for external link-in-bio pages');
   const modelId = c.req.param('modelId');
   const updated = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, modelId)) !== orgId) return false;
@@ -351,7 +351,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', 
   if (!syncRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot sync link-in-bio analytics');
   const kind = linkbioKind(c.req.param('kind'));
   if (!kind) return apiError(c, 404, statusTitle(404), 'unknown link-in-bio provider');
-  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for Fanlynks, Linktree, and Beacons pages');
+  if (kind === 'native') return apiError(c, 422, statusTitle(422), 'GA4 connection is available for external link-in-bio pages');
   const modelId = c.req.param('modelId');
   const { startDate, endDate } = c.req.valid('json');
   const source = c.req.query('source');

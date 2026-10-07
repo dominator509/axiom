@@ -53,7 +53,7 @@ push each accepted milestone, and advance only from current repository evidence.
    `externalProvenanceErased: false`; C2PA/external provenance/fingerprint
    removal is not an established feature and must not be claimed.
 4. **Provider/network nodes:** preserve L2.4 and the approved L5.0 A1 target:
-   Native, Fanlynks, Linktree, and Beacons are optional per-model providers;
+   Native, Fanlynks, and Beacons.ai are optional per-model providers; Linktree is excluded by owner decision, and Beacon CRM is a separate records API;
    Native works without external setup. Database state alone does not establish
    a connected provider. Verify the supported lifecycle and provider-backed
    receipts for each external adapter before reporting it available, and finish customer

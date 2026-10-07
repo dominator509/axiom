@@ -115,7 +115,7 @@ describe('GA4 provider credentials', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ data: {
       kind: 'beacons', analyticsConnected: false, analyticsState: 'unavailable',
-      integration: { state: 'unavailable', reason: 'beacons_api_endpoints_unavailable' },
+      integration: { state: 'unavailable', reason: 'beacons_linkbio_api_unavailable' },
     } });
   });
 

@@ -12,7 +12,7 @@ This document is the audit trail of every deviation from `FanvueArch.md` (v1). G
 **v2:** Introduced a `LinkInBioProvider` abstraction with four interchangeable implementations:
 - **Native** (default) — a CRM-hosted link page rendered from the same app at the edge. Requires **nothing** external, is the cheapest and fastest, and is what a model gets by default.
 - **Fanlynks** (optional) — self-hosted deploy, provisioned only if enabled.
-- **Linktree** (optional) — via API.
+- **Linktree** (optional) — originally proposed via API; excluded from the current release target because no public API is available.
 - **Beacons** (optional) — via API.
 
 A model may have **zero, one, or several providers active at once**. Analytics are normalized across all active providers into one dashboard. The deployment engine provisions only what is toggled on. This satisfies: *"shouldn't require deployment of fanlynks or linktree or both … allow them as optional (one or more at the same time)."* See `L2-architecture/L2.4-link-in-bio-providers.md`.
