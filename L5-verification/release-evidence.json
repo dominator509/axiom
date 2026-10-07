@@ -677,9 +677,37 @@
       "requirement": "- Recovery: restart mid-publish ⇒ no dupes, no lost jobs (durability of PG queue).",
       "requirementSha256": "b40852900a90adbe8bc60c51ecdf36692646792a5b8e9fb45d8bf6e63ed6d439",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Interrupt a mid-publish worker and verify durable recovery without lost jobs or duplicate dispatch in the isolated runtime harness.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance on the final release SHA; external-provider reconciliation remains separate.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-NFR-3",
+          "sha": "d8d7e6b5c3d916fb16796e196274213958cfbc5d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, host Node 22.23.3; network-disabled isolated Docker runner Node 22.23.2 with synthetic PostgreSQL 16, media and vision services, and the pinned model artifact.",
+          "scope": "Two repetitions of the 35-case runtime suite. The mid-publish case waits for the local Discord fixture to accept one request, kills the worker while its response is held, verifies the durable pending marker and target, ages only the fixture lease, and verifies recovery dead-letters the unknown outcome and rejects a second dispatch and manual retry.",
+          "limitations": "Synthetic tenant/model and generated fixture credentials; local fake Discord transport only. No external provider delivery or reconciliation, production/shared database, or live provider credentials were used.",
+          "observedAt": "2026-10-07T14:43:45Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37638345794",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37638345794/job/112850388731",
+          "logSha256": "0101c0866229cdde0b5be915eef47189133c7b24dc08c27af5cf6615feb66fce",
+          "counts": {
+            "passed": 70,
+            "failed": 0,
+            "skipped": 0,
+            "total": 70,
+            "unit": "tests"
+          },
+          "skips": [],
+          "images": [
+            "sha256:ed7d32a9971eaa9d9044f3715b237d38658ccbd76221492bd8735123506dd144",
+            "sha256:ae76408adeb8baccffd24b315c778103134f18b744a1a4d671a486e49089228f",
+            "sha256:8eaabcd9fbd5a2cbfe5d0a134e7fc6717c999b2b30ec0927a646d7eefefa7faa",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ],
+          "modelSha256": "2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93"
+        }
+      ],
       "verification": {
         "test": "Interrupt a mid-publish worker and verify durable recovery without lost jobs or duplicate dispatch.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",

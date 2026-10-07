@@ -1,5 +1,6 @@
 // Runs only inside the owned network-disabled fixture, against real production code.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -8,7 +9,7 @@ import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
 import { sql, eq, and } from 'drizzle-orm';
-import { processJob, defaultExecutors, publishTarget, readKillSwitch } from '@axiom/worker';
+import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
 import { createRelayApp } from './dist/index.js';
 import { bundlesRouter } from './dist/routes/bundles.js';
@@ -27,6 +28,21 @@ function safeFixtureError(error) {
   const message = String(error ?? '');
   const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN;
   return webhookToken ? message.replaceAll(webhookToken, '[FIXTURE-REDACTED]') : message;
+}
+function waitWithTimeout(promise, timeoutMs, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
+}
+function safeChildDiagnostics(output, secrets) {
+  let message = Buffer.isBuffer(output) ? output.toString('utf8') : String(output ?? '');
+  for (const secret of secrets.filter(value => typeof value === 'string' && value.length > 0)) {
+    message = message.replaceAll(secret, '[FIXTURE-REDACTED]');
+  }
+  message = message.replace(/(postgres(?:ql)?:\/\/[^:@\s/]+:)[^@\s/]+@/gi, '$1[FIXTURE-REDACTED]@');
+  return message.slice(-4_000);
 }
 async function check(name, operation) {
   try { await operation(); report.tests.push({ name, passed: true }); report.passed++; }
@@ -207,7 +223,7 @@ function syntheticConsentRows(org, model) {
     validFrom: today, validTo: null,
   }));
 }
-async function successfulPublishFixture({ includeConsent = true } = {}) {
+async function successfulPublishFixture({ includeConsent = true, startReady = false } = {}) {
   const { org, model } = await tenant();
   const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID(), connection = randomUUID();
   const idemKey = randomBytes(32);
@@ -230,17 +246,21 @@ async function successfulPublishFixture({ includeConsent = true } = {}) {
     await tx.insert(schema.job).values([
       { id: randomUUID(), orgId: org, queue: 'media', kind: 'tos.scan', state: 'done',
         payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1 },
-      { id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+      { id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: startReady ? 'ready' : 'running',
         payload: { targetId: target }, attempts: 0, maxAttempts: 1,
-        lockedBy: 'l5-worker', lockedAt: new Date() },
+        runAfter: new Date(Date.now() - 60_000),
+        lockedBy: startReady ? null : 'l5-worker', lockedAt: startReady ? null : new Date() },
     ]);
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, target, job: result.rows[0], connection, idemKey,
     mediaUrl: 'https://media.example.invalid/assets/fixture.png' };
 }
-async function localDiscordProvider(fixture) {
+async function localDiscordProvider(fixture, { holdResponse = false,
+  webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN } = {}) {
   const deliveries = [];
+  let resolveAccepted;
+  const accepted = new Promise(resolve => { resolveAccepted = resolve; });
   const server = createServer(async (request, response) => {
     try {
       assert.equal(request.method, 'POST');
@@ -248,6 +268,8 @@ async function localDiscordProvider(fixture) {
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       deliveries.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      resolveAccepted(deliveries.at(-1));
+      if (holdResponse) return;
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ id: `fixture-message-${deliveries.length}`, type: 0, channel_id: '123456789012345678' }));
     } catch {
@@ -261,7 +283,7 @@ async function localDiscordProvider(fixture) {
   });
   const address = server.address();
   assert.ok(address && typeof address === 'object');
-  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN ?? '';
+  webhookToken ??= '';
   assert.match(webhookToken, /^[a-f0-9]{64}$/, 'A fixture-only webhook token is required');
   const auth = { accessToken: '', extra: {
     webhookUrl: `https://discord.com/api/webhooks/123456789012345678/${webhookToken}`,
@@ -284,8 +306,13 @@ async function localDiscordProvider(fixture) {
   };
   return {
     deliveries,
+    accepted,
+    transportPort: address.port,
     resolver,
-    close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())),
+    close: () => new Promise((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve());
+      server.closeAllConnections?.();
+    }),
   };
 }
 async function publishRecords(fixture) {
@@ -602,6 +629,146 @@ try {
     } finally {
       await admin.query(`DROP TRIGGER IF EXISTS ${triggerName} ON public.post_target`);
       await admin.query(`DROP FUNCTION IF EXISTS public.${functionName}()`);
+      await provider.close();
+    }
+  });
+  await check('publish.target: killed worker preserves the accepted marker and stale recovery blocks redispatch', async () => {
+    const fixture = await successfulPublishFixture({ startReady: true });
+    const webhookToken = randomBytes(32).toString('hex');
+    const provider = await localDiscordProvider(fixture, { holdResponse: true, webhookToken });
+    let child;
+    try {
+      const childSource = `
+        import assert from 'node:assert/strict';
+        import { createConnector } from '@axiom/connectors';
+        import { defaultExecutors, publishTarget, workerTick } from '@axiom/worker';
+        const token = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN;
+        const port = Number(process.env.AXIOM_L5_DISCORD_TRANSPORT_PORT);
+        const auth = { accessToken: '', extra: {
+          webhookUrl: 'https://discord.com/api/webhooks/123456789012345678/' + token,
+          discordChannelId: '123456789012345678',
+        } };
+        const transport = async (providerUrl, init) => {
+          console.error('l5-crash-worker: provider transport invoked');
+          const url = new URL(String(providerUrl));
+          assert.equal(url.protocol, 'https:');
+          assert.equal(url.hostname, 'discord.com');
+          assert.equal(url.pathname.split('/').at(-1), token);
+          assert.equal(url.searchParams.get('wait'), 'true');
+          return fetch('http://127.0.0.1:' + port + '/publish', { ...init, redirect: 'error' });
+        };
+        const resolver = async (_tx, orgId, modelId, target) => {
+          console.error('l5-crash-worker: connector resolver invoked');
+          assert.equal(orgId, process.env.AXIOM_L5_ORG_ID);
+          assert.equal(modelId, process.env.AXIOM_L5_MODEL_ID);
+          assert.equal(target.platform, 'discord');
+          assert.equal(target.connectionId, process.env.AXIOM_L5_CONNECTION_ID);
+          return { connection: { id: process.env.AXIOM_L5_CONNECTION_ID },
+            connector: createConnector('discord', auth, transport) };
+        };
+        console.error('l5-crash-worker: worker tick starting');
+        try {
+          const stats = await workerTick({ workerId: 'l5-crash-worker', egressScope: { modelId: process.env.AXIOM_L5_MODEL_ID },
+            executors: { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, resolver) } });
+          console.error('l5-crash-worker: worker tick returned claimed=' + stats.claimed + ' done=' + stats.done);
+        } catch (error) {
+          console.error('l5-crash-worker: worker tick failed type=' + (error?.name ?? 'Error') + ' code=' + (error?.code ?? 'none'));
+          process.exitCode = 1;
+        }
+      `;
+      const childEnv = {
+        PATH: process.env.PATH,
+        NODE_ENV: process.env.NODE_ENV,
+        DATABASE_URL: process.env.DATABASE_URL,
+        AXIOM_L5_FIXTURE: process.env.AXIOM_L5_FIXTURE,
+        AXIOM_L5_ORG_ID: fixture.org,
+        AXIOM_L5_MODEL_ID: fixture.model,
+        AXIOM_L5_CONNECTION_ID: fixture.connection,
+        AXIOM_L5_DISCORD_WEBHOOK_TOKEN: webhookToken,
+        AXIOM_L5_DISCORD_TRANSPORT_PORT: String(provider.transportPort),
+        AXIOM_ASSET_DELIVERY_BASE_URL: process.env.AXIOM_ASSET_DELIVERY_BASE_URL,
+        MEDIA_PLANE_URL: process.env.MEDIA_PLANE_URL,
+        MEDIA_PLANE_AUTH_TOKEN: process.env.MEDIA_PLANE_AUTH_TOKEN,
+      };
+      child = spawn(process.execPath, ['--input-type=module', '-e', childSource], {
+        cwd: process.cwd(), env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+      });
+      let childOutput = Buffer.alloc(0);
+      const captureChildOutput = chunk => {
+        childOutput = Buffer.concat([childOutput, chunk]).subarray(-16_384);
+      };
+      child.stdout.on('data', captureChildOutput);
+      child.stderr.on('data', captureChildOutput);
+      const exitedBeforeAcceptance = new Promise((_, reject) => {
+        child.once('error', error => reject(new Error(`Crash fixture worker could not start: ${error.message}`)));
+        child.once('exit', (code, signal) => reject(new Error(`Crash fixture worker exited before provider acceptance (${code}/${signal})`)));
+      });
+      let acceptedPayload;
+      try {
+        acceptedPayload = await waitWithTimeout(Promise.race([provider.accepted, exitedBeforeAcceptance]),
+          15_000, 'Crash fixture worker did not reach the local provider');
+      } catch (error) {
+        let rowState = 'database readback unavailable';
+        try {
+          const records = await waitWithTimeout(publishRecords(fixture), 5_000, 'fixture readback timeout');
+          rowState = `job=${records.job.state}/${records.job.lockedBy ?? 'unlocked'} target=${records.target.state} `
+            + `dispatch=${records.markers.map(({ status }) => status).join(',') || 'none'} ledger=${records.ledger ? 'present' : 'absent'}`;
+        } catch { /* preserve the original worker/transport failure */ }
+        const childDetails = safeChildDiagnostics(childOutput,
+          [webhookToken, process.env.DATABASE_URL]);
+        throw new Error(`${error.message}; ${rowState}${childDetails ? `; child output: ${childDetails}` : ''}`);
+      }
+      assert.equal(provider.deliveries.length, 1, 'The local provider accepted one in-flight publish request');
+      assert.equal(acceptedPayload?.embeds?.[0]?.image?.url, fixture.mediaUrl,
+        'The real connector payload must include the model-scoped provider media URL');
+
+      let records = await publishRecords(fixture);
+      assert.equal(records.job.state, 'running');
+      assert.equal(records.job.lockedBy, 'l5-crash-worker');
+      assert.equal(records.target.state, 'pending', 'Local publication cannot commit while the provider response is withheld');
+      assert.equal(records.ledger, null, 'A pending remote operation cannot be recorded as a completed outcome');
+      assert.deepEqual(records.markers.map(({ status }) => status), ['pending'],
+        'The reconciliation anchor commits before the provider request');
+
+      const killed = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
+      assert.equal(child.kill('SIGKILL'), true, 'The active isolated worker process must be killable');
+      assert.deepEqual(await waitWithTimeout(killed, 10_000, 'Killed fixture worker did not exit'),
+        { code: null, signal: 'SIGKILL' });
+
+      records = await publishRecords(fixture);
+      assert.equal(records.job.state, 'running', 'A process crash leaves recovery to the durable lease path');
+      assert.equal(records.target.state, 'pending');
+      assert.equal(records.ledger, null);
+      assert.deepEqual(records.markers.map(({ status }) => status), ['pending']);
+
+      const aged = await admin.query(`UPDATE job SET locked_at = now() - interval '16 minutes'
+        WHERE id = $1 AND org_id = $2 AND state = 'running' AND locked_by = 'l5-crash-worker'`, [fixture.job.id, fixture.org]);
+      assert.equal(aged.rowCount, 1, 'Only the synthetic crash fixture lease may be aged');
+      const recovery = await workerTick({ workerId: 'l5-recovery-worker', egressScope: { modelId: fixture.model } });
+      assert.equal(recovery.claimed, 0, 'Stale external work is dead-lettered instead of reclaimed for a second dispatch');
+      assert.equal(recovery.emptyPolls, 1);
+
+      records = await publishRecords(fixture);
+      assert.equal(records.job.state, 'dead');
+      assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'),
+        'Recovery must record that the provider outcome is unknown');
+      assert.equal(records.target.state, 'pending');
+      assert.equal(records.ledger, null);
+      assert.deepEqual(records.markers.map(({ status }) => status), ['pending']);
+      await assert.rejects(scoped(fixture.org, tx => publishTarget({
+        tx, job: fixture.job, workerId: 'l5-recovery-worker', killSwitchEnabled: false,
+        markExternalSideEffect: () => {},
+      }, provider.resolver)), /unresolved dispatch marker .* provider reconciliation required before retry/);
+      assert.equal(provider.deliveries.length, 1, 'Neither recovery nor a manual executor retry may send a second request');
+      records = await publishRecords(fixture);
+      assert.equal(records.markers.length, 1);
+      assert.equal(records.markers[0].status, 'pending');
+    } finally {
+      if (child?.pid && child.exitCode === null && child.signalCode === null) {
+        const exited = new Promise(resolve => child.once('exit', resolve));
+        child.kill('SIGKILL');
+        await waitWithTimeout(exited, 10_000, 'Crash fixture worker cleanup timed out').catch(() => {});
+      }
       await provider.close();
     }
   });
