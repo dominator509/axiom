@@ -31,6 +31,9 @@ const ACTION_CODES: Record<CardAction, string> = Object.fromEntries(
 const ACTIONS_BY_CODE = Object.fromEntries(
   CARD_ACTIONS.map((action, index) => [index.toString(36), action]),
 ) as Record<string, CardAction>;
+const NONCE_TIMESTAMP_BYTES = 4;
+const SIGNED_NONCE_BYTES = 16;
+const COMPACT_NONCE_BYTES = 12;
 const COMPACT_TOKEN_MAC_BYTES = 12;
 const COMPACT_TOKEN_MAX_LENGTH = 64;
 const NONCE_CLEANUP_MIN_INTERVAL_MS = 30_000;
@@ -85,7 +88,10 @@ export class CommandRouter {
   }
 
   generateNonce(): string {
-    return randomBytes(16).toString('hex');
+    const nonce = Buffer.alloc(SIGNED_NONCE_BYTES);
+    nonce.writeUInt32BE(Math.floor(Date.now() / 1000), 0);
+    randomBytes(SIGNED_NONCE_BYTES - NONCE_TIMESTAMP_BYTES).copy(nonce, NONCE_TIMESTAMP_BYTES);
+    return nonce.toString('hex');
   }
 
   signCommand(nonce: string, action: CardAction, cardId: string): string {
@@ -114,8 +120,11 @@ export class CommandRouter {
     }
 
     const encodedCardId = encodeCardId(cardId);
-    const nonce = randomBytes(8).toString('base64url');
-    const payload = `${actionCode}.${encodedCardId}.${nonce}`;
+    const nonce = Buffer.alloc(COMPACT_NONCE_BYTES);
+    nonce.writeUInt32BE(Math.floor(Date.now() / 1000), 0);
+    randomBytes(COMPACT_NONCE_BYTES - NONCE_TIMESTAMP_BYTES).copy(nonce, NONCE_TIMESTAMP_BYTES);
+    const encodedNonce = nonce.toString('base64url');
+    const payload = `${actionCode}.${encodedCardId}.${encodedNonce}`;
     const mac = this.compactMac(payload);
     const token = `${payload}.${mac}`;
     if (token.length > COMPACT_TOKEN_MAX_LENGTH) {
@@ -134,7 +143,7 @@ export class CommandRouter {
     expectedAction?: CardAction,
   ): { action: CardAction; cardId: string } | null {
     const command = this.decodeCommandToken(token, expectedAction);
-    if (!command || !this.consumeNonce(command.nonce)) return null;
+    if (!command || !this.consumeNonce(command.nonce, command.issuedAt)) return null;
     return { action: command.action, cardId: command.cardId };
   }
 
@@ -154,6 +163,10 @@ export class CommandRouter {
   verifyCommand(signature: string, nonce: string, action: CardAction, cardId: string): boolean {
     const now = Date.now();
     this.maybeCleanupExpiredNonces(now);
+    if (typeof nonce !== 'string' || !/^[0-9a-f]{32}$/i.test(nonce)) return false;
+    const nonceBytes = Buffer.from(nonce, 'hex');
+    const issuedAt = this.freshNonceIssuedAt(nonceBytes, now);
+    if (issuedAt === null) return false;
 
     // Check nonce reuse
     const existing = this.nonces.get(nonce);
@@ -181,7 +194,7 @@ export class CommandRouter {
     // Store nonce with expiry
     this.nonces.set(nonce, {
       nonce,
-      expiresAt: now + this.ttlMs,
+      expiresAt: issuedAt + this.ttlMs,
     });
 
     return true;
@@ -243,7 +256,7 @@ export class CommandRouter {
   private decodeCommandToken(
     token: string,
     expectedAction?: CardAction,
-  ): { action: CardAction; cardId: string; nonce: string } | null {
+  ): { action: CardAction; cardId: string; nonce: string; issuedAt: number } | null {
     if (
       typeof token !== 'string' ||
       token.length === 0 ||
@@ -284,10 +297,27 @@ export class CommandRouter {
       return null;
     }
 
-    return { action, cardId, nonce };
+    const nonceBytes = Buffer.from(nonce, 'base64url');
+    if (
+      nonceBytes.length !== COMPACT_NONCE_BYTES ||
+      nonceBytes.toString('base64url') !== nonce
+    ) {
+      return null;
+    }
+    const issuedAt = this.freshNonceIssuedAt(nonceBytes, Date.now());
+    if (issuedAt === null) return null;
+
+    return { action, cardId, nonce, issuedAt };
   }
 
-  private consumeNonce(nonce: string): boolean {
+  private freshNonceIssuedAt(nonce: Buffer, now: number): number | null {
+    if (nonce.length < NONCE_TIMESTAMP_BYTES) return null;
+    const issuedAt = nonce.readUInt32BE(0) * 1000;
+    const age = now - issuedAt;
+    return age >= 0 && age < this.ttlMs ? issuedAt : null;
+  }
+
+  private consumeNonce(nonce: string, issuedAt: number): boolean {
     const now = Date.now();
     this.maybeCleanupExpiredNonces(now);
 
@@ -298,7 +328,7 @@ export class CommandRouter {
     }
     this.nonces.set(nonce, {
       nonce,
-      expiresAt: now + this.ttlMs,
+      expiresAt: issuedAt + this.ttlMs,
     });
     return true;
   }
