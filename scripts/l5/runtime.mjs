@@ -19,6 +19,11 @@ const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
 const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0 };
+function safeFixtureError(error) {
+  const message = String(error ?? '');
+  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN;
+  return webhookToken ? message.replaceAll(webhookToken, '[FIXTURE-REDACTED]') : message;
+}
 async function check(name, operation) {
   try { await operation(); report.tests.push({ name, passed: true }); report.passed++; }
   catch (error) { report.tests.push({ name, passed: false, error: error.message }); report.failed++; }
@@ -297,10 +302,18 @@ try {
         lockedBy: 'l5-worker-duplicate', lockedAt: new Date() }));
       const duplicateApproval = await scoped(fixture.org, tx =>
         tx.execute(sql`SELECT * FROM job WHERE id=${duplicateApprovalId}`));
-      assert.deepEqual(await Promise.all([
+      const outcomes = await Promise.all([
         processJob(fixture.job, executors, 'l5-worker', {}),
         processJob(duplicateApproval.rows[0], executors, 'l5-worker-duplicate', {}),
-      ]), ['done', 'done']);
+      ]);
+      const jobErrors = await Promise.all([fixture.job.id, duplicateApprovalId].map(jobId =>
+        scoped(fixture.org, async tx => {
+          const row = (await tx.select({ lastError: schema.job.lastError }).from(schema.job)
+            .where(eq(schema.job.id, jobId)))[0];
+          return safeFixtureError(row?.lastError);
+        }),
+      ));
+      assert.deepEqual(outcomes, ['done', 'done'], `Publish executor errors: ${JSON.stringify(jobErrors)}`);
       let records = await publishRecords(fixture);
       assert.equal(provider.deliveries.length, 1, 'Concurrent duplicate approvals must yield one provider request');
       assert.equal(records.target.state, 'published');
@@ -347,12 +360,14 @@ try {
       await admin.query(`CREATE TRIGGER ${triggerName} BEFORE UPDATE ON public.post_target
         FOR EACH ROW EXECUTE FUNCTION public.${functionName}()`);
       const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
-      assert.equal(await processJob(fixture.job, executors, 'l5-worker', {}), 'dead');
+      const outcome = await processJob(fixture.job, executors, 'l5-worker', {});
       await admin.query(`DROP TRIGGER IF EXISTS ${triggerName} ON public.post_target`);
       await admin.query(`DROP FUNCTION IF EXISTS public.${functionName}()`);
 
       let records = await publishRecords(fixture);
-      assert.equal(provider.deliveries.length, 1, 'The isolated provider accepted exactly one request');
+      assert.equal(outcome, 'dead', `Publish executor error: ${safeFixtureError(records.job.lastError)}`);
+      assert.equal(provider.deliveries.length, 1,
+        `The isolated provider accepted exactly one request; executor error: ${safeFixtureError(records.job.lastError)}`);
       assert.equal(records.job.state, 'dead');
       assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'));
       assert.equal(records.target.state, 'pending', 'The failed transaction cannot claim local publication');
