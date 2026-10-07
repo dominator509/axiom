@@ -13,6 +13,10 @@
     "./schema": {
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js"
+    },
+    "./audit-chain-lock": {
+      "types": "./dist/audit-chain-lock.d.ts",
+      "import": "./dist/audit-chain-lock.js"
     }
   },
   "scripts": {

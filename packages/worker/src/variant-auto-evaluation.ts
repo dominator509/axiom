@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { lockAuditChain, schema } from '@axiom/db';
+import { schema } from '@axiom/db';
+import { lockAuditChain } from '@axiom/db/audit-chain-lock';
 import { canonicalAuditPayload } from '@axiom/core';
 import { assessVariantPerformance, type VariantObservation } from './variant-evaluation.js';
 

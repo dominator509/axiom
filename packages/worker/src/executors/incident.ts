@@ -5,7 +5,8 @@
 
 import { createHash } from 'node:crypto';
 import { and, desc, eq } from 'drizzle-orm';
-import { lockAuditChain, schema } from '@axiom/db';
+import { schema } from '@axiom/db';
+import { lockAuditChain } from '@axiom/db/audit-chain-lock';
 import { canonicalAuditPayload } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 

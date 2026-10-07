@@ -7,7 +7,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { tosReportPassesForPlatforms, canonicalAuditPayload, legacyAuditPayload } from '@axiom/core';
-import { db, lockAuditChain, schema } from '@axiom/db';
+import { db, schema } from '@axiom/db';
+import { lockAuditChain } from '@axiom/db/audit-chain-lock';
 import { problem, problemResponse } from '../contract.js';
 
 /**
