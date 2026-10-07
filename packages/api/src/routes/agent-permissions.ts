@@ -23,7 +23,22 @@ const permissionBody = z.object({
 const tokenBody = z.object({ ttlSeconds: z.number().int().min(60).max(900).optional() });
 
 async function body(c: Context<AppBindings>): Promise<unknown> {
-  try { return await readBoundedJson(c.req.raw, 32 * 1024); }
+  try {
+    // The idempotency middleware consumes the raw stream before this route
+    // runs and preserves its bounded bytes in Hono's request cache. Parse that
+    // copy when present; rereading c.req.raw would turn a valid grant into an
+    // empty body and reject it as malformed.
+    const cachedBody = c.req.bodyCache.arrayBuffer as
+      | ArrayBuffer
+      | Promise<ArrayBuffer>
+      | undefined;
+    if (cachedBody) {
+      const bytes = await cachedBody;
+      if (bytes.byteLength > 32 * 1024) throw new RequestBodyTooLargeError(32 * 1024);
+      return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    }
+    return await readBoundedJson(c.req.raw, 32 * 1024);
+  }
   catch (error) {
     if (error instanceof RequestBodyTooLargeError) throw error;
     return {};
