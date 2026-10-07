@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const documents = [
   'L5-verification/L5.0-test-matrix.md',
@@ -167,6 +167,50 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
   return { criteria: seen.size, passed: register.criteria.filter(row => row.status === 'passed').length };
 }
 
+export function requirementsAtSha(sourceSha, readGitObject) {
+  check(typeof sourceSha === 'string' && sha.test(sourceSha), 'Requirement source requires full immutable SHA');
+  return requirements(objectPath => {
+    try { return readGitObject(`${sourceSha}:${objectPath}`); }
+    catch { throw new Error('Release source unavailable; exact-SHA requirements cannot be verified'); }
+  });
+}
+
+export function loadRegister(registerPath, readCurrent, readExternal = path => readFileSync(path, 'utf8')) {
+  let contents;
+  try {
+    contents = registerPath === undefined
+      ? readCurrent('L5-verification/release-evidence.json')
+      : readExternal(resolve(registerPath));
+  } catch { throw new Error('Release register unavailable'); }
+  try { return JSON.parse(contents); }
+  catch { throw new Error('Release register is invalid JSON'); }
+}
+
+export function parseOptions(args) {
+  const usage = 'Usage: node scripts/check-release-evidence.mjs --check | --verify-receipts <full-sha> [--register <path>] | --receipt-log-sha <job-id> | --release <full-sha> [--register <path>]';
+  if (args[0] === '--check') {
+    check(args.length === 1, usage);
+    return { mode: 'check' };
+  }
+  if (args[0] === '--receipt-log-sha') {
+    check(args.length === 2 && /^[1-9]\d*$/.test(args[1]), usage);
+    return { mode: 'receipt-log-sha', jobId: args[1] };
+  }
+  const mode = args[0] === '--release' ? 'release'
+    : args[0] === '--verify-receipts' ? 'verify-receipts' : undefined;
+  check(mode !== undefined, usage);
+  check(sha.test(args[1]), mode === 'release'
+    ? 'Release requires full immutable SHA' : 'Receipt verification requires full immutable SHA');
+  let registerPath;
+  if (args.length === 2) {
+    registerPath = undefined;
+  } else {
+    check(args.length === 4 && args[2] === '--register' && nonempty(args[3]), usage);
+    registerPath = args[3];
+  }
+  return { mode, targetSha: args[1], registerPath };
+}
+
 export function verifyHosted(register, releaseSha, gh, readLog) {
   const passedRows = register.criteria.filter(row => row.status === 'passed');
   const receipts = passedRows.flatMap(row => {
@@ -200,29 +244,31 @@ export function verifyHosted(register, releaseSha, gh, readLog) {
 }
 
 export function main(args) {
-  const mode = args[0];
-  if (mode === '--receipt-log-sha') {
-    check(args.length === 2 && /^[1-9]\d*$/.test(args[1]), 'Usage: node scripts/check-release-evidence.mjs --receipt-log-sha <job-id>');
+  const options = parseOptions(args);
+  if (options.mode === 'receipt-log-sha') {
     let rawLog;
     try {
-      rawLog = execFileSync('gh', ['api', `repos/dominator509/axiom/actions/jobs/${args[1]}/logs`], {
+      rawLog = execFileSync('gh', ['api', `repos/dominator509/axiom/actions/jobs/${options.jobId}/logs`], {
         timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
       });
     } catch { throw new Error('Hosted log unavailable; receipt digest not generated'); }
     console.log(digest(rawLog));
     return;
   }
-  const release = args[0] === '--release';
-  const verifyReceipts = args[0] === '--verify-receipts';
-  check(args.length === (release || verifyReceipts ? 2 : 1) && (release || verifyReceipts || args[0] === '--check'),
-    'Usage: node scripts/check-release-evidence.mjs --check | --verify-receipts <full-sha> | --receipt-log-sha <job-id> | --release <full-sha>');
   const root = new URL('../', import.meta.url);
+  const rootPath = fileURLToPath(root);
   const read = file => readFileSync(new URL(file, root), 'utf8');
-  const register = JSON.parse(read('L5-verification/release-evidence.json'));
-  const targetSha = release || verifyReceipts ? args[1] : undefined;
-  const result = validate(register, requirements(read), {
-    releaseSha: release ? args[1] : undefined,
-    verifySha: verifyReceipts ? args[1] : undefined,
+  const targetSha = options.targetSha;
+  const expected = targetSha === undefined ? requirements(read) : requirementsAtSha(targetSha, objectPath =>
+    execFileSync('git', ['show', objectPath], {
+      cwd: rootPath, timeout: 30_000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+    }));
+  const register = loadRegister(options.registerPath, read);
+  const release = options.mode === 'release';
+  const verifyReceipts = options.mode === 'verify-receipts';
+  const result = validate(register, expected, {
+    releaseSha: release ? targetSha : undefined,
+    verifySha: verifyReceipts ? targetSha : undefined,
   });
   const gh = endpoint => {
     // Never display gh stderr: authentication diagnostics can contain private data.

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { requirements, validate, verifyHosted } from './check-release-evidence.mjs';
+import { loadRegister, parseOptions, requirements, requirementsAtSha, validate, verifyHosted } from './check-release-evidence.mjs';
+import { resolve } from 'node:path';
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const expected = requirements(read);
@@ -47,6 +48,48 @@ test('current register is structurally complete without implying release accepta
   assert.equal(validate(current, expected).criteria, expected.length);
   assert.equal(validate(current, expected).passed, 5);
   assert.throws(() => validate(current, expected, { releaseSha: currentSha }));
+});
+test('exact-SHA requirements load from the pinned release commit', () => {
+  const requested = [];
+  const pinned = requirementsAtSha(releaseSha, objectPath => {
+    requested.push(objectPath);
+    const prefix = `${releaseSha}:`;
+    assert.ok(objectPath.startsWith(prefix));
+    return read(objectPath.slice(prefix.length));
+  });
+  assert.equal(pinned.length, expected.length);
+  assert.ok(requested.includes(`${releaseSha}:L5-verification/release-evidence-invariant-crosswalk.json`));
+});
+test('exact-SHA requirement source fails closed when the commit is unavailable', () => {
+  assert.throws(() => requirementsAtSha(releaseSha, () => { throw new Error('missing object'); }),
+    /Release source unavailable/);
+});
+test('external post-run register is loaded without falling back to the tracked register', () => {
+  const external = complete();
+  let externalPath;
+  const loaded = loadRegister('var/release-evidence/test.json', () => assert.fail('tracked register should not be read'), path => {
+    externalPath = path;
+    return JSON.stringify(external);
+  });
+  assert.equal(externalPath, resolve('var/release-evidence/test.json'));
+  assert.deepEqual(loaded, external);
+});
+test('external register read and parse errors fail closed without echoing paths', () => {
+  assert.throws(() => loadRegister('var/missing.json', () => '', () => { throw new Error('private path'); }),
+    /^Error: Release register unavailable$/);
+  assert.throws(() => loadRegister('var/invalid.json', () => '', () => '{'),
+    /^Error: Release register is invalid JSON$/);
+});
+test('receipt and release modes accept an explicit post-run register path only with a full SHA', () => {
+  assert.deepEqual(parseOptions(['--verify-receipts', releaseSha, '--register', 'var/current.json']), {
+    mode: 'verify-receipts', targetSha: releaseSha, registerPath: 'var/current.json',
+  });
+  assert.deepEqual(parseOptions(['--release', releaseSha, '--register', 'var/current.json']), {
+    mode: 'release', targetSha: releaseSha, registerPath: 'var/current.json',
+  });
+  assert.throws(() => parseOptions(['--check', '--register', 'var/current.json']), /Usage:/);
+  assert.throws(() => parseOptions(['--verify-receipts', releaseSha, '--register']), /Usage:/);
+  assert.throws(() => parseOptions(['--release', 'main', '--register', 'var/current.json']), /full immutable SHA/);
 });
 test('accepts an immutable local Docker image ID as image provenance', () => {
   const register = complete();
