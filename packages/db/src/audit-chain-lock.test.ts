@@ -11,9 +11,8 @@ describe('audit-chain transaction lock', () => {
     expect(statements).toHaveLength(1);
     const statement = statements[0];
     if (!statement) throw new Error('Expected one audit lock statement');
-    expect(new PgDialect().sqlToQuery(statement)).toEqual({
-      sql: 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      params: ['org-1'],
-    });
+    const query = new PgDialect().sqlToQuery(statement);
+    expect(query.sql).toBe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))');
+    expect(query.params).toEqual(['org-1']);
   });
 });
