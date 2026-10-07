@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { tosReportPassesForPlatforms, canonicalAuditPayload, legacyAuditPayload } from '@axiom/core';
 import { db, schema } from '@axiom/db';
+import { lockAuditChain } from '@axiom/db/audit-chain-lock';
 import { problem, problemResponse } from '../contract.js';
 
 /**
@@ -170,11 +171,8 @@ export async function writeAudit(
   target: string,
   detail: Record<string, unknown>,
 ): Promise<{ prevHash: Buffer; rowHash: Buffer }> {
-  // Serialize audit writers for one organization before reading the chain
-  // head. Without a transaction-scoped lock, concurrent mutations can both
-  // observe the same row_hash and append siblings with the same prev_hash,
-  // permanently forking the tamper-evident chain.
-  await tx.execute(sql`SELECT id FROM org WHERE id = ${orgId} FOR UPDATE`);
+  // Lock acquisition is shared with worker-side audit appends.
+  await lockAuditChain(tx, orgId);
 
   // Latest chain head for this org
   const prev = await tx

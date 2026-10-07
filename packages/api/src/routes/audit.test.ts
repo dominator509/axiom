@@ -208,7 +208,7 @@ describe('verifyAuditChain helper (direct)', () => {
 });
 
 describe('writeAudit helper (direct)', () => {
-  it('locks the organization before reading the chain head', async () => {
+  it('serializes an organization chain append before reading the chain head', async () => {
     const events: string[] = [];
     const makeAwaitableChain = (value: unknown) => {
       const target = (() => undefined) as unknown as (...args: unknown[]) => unknown;

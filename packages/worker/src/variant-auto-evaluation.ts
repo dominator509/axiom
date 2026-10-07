@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { schema } from '@axiom/db';
+import { lockAuditChain } from '@axiom/db/audit-chain-lock';
 import { canonicalAuditPayload } from '@axiom/core';
 import { assessVariantPerformance, type VariantObservation } from './variant-evaluation.js';
 
@@ -15,7 +16,7 @@ export function evaluationDigest(evaluation: Record<string, unknown>): string {
 }
 
 async function auditEvaluation(tx: any, orgId: string, experimentId: string, evaluation: Record<string, unknown>) {
-  await tx.execute(sql`SELECT id FROM org WHERE id=${orgId} FOR UPDATE`);
+  await lockAuditChain(tx, orgId);
   const previous = await tx.select({ hash: schema.auditLog.rowHash, ts: schema.auditLog.ts }).from(schema.auditLog)
     .where(eq(schema.auditLog.orgId, orgId)).orderBy(sql`${schema.auditLog.ts} DESC, ${schema.auditLog.id} DESC`).limit(1);
   const prevHash = previous[0]?.hash ? Buffer.from(previous[0].hash) : Buffer.alloc(32);
