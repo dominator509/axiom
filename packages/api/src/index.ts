@@ -705,7 +705,10 @@ app.use('*', logger());
 app.use('*', secureHeaders());
 // L3.0 contract: correlation_id on every request, then per-credential rate limits.
 app.use('*', correlationId);
-app.use('/api/v1/*', rateLimit());
+// Browser-rendered workspaces fan out to several model-scoped REST resources.
+// Give an authenticated session enough burst headroom for a full dashboard
+// navigation while preserving the 60-request API-key and anonymous limits.
+app.use('/api/v1/*', rateLimit({ sessionCapacity: 180 }));
 // MCP is an authenticated agent surface, but it is outside the REST prefix;
 // apply the same per-credential bucket before JSON-RPC dispatch.
 app.use('/api/mcp', rateLimit());
