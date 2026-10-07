@@ -772,7 +772,7 @@ SELECT
     );
     assert.equal(revoked.status, 200, 'Synthetic agent token must be revoked during cleanup');
     const removed = await request(`/api/v1/models/${capability.modelId}/agent-permissions/${capability.permissionId}`, {
-      method: 'DELETE', headers: { ...headers, cookie },
+      method: 'DELETE', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
     });
     assert.equal(removed.status, 200, 'Synthetic agent permission must be removed during cleanup');
   }
