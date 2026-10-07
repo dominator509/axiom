@@ -121,7 +121,7 @@ describe('publish schedule handoff', () => {
       } else {
         await expect(result).rejects.toMatchObject({ name: 'ParkJobError', delayMs: 3_600_000 });
       }
-      expect(query.for).toHaveBeenCalledWith('update');
+      expect(query.for).toHaveBeenCalledWith('no key update');
       expect(tx.select).toHaveBeenCalledTimes(1);
       expect(markExternalSideEffect).not.toHaveBeenCalled();
       expect(persistSideEffectMarker).not.toHaveBeenCalled();

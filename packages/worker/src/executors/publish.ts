@@ -308,10 +308,11 @@ export async function publishTarget(
     .from(schema.postTarget)
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
     .limit(1)
-    // Serialize publish attempts for one target before any provider I/O. A
-    // second worker waits for the first transaction, then observes its
-    // committed terminal state instead of racing into another publish call.
-    .for('update');
+    // Serialize publish attempts for one target before any provider I/O. NO
+    // KEY UPDATE still blocks a competing publisher, while allowing the
+    // independent dispatch-marker transaction's foreign-key KEY SHARE lock.
+    // FOR UPDATE would block that marker while the outer transaction waits.
+    .for('no key update');
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
   if (isTerminalPublishTargetState(target.state)) {
