@@ -1,11 +1,11 @@
 # Release readiness: evidence register and execution order
 
-Implementation baseline for this plan: `935bf5ef42050f25cf3f6bd5c8464de3dbff75ce` on main, after PR #92. Its post-merge CI run is [37572130871](https://github.com/dominator509/axiom/actions/runs/37572130871), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `7c83cd3f7ec31c776d9f1723942003cf9484cb7a` and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, and the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
+Implementation baseline for this plan: `50123ffd7ddf4e93625d44e828c85521089d03cc` on main, after PR #98. Its post-merge CI run is [37614786241](https://github.com/dominator509/axiom/actions/runs/37614786241), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `7c83cd3f7ec31c776d9f1723942003cf9484cb7a` and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, and the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria.
 
 Exact-SHA verification was attempted with
-`node scripts/check-release-evidence.mjs --verify-receipts 935bf5ef42050f25cf3f6bd5c8464de3dbff75ce`
+`node scripts/check-release-evidence.mjs --verify-receipts 50123ffd7ddf4e93625d44e828c85521089d03cc`
 and failed closed at `LBI-01: stale evidence SHA`: the five accepted rows in
 the tracked register have receipts from earlier commits. The 47 other criteria
 remain open. This is a receipt freshness gap, not evidence that those rows
@@ -14,6 +14,22 @@ requirements and invariant mappings from the immutable tested commit; the
 external file cannot redefine acceptance criteria. Exact-SHA hosted readback
 is still required before any receipt is counted, and this does not authorize
 release.
+
+## Current main receipt (2026-10-07)
+
+PR #98 merged as main SHA `50123ffd7ddf4e93625d44e828c85521089d03cc`. Post-merge [CI run 37614786241](https://github.com/dominator509/axiom/actions/runs/37614786241) completed with 10 successful jobs, 0 failed, and 0 cancelled.
+
+The [test job](https://github.com/dominator509/axiom/actions/runs/37614786241/job/112770394516) used Node 22.23.3, pnpm 9.14.0, and `API_ORIGIN=http://127.0.0.1:3001`:
+
+| Command | Passed | Failed | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: |
+| `pnpm --filter @axiom/dashboard test` | 1121 | 0 | 0 | 1121 |
+| `pnpm --filter @axiom/api test` | 1394 | 0 | 0 | 1394 |
+| `pnpm test` (12 package reports) | 4636 | 0 | 7 | 4643 |
+
+The dashboard/API commands reported 169/97 test files. The seven workspace skips were five in `@axiom/db` and two in `@axiom/llm-gateway`; this receipt does not classify them as accepted release cases. The raw test-job log SHA-256 is `3dd7cf465f8c44900df6fb01422afb50b35d5526a3b66b4cc522f7a64032519c`.
+
+The [L5 runtime job](https://github.com/dominator509/axiom/actions/runs/37614786241/job/112770394477) ran `node scripts/rehearse-l5-runtime.mjs --isolated-fixture` on that SHA: two repetitions of 34 checks, 68 passed, 0 failed, 0 skipped, cleanup verified. The raw log SHA-256 is `8b05fae5854b83173994fc19d6fa711035af6c256475ddf2a908bb4eb44a2dba`. It verifies isolated worker, database, and model behavior only; provider, owner-deployment, and final-release acceptance remain open.
 
 ## Verified baseline
 
