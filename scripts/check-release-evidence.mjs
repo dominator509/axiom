@@ -142,7 +142,8 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
       check(counts.total > 0 && counts.total === counts.passed + counts.failed + counts.skipped, `${row.id}: inconsistent counts`);
       check(['tests', 'assertions', 'checks'].includes(counts.unit), `${row.id}: missing count unit`);
       check(Array.isArray(receipt.skips) && receipt.skips.length === counts.skipped && receipt.skips.every(nonempty), `${row.id}: undocumented skips`);
-      check(Array.isArray(receipt.images) && receipt.images.every(image => /^.+@sha256:[a-f0-9]{64}$/.test(image)), `${row.id}: invalid image provenance`);
+      check(Array.isArray(receipt.images) && receipt.images.every(image =>
+        /^.+@sha256:[a-f0-9]{64}$/.test(image) || /^sha256:[a-f0-9]{64}$/.test(image)), `${row.id}: invalid image provenance`);
       if (row.status === 'passed') check(counts.failed === 0 && counts.passed > 0, `${row.id}: failing pass receipt`);
     }
     if (receiptSha !== undefined && row.status === 'passed') {

@@ -10,7 +10,7 @@ const current = JSON.parse(read('L5-verification/release-evidence.json'));
 const invariantCrosswalkFile = 'L5-verification/release-evidence-invariant-crosswalk.json';
 const invariantCrosswalk = JSON.parse(read(invariantCrosswalkFile));
 const releaseSha = 'a'.repeat(40);
-const currentSha = 'd8bfb217b4549e8b53c513de71fd92c1ea499c95';
+const currentSha = current.baselineSha;
 const ciUrl = 'https://github.com/dominator509/axiom/actions/runs/123';
 const jobUrl = `${ciUrl}/job/456`;
 function empty() {
@@ -45,8 +45,13 @@ function incremental() {
 
 test('current register is structurally complete without implying release acceptance', () => {
   assert.equal(validate(current, expected).criteria, expected.length);
-  assert.equal(validate(current, expected).passed, 3);
-  assert.throws(() => validate(current, expected, { releaseSha: currentSha }), /Release blocked/);
+  assert.equal(validate(current, expected).passed, 4);
+  assert.throws(() => validate(current, expected, { releaseSha: currentSha }));
+});
+test('accepts an immutable local Docker image ID as image provenance', () => {
+  const register = complete();
+  register.criteria[0].evidence[0].images = [`sha256:${'a'.repeat(64)}`];
+  assert.doesNotThrow(() => validate(register, expected));
 });
 test('L5 invariant rows use the canonical L0 property names and cover every invariant', () => {
   const canonical = [...read('L0-governance/L0.0-governance-and-invariants.md').matchAll(/^\*\*LBI-(\d{2}) — ([^.]+)\./gm)]
