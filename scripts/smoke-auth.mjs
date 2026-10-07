@@ -764,6 +764,11 @@ SELECT
 ` });
   assert.equal(fullAudit.status, 0, 'Enable and re-enable audit rows must remain readable');
   assert.equal(fullAudit.stdout.trim(), '1|1|1|1', 'Enable and separate re-enable must each persist one operator event and one audit-chain entry');
+  const verifiedAudit = await request('/api/v1/audit/verify', { headers: { cookie } });
+  assert.equal(verifiedAudit.status, 200, 'Owner must be able to verify the complete synthetic audit chain');
+  const verifiedAuditBody = await verifiedAudit.json();
+  assert.equal(verifiedAuditBody.data.valid, true, 'Concurrent grant setup and kill-switch events must not fork the audit chain');
+  assert.equal(verifiedAuditBody.data.fullyVerified, true, 'Synthetic owner audit chain must be fully verifiable');
 
   for (const capability of capabilities) {
     const revoked = await request(

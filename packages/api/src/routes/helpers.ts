@@ -171,10 +171,10 @@ export async function writeAudit(
   detail: Record<string, unknown>,
 ): Promise<{ prevHash: Buffer; rowHash: Buffer }> {
   // Serialize audit writers for one organization before reading the chain
-  // head. Without a transaction-scoped lock, concurrent mutations can both
-  // observe the same row_hash and append siblings with the same prev_hash,
-  // permanently forking the tamper-evident chain.
-  await tx.execute(sql`SELECT id FROM org WHERE id = ${orgId} FOR UPDATE`);
+  // head. Use an advisory lock because callers may already hold a foreign-key
+  // key-share lock on org; upgrading that lock to FOR UPDATE in concurrent
+  // child-row inserts can deadlock before the audit append.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${orgId}, 0))`);
 
   // Latest chain head for this org
   const prev = await tx
