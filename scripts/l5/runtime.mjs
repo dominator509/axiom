@@ -13,6 +13,7 @@ import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick
 import { CommandRouter } from '@axiom/relay';
 import { createCapabilityTokenWithMetadata, Tier } from '@axiom/mcp-server';
 import apiApp, { createRelayApp } from './dist/index.js';
+import { encryptOAuthCredentials, decryptOAuthCredentials } from './dist/routes/oauth-connection.js';
 import { bundlesRouter } from './dist/routes/bundles.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
@@ -25,10 +26,11 @@ const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
 const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0 };
+let credentialApiFixture = null;
 function safeFixtureError(error) {
   const message = String(error ?? '');
-  const webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN;
-  return webhookToken ? message.replaceAll(webhookToken, '[FIXTURE-REDACTED]') : message;
+  return ['AXIOM_L5_DISCORD_WEBHOOK_TOKEN', 'AXIOM_L5_PROVIDER_ACCESS_TOKEN', 'AXIOM_L5_PROVIDER_REFRESH_TOKEN']
+    .reduce((value, key) => process.env[key] ? value.replaceAll(process.env[key], '[FIXTURE-REDACTED]') : value, message);
 }
 function waitWithTimeout(promise, timeoutMs, message) {
   let timer;
@@ -59,6 +61,24 @@ async function tenant() {
   await admin.query('INSERT INTO model_profile(id,org_id,display_name,handle) VALUES($1,$2,$3,$4)', [model, org, 'Synthetic talent', model]);
   await scoped(org, tx => tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true }));
   return { org, model };
+}
+async function credentialOperatorCookie(org) {
+  const email = `l5-${randomUUID()}@fixture.invalid`;
+  const password = randomBytes(32).toString('base64url');
+  const signup = await apiApp.request(new Request('https://l5-fixture.invalid/api/auth/sign-up/email', {
+    method: 'POST',
+    headers: { Origin: 'https://l5-fixture.invalid', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name: 'L5 credential fixture operator' }),
+  }));
+  const signupText = await signup.text();
+  assert.equal(signup.status, 200, 'Real Better Auth signup must establish the fixture session');
+  const identity = JSON.parse(signupText);
+  assert.ok(identity.user?.id, 'Better Auth must return the created fixture identity');
+  await admin.query('UPDATE auth_user SET org_id = $1 WHERE id = $2', [org, identity.user.id]);
+  const cookies = signup.headers.getSetCookie();
+  const cookie = cookies.map(value => value.split(';', 1)[0]).join('; ');
+  assert.match(cookie, /session_token=/, 'Signup must return a real session cookie');
+  return cookie;
 }
 async function vision(port, path, body, authorized = true) {
   return fetch(`http://127.0.0.1:${port}${path}`, { method: body ? 'POST' : 'GET',
@@ -170,8 +190,8 @@ async function relayDispatchFixture() {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0] };
 }
-async function relayCommandFixture() {
-  const { org, model } = await tenant();
+async function relayCommandFixture(owner) {
+  const { org, model } = owner ?? await tenant();
   const bundle = randomUUID(), card = randomUUID();
   await scoped(org, async tx => {
     await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
@@ -818,8 +838,97 @@ for (const kind of Object.keys(defaultExecutors)) {
       else process.env.SIGNAL_ACCOUNT = originalAccount;
     }
   });
+  await check('real egress encryption persists provider credentials as ciphertext and authenticated social APIs redact them', async () => {
+    const accessToken = process.env.AXIOM_L5_PROVIDER_ACCESS_TOKEN;
+    const refreshToken = process.env.AXIOM_L5_PROVIDER_REFRESH_TOKEN;
+    assert.ok(accessToken && refreshToken && accessToken !== refreshToken, 'Distinct generated provider credential fixtures are required');
+    const fixture = await tenant();
+    const cookie = await credentialOperatorCookie(fixture.org);
+    const credentials = {
+      accessToken,
+      refreshToken,
+      tokenType: 'Bearer',
+      expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    };
+    const envelope = await encryptOAuthCredentials(credentials);
+    assert.ok(envelope.encToken.length > 32, 'Real egress encryption must return authenticated ciphertext');
+    assert.equal(envelope.encNonce.length, 24, 'XChaCha20-Poly1305 envelope nonce must be 24 bytes');
+    assert.deepEqual(await decryptOAuthCredentials(envelope), credentials, 'The stored envelope must round-trip through the real egress plane');
+
+    const url = `https://l5-fixture.invalid/api/v1/social-accounts?modelId=${encodeURIComponent(fixture.model)}`;
+    const headers = { Origin: 'https://l5-fixture.invalid', Cookie: cookie };
+    let apiOutput = '';
+    const originalWrite = process.stdout.write;
+    process.stdout.write = ((chunk) => {
+      apiOutput += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    });
+    let createdText;
+    let listedText;
+    try {
+      const anonymous = await apiApp.request(new Request(url));
+      assert.equal(anonymous.status, 401, 'Social account API must retain its authentication boundary');
+      const created = await apiApp.request(new Request(url, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },
+        body: JSON.stringify({
+          platform: 'instagram', displayName: 'L5 synthetic encrypted provider',
+          encToken: Buffer.from(envelope.encToken).toString('base64'),
+          encNonce: Buffer.from(envelope.encNonce).toString('base64'), dekId: envelope.dekId,
+        }),
+      }));
+      createdText = await created.text();
+      assert.equal(created.status, 201, 'Authenticated API must persist a ciphertext envelope');
+      const createdBody = JSON.parse(createdText);
+      assert.ok(createdBody.data?.id, 'API must return the new connection identity');
+      for (const field of ['encToken', 'encNonce', 'dekId', 'accessToken', 'refreshToken']) {
+        assert.equal(Object.hasOwn(createdBody.data, field), false, `POST response must omit ${field}`);
+      }
+
+      const listed = await apiApp.request(new Request(url, { headers }));
+      listedText = await listed.text();
+      assert.equal(listed.status, 200, 'Authenticated API must read the saved connection');
+      const listedBody = JSON.parse(listedText);
+      const listedConnection = listedBody.data.find(entry => entry.id === createdBody.data.id);
+      assert.ok(listedConnection, 'GET response must include the saved connection metadata');
+      for (const field of ['encToken', 'encNonce', 'dekId', 'accessToken', 'refreshToken']) {
+        assert.equal(Object.hasOwn(listedConnection, field), false, `GET response must omit ${field}`);
+      }
+
+      const stored = await admin.query(
+        'SELECT enc_token, enc_nonce, dek_id FROM platform_connection WHERE id = $1 AND org_id = $2',
+        [createdBody.data.id, fixture.org],
+      );
+      assert.equal(stored.rowCount, 1, 'The envelope must be persisted under the fixture tenant');
+      const ciphertext = Buffer.from(stored.rows[0].enc_token);
+      assert.equal(ciphertext.includes(Buffer.from(accessToken)), false, 'Database credential bytes must not contain the access token');
+      assert.equal(ciphertext.includes(Buffer.from(refreshToken)), false, 'Database credential bytes must not contain the refresh token');
+      assert.deepEqual(await decryptOAuthCredentials({
+        encToken: new Uint8Array(stored.rows[0].enc_token),
+        encNonce: new Uint8Array(stored.rows[0].enc_nonce), dekId: stored.rows[0].dek_id,
+      }), credentials, 'The persisted bytes must decrypt to the original fixture credentials');
+
+      const audit = await admin.query(
+        'SELECT detail::text AS detail FROM audit_log WHERE org_id = $1 AND action = $2 AND target = $3',
+        [fixture.org, 'social.connect', createdBody.data.id],
+      );
+      assert.equal(audit.rowCount, 1, 'Connection audit event must be durable');
+      assert.equal(audit.rows[0].detail.includes(accessToken), false, 'Audit detail must not contain access credentials');
+      assert.equal(audit.rows[0].detail.includes(refreshToken), false, 'Audit detail must not contain refresh credentials');
+      assert.equal(apiOutput.includes(accessToken), false, 'API logs must not contain the access token');
+      assert.equal(apiOutput.includes(refreshToken), false, 'API logs must not contain the refresh token');
+      assert.equal(createdText.includes(accessToken) || listedText.includes(accessToken), false, 'API JSON must not contain provider credentials');
+      assert.equal(createdText.includes(refreshToken) || listedText.includes(refreshToken), false, 'API JSON must not contain provider credentials');
+      credentialApiFixture = { ...fixture, connectionId: createdBody.data.id };
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+  });
   await check('signed Relay API command persists one safe mutation and rejects forged, expired, foreign-signer, and replayed signatures', async () => {
-    const fixture = await relayCommandFixture();
+    assert.ok(credentialApiFixture, 'Credential API fixture must succeed before Relay confidentiality check');
+    const fixture = await relayCommandFixture(credentialApiFixture);
+    const auditRowsBefore = await scoped(fixture.org, async tx =>
+      (await tx.select().from(schema.auditLog)).length);
     const app = createRelayApp();
     const signer = new CommandRouter(process.env.RELAY_SECRET, 5);
     const requestCommand = (signature, nonce) => app.request('/api/v1/relay/command', {
@@ -828,9 +937,25 @@ for (const kind of Object.keys(defaultExecutors)) {
     });
     const nonce = signer.generateNonce();
     const signature = signer.signCommand(nonce, 'hold', fixture.card);
-    const accepted = await requestCommand(signature, nonce);
+    let acceptedOutput = '';
+    const originalAcceptedWrite = process.stdout.write;
+    process.stdout.write = ((chunk) => {
+      acceptedOutput += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    });
+    let accepted;
+    try {
+      accepted = await requestCommand(signature, nonce);
+    } finally {
+      process.stdout.write = originalAcceptedWrite;
+    }
+    const acceptedText = await accepted.text();
     assert.equal(accepted.status, 200);
-    assert.equal((await accepted.json()).success, true);
+    assert.equal(JSON.parse(acceptedText).success, true);
+    assert.equal(acceptedText.includes(process.env.AXIOM_L5_PROVIDER_ACCESS_TOKEN), false, 'Relay response must omit provider access credentials');
+    assert.equal(acceptedText.includes(process.env.AXIOM_L5_PROVIDER_REFRESH_TOKEN), false, 'Relay response must omit provider refresh credentials');
+    assert.equal(acceptedOutput.includes(process.env.AXIOM_L5_PROVIDER_ACCESS_TOKEN), false, 'Relay logs must omit provider access credentials');
+    assert.equal(acceptedOutput.includes(process.env.AXIOM_L5_PROVIDER_REFRESH_TOKEN), false, 'Relay logs must omit provider refresh credentials');
 
     let rejectedOutput = '';
     let foreignNonce;
@@ -880,7 +1005,8 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(records.bundle.state, 'hold');
     assert.equal(records.cards.length, 1);
     assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0);
-    assert.equal(records.audit.rows, 1);
+    assert.equal(records.audit.rows, auditRowsBefore + 1,
+      'The accepted Relay command must append exactly one audit event');
     assert.equal(records.audit.valid, true);
   });
   await check('MCP publishing enforces tier and waits for human approval without dispatch', async () => {
