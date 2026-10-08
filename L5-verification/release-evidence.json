@@ -167,6 +167,26 @@
             "sha256:eb50ff0bf24b29d5fb2c022fdf2bea1cc040e122f3a2595e0b15eaf5f46464df",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "LBI-03",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data; no live provider credentials.",
+          "scope": "Two complete harness repetitions of 49 checks each; concurrent double approvals produced one loopback provider request, ledger replay restored the durable target without a second request, and an injected post-acceptance persistence fault blocked blind retry; cleanup verified.",
+          "limitations": "The provider transport is a synthetic loopback fixture with worker network disabled; this proves internal idempotency and reconciliation behavior, not external provider delivery or remote readback.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -219,6 +239,26 @@
           ],
           "criterion": "LBI-04",
           "scope": "Two complete runtime fixture repetitions, 49 checks each (98 total). In each repetition, a valid signed Relay command persisted one safe hold mutation; nonce replay, forged signature, and expired signature were rejected and logged without card ID, nonce, or signature leakage. Relay metrics ingest rejected unscoped writes, stored synthetic metrics under organization scope, and queued no publish.target job. Cleanup was verified."
+        },
+        {
+          "criterion": "LBI-04",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data; no live provider credentials.",
+          "scope": "In each 49-check repetition, a valid signed Relay command persisted a safe hold mutation; nonce replay, forged signature, and expired signature were rejected and logged without sensitive command data. Relay metrics ingest rejected unscoped writes and queued no publish.target job; cleanup verified.",
+          "limitations": "Network-disabled disposable fixtures only; this proves internal Relay controls, not live Telegram delivery, external authorization, or deployed service behavior.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -296,6 +336,26 @@
             "sha256:eda61b1ff23edeeb5e388fc0e03be0fdbdaa7fee97fbb0935277df900e42ae7f",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "LBI-06",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic audit events.",
+          "scope": "Two complete 49-check repetitions; nested JSON audit round-trip, three audit-detail tamper variants, denied runtime UPDATE/DELETE, and concurrent API/worker chain verification; cleanup verified.",
+          "limitations": "Isolated synthetic audit data only; proves in-process tamper detection and privileges, not deployed audit monitoring or incident handling.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -348,6 +408,26 @@
           ],
           "criterion": "LBI-07",
           "scope": "Two complete runtime fixture repetitions, 49 checks each (98 total). In each repetition, blocked/review/incomplete reports, failed and running scans, missing model, unrequested override, and unavailable scanner cases passed; none persisted a passing verdict or created approval/publish work. Cleanup was verified."
+        },
+        {
+          "criterion": "LBI-07",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data.",
+          "scope": "Two complete 49-check repetitions covered blocked, review, incomplete, failed, and running scan outcomes, missing model, unrequested override, and unavailable scanner cases; none stored a passing verdict or created approval/publish work; cleanup verified.",
+          "limitations": "Synthetic offline scanner fixtures only; this proves fail-closed worker behavior, not live scanner availability or external provider delivery.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -1322,9 +1402,30 @@
       "requirement": "- [ ] Exactly-once publish under retry/double-tap (LBI-03).",
       "requirementSha256": "532d9ce0a807f5664ed0c0a99882a4f055565c0444ccb3d7d462aefb233c28cf",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat after subsequent runtime changes; external provider delivery and remote readback remain separate acceptance.",
+      "evidence": [
+        {
+          "criterion": "NONFUNCTIONAL-4",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data; no live provider credentials.",
+          "scope": "Two complete harness repetitions of 49 checks each; concurrent double approvals produced one loopback provider request, ledger replay restored the durable target without a second request, and an injected post-acceptance persistence fault blocked blind retry; cleanup verified.",
+          "limitations": "The provider transport is a synthetic loopback fixture with worker network disabled; this proves internal exactly-once/reconciliation behavior, not external provider delivery or remote readback.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Double-approve and retry one deterministic publish intent; verify one remote outcome and no second provider call.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
@@ -1567,9 +1668,30 @@
       "requirement": "- [ ] ToS engine fails to **block**, never **pass** (LBI-07).",
       "requirementSha256": "05a057ba36b5e198e571d23d6ba865db43b744dafb43108103767a4cc15c3c7c",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat after subsequent scanner/runtime changes; live scanner availability and deployed incident handling remain separate acceptance.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-6",
+          "sha": "c98a800ea88002a64be4cd5c9c639820b76d5f7d",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data.",
+          "scope": "Two complete 49-check repetitions covered blocked, review, incomplete, failed, and running scan outcomes, missing model, unrequested override, and unavailable scanner cases; none stored a passing verdict or created approval/publish work; cleanup verified.",
+          "limitations": "Synthetic offline scanner fixtures only; this proves the scanner gate fails closed, not live scanner availability or external provider behavior.",
+          "observedAt": "2026-10-08T02:11:21Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
+          "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
+          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
+            "sha256:9a701595fb4a6dd59407af77a34af66baabdc5b6e8512e13ad27221e184328f8",
+            "sha256:caba9383c825a667beb02779797b2fa9b6d970deff0ecf174ce593a81c9c6cd6",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Exercise block, review, incomplete, and unavailable scanner results; prove no unsafe state reaches approval or dispatch.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
