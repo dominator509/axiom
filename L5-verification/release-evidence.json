@@ -480,9 +480,64 @@
       "requirement": "| LBI-08 | Capability honesty | Snapchat uses the documented assisted flow; UI and connector never claim unsupported publishing | unit + integration |",
       "requirementSha256": "082f692125c9b2a1b8746a85828a7f83a5a1c1205adaac450c2b45aae3849fa6",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat LBI-08 on the final release SHA; live Snap Public Profile API allowlisting/OAuth and any external publish are separate acceptance gates.",
+      "evidence": [
+        {
+          "criterion": "LBI-08",
+          "sha": "c15693c7655b493217a458e0ea33f4bb6ca3e19b",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-isolated Docker, PostgreSQL, media, egress, and model fixtures with synthetic data.",
+          "scope": "Two isolated runtime repetitions. Missing Snapchat OAuth configuration returned a safe 503 without credential fields; manual-assist connection metadata was encrypted and exposed only safe status; connector capability was assisted with no metrics; worker produced one human review card, set the target to manual_assist with no remote ID or published ledger, and replay did not duplicate the handoff. Cleanup verified.",
+          "limitations": "Synthetic offline acceptance only. No Snap Public Profile API allowlisting, real OAuth account, external delivery, or production/shared environment was used.",
+          "observedAt": "2026-10-08T16:49:16Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37810938088",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37810938088/job/113427289406",
+          "logSha256": "18a50a0c937fd72e28b29b07c34917ad4795d2a82284c4f5c516527fafeaab6b",
+          "counts": {
+            "passed": 108,
+            "failed": 0,
+            "skipped": 0,
+            "total": 108,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:b05f93d1c393b07071b0b89d2669007ee65ac24b11d7fb606cfb44470f3549be",
+            "sha256:653f2a99da4938748fbf578c14f37b84f535c09b2293bfdc427f34a07985de5e",
+            "sha256:05c9591fb887821fca62460bc159dfb72021e2073cc7ce7eb14af09a34ea63c2",
+            "sha256:86ea10e0bac897aa7b0dd415093f880c4cf3f27ad5529245663ee7a9d224c98e",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "LBI-08",
+          "sha": "c15693c7655b493217a458e0ea33f4bb6ca3e19b",
+          "command": "node scripts/rehearse-browser.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned isolated Docker/PostgreSQL/API/dashboard and real Chromium browser with synthetic tenant accounts.",
+          "scope": "Two default-brand and two configured-brand browser journeys passed 39 checks each (156 passed). Each journey verified the Snapchat manual-assist explanation, saved connection state, and no claim of automatic publication. Separate negative-brand and negative-cookie controls each produced their expected rejection; cleanup verified.",
+          "limitations": "Synthetic browser acceptance only. No Snap Public Profile API allowlisting, real OAuth account, external delivery, or production/shared environment was used.",
+          "observedAt": "2026-10-08T17:03:45Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37810938088",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37810938088/job/113427289191",
+          "logSha256": "8b2e5d6ebb497e8dd3aebe5bb5a01a51c05f153a29849ce26cff33f914733766",
+          "counts": {
+            "passed": 156,
+            "failed": 0,
+            "skipped": 0,
+            "total": 156,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:0810e9356be7dd9fe10306175ed90e7453e7c18cac0f0d24f559214abea772bb",
+            "sha256:9541e4d07341121bfe6ade0c5ba50634941de943cff7c449068bd93d1f4aeed4",
+            "sha256:e177f3563a3f46d99be5b2a5a349ad4f46f9f3d0e2a0b95e809922f2a590af29",
+            "sha256:02d838f793613bfdc5df3983d2acb85e2c013b6c951530b465d6fec99ccc2fd0",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Snapchat uses the documented assisted flow; UI and connector never claim unsupported publishing",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
