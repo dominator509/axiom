@@ -174,9 +174,36 @@
       "requirement": "| LBI-04 | Approval-gate integrity | authenticated dashboard approval or a valid signed, unexpired, single-use Relay command mutates state; forged, expired, and replayed commands are rejected and logged; ingest never publishes | security + integration |",
       "requirementSha256": "ed360284a9b41d92d68ef8ecb70bab6c322e3017bb1f57d7a26d55d418225390",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat approval and Relay acceptance on the final release SHA; live provider and deployed-service evidence remain separate.",
+      "evidence": [
+        {
+          "sha": "7bfa336590db6f5a97f1671f42f54652bcc6d803",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled Docker/PostgreSQL/model fixtures with synthetic data; no live provider credentials.",
+          "limitations": "Network-disabled disposable fixtures only; this receipt proves internal control behavior, not live provider delivery, external authorization, or deployed service behavior.",
+          "observedAt": "2026-10-08T00:36:42Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37708112337",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37708112337/job/113087262021",
+          "logSha256": "3c8818d7dafcf1e68014d5218e3b37a3f4e56c2cfcb95ba014f84fa82e767352",
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:09c090b9e97e65754642ae24452bd4e805a0f990e08c84549e18536c4f97c067",
+            "sha256:3a967f60fac7028fc67939261f34ac3511dd7e6ac6b3c28d33086e3497e14dd4",
+            "sha256:9f0364efb0ef01bfe320ffb5e7397d1b13d0df6b356a28bc4c1a4ef0a484018a",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ],
+          "criterion": "LBI-04",
+          "scope": "Two complete runtime fixture repetitions, 49 checks each (98 total). In each repetition, a valid signed Relay command persisted one safe hold mutation; nonce replay, forged signature, and expired signature were rejected and logged without card ID, nonce, or signature leakage. Relay metrics ingest rejected unscoped writes, stored synthetic metrics under organization scope, and queued no publish.target job. Cleanup was verified."
+        }
+      ],
       "verification": {
         "test": "authenticated dashboard approval or a valid signed, unexpired, single-use Relay command mutates state; forged, expired, and replayed commands are rejected and logged; ingest never publishes",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
@@ -276,9 +303,36 @@
       "requirement": "| LBI-07 | ToS gate | a block verdict prevents approval and publish; scanner failure never becomes pass | integration |",
       "requirementSha256": "921d67f92b6762be6a87a6e8749e1b844713414e3f113008e02618a1d42aedde",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat ToS-gate acceptance on the final release SHA; live provider acceptance and production scanner availability remain open.",
+      "evidence": [
+        {
+          "sha": "7bfa336590db6f5a97f1671f42f54652bcc6d803",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two network-disabled Docker/PostgreSQL/model fixtures with synthetic data; no live provider credentials.",
+          "limitations": "Network-disabled disposable fixtures only; this receipt proves internal control behavior, not live provider delivery, external authorization, or deployed service behavior.",
+          "observedAt": "2026-10-08T00:36:42Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37708112337",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37708112337/job/113087262021",
+          "logSha256": "3c8818d7dafcf1e68014d5218e3b37a3f4e56c2cfcb95ba014f84fa82e767352",
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:09c090b9e97e65754642ae24452bd4e805a0f990e08c84549e18536c4f97c067",
+            "sha256:3a967f60fac7028fc67939261f34ac3511dd7e6ac6b3c28d33086e3497e14dd4",
+            "sha256:9f0364efb0ef01bfe320ffb5e7397d1b13d0df6b356a28bc4c1a4ef0a484018a",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ],
+          "criterion": "LBI-07",
+          "scope": "Two complete runtime fixture repetitions, 49 checks each (98 total). In each repetition, blocked/review/incomplete reports, failed and running scans, missing model, unrequested override, and unavailable scanner cases passed; none persisted a passing verdict or created approval/publish work. Cleanup was verified."
+        }
+      ],
       "verification": {
         "test": "a block verdict prevents approval and publish; scanner failure never becomes pass",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
