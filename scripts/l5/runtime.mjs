@@ -955,7 +955,7 @@ for (const kind of Object.keys(defaultExecutors)) {
 
     const records = await scoped(fixture.org, async tx => ({
       bundles: await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.orgId, fixture.org)),
-      targets: await tx.select().from(schema.postTarget).where(eq(schema.postTarget.modelId, fixture.model)),
+      targets: await tx.select().from(schema.postTarget).where(eq(schema.postTarget.orgId, fixture.org)),
       jobs: await tx.select().from(schema.job).where(eq(schema.job.orgId, fixture.org)),
       audit: await verifyAuditChain(tx, fixture.org),
     }));
