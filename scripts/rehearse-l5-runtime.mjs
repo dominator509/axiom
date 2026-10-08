@@ -156,6 +156,7 @@ try {
     const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
     assert.equal(report.total, 52, 'All fifty-two runtime cases must execute');
+    assert.equal(report.node, receipt.node, 'Runtime container must match the pinned Node release');
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
     if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');
