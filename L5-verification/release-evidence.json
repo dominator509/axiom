@@ -283,9 +283,37 @@
       "requirement": "| LBI-05 | Secret confidentiality | credential columns and dumps contain ciphertext only; APIs, logs, and Relay never expose plaintext | unit + audit |",
       "requirementSha256": "d6dd6891945a3576183b159d4fcd8386d08941c4c9f75c82e6b7c1ffbc3121bc",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this receipt on the final release SHA; live provider and deployed-service evidence remain separate.",
+      "evidence": [
+        {
+          "criterion": "LBI-05",
+          "sha": "38ca8a46eba3ca3c52ceb2cbc1825528555228c9",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two isolated disposable Docker/PostgreSQL/model fixture repetitions with synthetic credentials and no live provider credentials.",
+          "scope": "Two complete repetitions of 51 runtime checks each plus two database-dump and egress-log plaintext checks per repetition: credential encryption/decryption, ciphertext persistence, authenticated social-account create/read redaction, Relay response/log redaction, database dump and egress log plaintext absence. All created fixtures were cleaned up.",
+          "limitations": "Isolated fixture evidence only; it does not establish live-provider behavior, deployed production configuration, third-party secret-store behavior, or production/shared data state.",
+          "observedAt": "2026-10-08T11:21:23.339Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37768797129",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37768797129/job/113282909339",
+          "logSha256": "a5f25dd08dd39f1526286d25272477e87ac64294277c1da3093aec9e03c5a53c",
+          "counts": {
+            "passed": 106,
+            "failed": 0,
+            "skipped": 0,
+            "total": 106,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:891ad46560cdad43785cc9b9e55990aca05cec9f295668e8e800ba74fa882b84",
+            "sha256:371644e7ad6af293b1f54ce09d7820a4776e9ded23488329e59f5cc2cebfa4c7",
+            "sha256:f5dba0d788855871580eb8815f58a76264a9db06afe2c2d28bea1361e57db1ec",
+            "sha256:9a77deb1341ccc85897faaa309fec2360a7e12807c5b12f9414f3c469e316c86",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "credential columns and dumps contain ciphertext only; APIs, logs, and Relay never expose plaintext",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
@@ -1502,9 +1530,37 @@
       "requirement": "- [ ] No plaintext credentials at rest or in logs (LBI-05); envelope encryption verified.",
       "requirementSha256": "392cf44f5f17c5875b87106d791ccc6596304409a30b005751b13eba5de198f2",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this receipt on the final release SHA; deployed secret-store and production configuration evidence remain separate.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-1",
+          "sha": "38ca8a46eba3ca3c52ceb2cbc1825528555228c9",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two isolated disposable Docker/PostgreSQL/model fixture repetitions with synthetic credentials and no live provider credentials.",
+          "scope": "Two complete repetitions of 51 runtime checks each plus two database-dump and egress-log plaintext checks per repetition: envelope encryption/decryption, ciphertext persistence, authenticated API redaction, Relay response/log redaction, and database dump and egress log plaintext absence. All created fixtures were cleaned up.",
+          "limitations": "Isolated fixture evidence only; it does not establish live-provider behavior, deployed production configuration, third-party secret-store behavior, or production/shared data state.",
+          "observedAt": "2026-10-08T11:21:23.339Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37768797129",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37768797129/job/113282909339",
+          "logSha256": "a5f25dd08dd39f1526286d25272477e87ac64294277c1da3093aec9e03c5a53c",
+          "counts": {
+            "passed": 106,
+            "failed": 0,
+            "skipped": 0,
+            "total": 106,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:891ad46560cdad43785cc9b9e55990aca05cec9f295668e8e800ba74fa882b84",
+            "sha256:371644e7ad6af293b1f54ce09d7820a4776e9ded23488329e59f5cc2cebfa4c7",
+            "sha256:f5dba0d788855871580eb8815f58a76264a9db06afe2c2d28bea1361e57db1ec",
+            "sha256:9a77deb1341ccc85897faaa309fec2360a7e12807c5b12f9414f3c469e316c86",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Inspect synthetic credential persistence, dumps, API responses, Relay payloads, and logs for ciphertext-only storage and plaintext non-disclosure.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
