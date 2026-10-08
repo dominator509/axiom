@@ -634,9 +634,39 @@
       "requirement": "| LBI-11 | Global kill switch | one audited operator action suspends publishing and agents across models within 5 seconds; re-enable is separate | integration + security |",
       "requirementSha256": "7f23bf4e314025eff5a94d605d6f5b92dbbafab6ede9a5343ba551c8ffa84ae8",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance on the final release SHA; the broader tunnel, DNS, proxy and observability campaign remains open.",
+      "evidence": [
+        {
+          "criterion": "LBI-11",
+          "sha": "532408e520221ab5d7ca82595503fd5de8a41b63",
+          "command": "AXIOM_CI_API_CONTAINER=\"$hono_container\" AXIOM_CI_REHEARSAL_ID=\"$rehearsal_id\" node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, isolated Docker rehearsal with generated run-scoped IDs, disposable PostgreSQL and seven CI-built application images; synthetic model/agent/job fixtures and no live provider credentials or owner services.",
+          "scope": "One audited operator action suspended two model agents and parked two queued publish jobs without dispatch attempts within five seconds; a separate audited re-enable restored the agents; audit-chain verification and cleanup passed. Observed completion time: 910ms. The images array records immutable IDs in this order: axiom-hono:ci, axiom-dashboard:ci, axiom-worker:ci, axiom-egress-plane:ci, axiom-media-plane:ci, axiom-vision-engine:ci, axiom-scraper:ci.",
+          "limitations": "Synthetic CI fixture only. This receipt does not prove provider delivery or the broader deployed tunnel, DNS, route, proxy and observability fault campaign. CI vision checks health and auth boundaries; the image omits the external model artifact and does not establish model-backed inference.",
+          "observedAt": "2026-10-08T17:49:35Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37817858525",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37817858525/job/113450984399",
+          "logSha256": "9ebf3e8b7b356442d65183f576415107f80f130c55658a1c2d474f3722fcf13d",
+          "counts": {
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "total": 1,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:1b87eb4404e6e16ac0188c51f78f52e34f519fa0bd090d4600903e975b59b455",
+            "sha256:f8348c856b111a9153e6c695337b69eeaf6ef0634d60391e4a4f605519a203de",
+            "sha256:9260a5411fe860ec571ca224d7d6063ae729ba0f6ee03452f821f68462e8011d",
+            "sha256:10e530f32bfe5ddf8413332fc78a9330885030af34cc7aec98e5e1ea7c8d7901",
+            "sha256:e6ab65363d5e8023d852a7a27fd7b4bf6830069909f9a08efcf0e21030b7ae68",
+            "sha256:2d6e8870080bd59e152ad9119b14aee2070c58c3a2576bccd32a9dd907999ae1",
+            "sha256:67eefda70350b27aa484dbc7f2255bbadf0232320e4cf07fa1e9fc9537a66a97"
+          ]
+        }
+      ],
       "verification": {
         "test": "one audited operator action suspends publishing and agents across models within 5 seconds; re-enable is separate",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
