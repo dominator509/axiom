@@ -845,6 +845,11 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
           .reduce((sum, row) => sum + (Number(row.count) || 0), 0),
       };
     });
+    const exposeAvailableMetrics = <T extends MetricBucket>(bucket: T) => ({
+      ...bucket,
+      activeUsers: bucket.uniqueVisitorsAvailable ? bucket.activeUsers : null,
+      conversions: bucket.conversionsAvailable ? bucket.conversions : null,
+    });
     return {
       windowDays: 90,
       windowStart: start.toISOString(),
@@ -853,13 +858,16 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       totalClicks: totals.trackedClicks,
       sourceTotals: [...sourceTotals.values()]
         .sort((left, right) => left.providerId.localeCompare(right.providerId)
-          || (left.source ?? '').localeCompare(right.source ?? '')),
+          || (left.source ?? '').localeCompare(right.source ?? ''))
+        .map(exposeAvailableMetrics),
       topTargets: [...targets.values()]
         .sort((left, right) => right.trackedClicks + right.analyticsClicks - left.trackedClicks - left.analyticsClicks)
-        .slice(0, 20),
+        .slice(0, 20)
+        .map(exposeAvailableMetrics),
       daily: [...daily.values()].sort((left, right) => left.date.localeCompare(right.date)
         || left.providerId.localeCompare(right.providerId)
-        || (left.source ?? '').localeCompare(right.source ?? '')),
+        || (left.source ?? '').localeCompare(right.source ?? ''))
+        .map(exposeAvailableMetrics),
       note: 'Tracked redirects and imported provider metrics are reported separately by source. FanLynks exports page views and clicks, not unique visitors or conversions; daily GA4 unique users are summed across days and are not range-deduplicated.',
     };
   });
