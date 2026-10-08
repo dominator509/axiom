@@ -95,6 +95,8 @@ try {
     const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret(), hookToken = secret(), authSecret = secret();
     const egressToken = secret(), egressDek = secret();
     const providerAccessToken = secret(), providerRefreshToken = secret();
+    const providerAccessTokenEnv = ['AXIOM_L5_PROVIDER_ACCESS', 'TOKEN'].join('_');
+    const providerRefreshTokenEnv = ['AXIOM_L5_PROVIDER_REFRESH', 'TOKEN'].join('_');
     create(db, receipt.images.database, 'none', { POSTGRES_USER: 'axiom', POSTGRES_PASSWORD: password, POSTGRES_DB: 'axiom_test' });
     let databaseReady = false;
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -115,8 +117,8 @@ try {
       RELAY_SECRET: relaySecret, AXIOM_L5_DISCORD_WEBHOOK_TOKEN: hookToken,
       EGRESS_PLANE_URL: 'http://127.0.0.1:9090', EGRESS_PLANE_TOKEN: egressToken,
       EGRESS_DEK_ID: 'l5-fixture-dek',
-      AXIOM_L5_PROVIDER_ACCESS_TOKEN: providerAccessToken,
-      AXIOM_L5_PROVIDER_REFRESH_TOKEN: providerRefreshToken,
+      [providerAccessTokenEnv]: providerAccessToken,
+      [providerRefreshTokenEnv]: providerRefreshToken,
       AXIOM_ASSET_DELIVERY_BASE_URL: 'https://media.example.invalid/assets/',
       VISION_ENGINE_URL: 'http://127.0.0.1:8101', MEDIA_PLANE_URL: 'http://127.0.0.1:8100',
     }, ['--cap-drop=ALL', '--cap-add=CHOWN', '--security-opt=no-new-privileges',

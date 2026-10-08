@@ -927,6 +927,8 @@ for (const kind of Object.keys(defaultExecutors)) {
   await check('signed Relay API command persists one safe mutation and rejects forged, expired, foreign-signer, and replayed signatures', async () => {
     assert.ok(credentialApiFixture, 'Credential API fixture must succeed before Relay confidentiality check');
     const fixture = await relayCommandFixture(credentialApiFixture);
+    const auditRowsBefore = await scoped(fixture.org, async tx =>
+      (await tx.select().from(schema.auditLog)).length);
     const app = createRelayApp();
     const signer = new CommandRouter(process.env.RELAY_SECRET, 5);
     const requestCommand = (signature, nonce) => app.request('/api/v1/relay/command', {
@@ -1003,7 +1005,8 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(records.bundle.state, 'hold');
     assert.equal(records.cards.length, 1);
     assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0);
-    assert.equal(records.audit.rows, 1);
+    assert.equal(records.audit.rows, auditRowsBefore + 1,
+      'The accepted Relay command must append exactly one audit event');
     assert.equal(records.audit.valid, true);
   });
   await check('MCP publishing enforces tier and waits for human approval without dispatch', async () => {
