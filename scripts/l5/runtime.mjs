@@ -818,7 +818,7 @@ for (const kind of Object.keys(defaultExecutors)) {
       else process.env.SIGNAL_ACCOUNT = originalAccount;
     }
   });
-  await check('signed Relay API command persists one safe mutation and rejects forged, expired, and replayed signatures', async () => {
+  await check('signed Relay API command persists one safe mutation and rejects forged, expired, foreign-signer, and replayed signatures', async () => {
     const fixture = await relayCommandFixture();
     const app = createRelayApp();
     const signer = new CommandRouter(process.env.RELAY_SECRET, 5);
@@ -833,6 +833,8 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal((await accepted.json()).success, true);
 
     let rejectedOutput = '';
+    let foreignNonce;
+    let foreignSignature;
     const originalWrite = process.stdout.write;
     process.stdout.write = ((chunk) => {
       rejectedOutput += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
@@ -845,6 +847,12 @@ for (const kind of Object.keys(defaultExecutors)) {
       assert.equal(duplicate.status, 200, 'durable duplicate is acknowledged without a second mutation');
       assert.match((await duplicate.json()).error, /already processed/);
 
+      const foreignSigner = new CommandRouter(randomBytes(32).toString('hex'), 5);
+      foreignNonce = foreignSigner.generateNonce();
+      foreignSignature = foreignSigner.signCommand(foreignNonce, 'hold', fixture.card);
+      assert.equal((await requestCommand(foreignSignature, foreignNonce)).status, 403,
+        'a well-formed command signed with another installation secret must be rejected');
+
       const forgedNonce = signer.generateNonce();
       assert.equal((await requestCommand('f'.repeat(64), forgedNonce)).status, 403);
       const expiredBytes = randomBytes(16);
@@ -856,11 +864,13 @@ for (const kind of Object.keys(defaultExecutors)) {
     }
 
     assert.ok(rejectedOutput.includes('Rejected relay command signature'));
-    assert.equal((rejectedOutput.match(/"message":"Rejected relay command signature"/g) ?? []).length, 3,
-      'nonce replay, forged signature, and expired signature must each be logged');
+    assert.equal((rejectedOutput.match(/"message":"Rejected relay command signature"/g) ?? []).length, 4,
+      'nonce replay, foreign-signer, forged, and expired signatures must each be logged');
     assert.ok(!rejectedOutput.includes(fixture.card), 'rejection logs must omit card identifiers');
     assert.ok(!rejectedOutput.includes(nonce), 'rejection logs must omit the replayed nonce');
     assert.ok(!rejectedOutput.includes(signature), 'rejection logs must omit the command signature');
+    assert.ok(!rejectedOutput.includes(foreignNonce), 'rejection logs must omit the foreign signer nonce');
+    assert.ok(!rejectedOutput.includes(foreignSignature), 'rejection logs must omit the foreign signer signature');
     const records = await scoped(fixture.org, async tx => ({
       bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
       cards: await tx.select().from(schema.relayCommand).where(eq(schema.relayCommand.cardId, fixture.card)),
