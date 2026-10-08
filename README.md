@@ -46,6 +46,7 @@ Node **22** is the supported major; local development and GitHub Actions use
 the exact **22.23.3** release in `.nvmrc` and `.node-version`, with
 **pnpm 9.14.0** from `packageManager`. Select that Node version using your
 version manager before installing. Node 24 is outside this contract.
+App and egress rehearsal images pin the same exact release by the official multi-architecture digest, and runtime checks reject patch drift.
 The root `.npmrc` rejects unsupported engine versions; the environment check
 also requires the exact pinned patch release.
 

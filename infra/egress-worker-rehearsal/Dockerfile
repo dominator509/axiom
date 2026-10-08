@@ -1,7 +1,7 @@
 # Disposable runtime fixture for the Node egress caller boundary. The harness
 # stages the already-built artifacts only after its caller has rebuilt them
 # locally and recorded their hashes; the fixture itself needs no registry.
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+FROM node:22.23.3-alpine3.23@sha256:baf676f7d0e552f3231945c2f979055ca121bce128c152f7a34e6bd1728b1c5a
 
 USER root
 RUN apk add --no-cache iproute2 util-linux

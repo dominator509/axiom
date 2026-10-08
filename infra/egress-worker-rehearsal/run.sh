@@ -1,5 +1,11 @@
 #!/bin/sh
 set -eu
+expected_node="v22.23.3"
+actual_node="$(node --version)"
+if [ "$actual_node" != "$expected_node" ]; then
+  echo "egress fixture Node mismatch: expected $expected_node, received $actual_node" >&2
+  exit 1
+fi
 
 MODEL_ID='11111111-1111-4111-8111-111111111111'
 NETNS="egress_${MODEL_ID}"

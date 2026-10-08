@@ -3,8 +3,8 @@
 # Multi-stage: deps → builder → runner
 # =============================================================================
 
-# node:22-alpine manifest digest (resolved 2026-09-09).
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS deps
+# Node 22.23.3 Alpine 3.23; official multi-architecture manifest digest.
+FROM node:22.23.3-alpine3.23@sha256:baf676f7d0e552f3231945c2f979055ca121bce128c152f7a34e6bd1728b1c5a AS deps
 
 RUN apk add --no-cache libc6-compat
 
@@ -31,7 +31,7 @@ COPY packages/dashboard/package.json ./packages/dashboard/package.json
 
 RUN pnpm install --frozen-lockfile
 
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
+FROM node:22.23.3-alpine3.23@sha256:baf676f7d0e552f3231945c2f979055ca121bce128c152f7a34e6bd1728b1c5a AS builder
 
 WORKDIR /app
 
@@ -59,7 +59,7 @@ RUN cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && c
 RUN pnpm --filter=@axiom/worker --prod deploy /app/pruned
 RUN cp -r packages/worker/dist /app/pruned/dist
 
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runner
+FROM node:22.23.3-alpine3.23@sha256:baf676f7d0e552f3231945c2f979055ca121bce128c152f7a34e6bd1728b1c5a AS runner
 
 RUN addgroup -S -g 1001 axiom-worker && \
     adduser -S -D -H -u 1001 -G axiom-worker axiom-worker
