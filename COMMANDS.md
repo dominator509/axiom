@@ -29,6 +29,7 @@
 - `node scripts/test-security-gate.mjs` — isolated regressions for fail-closed advisory checks and filename-only secret reporting; no network or real credentials
 - `node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]` — fail-closed logical ACK/NACK journal audit; ignores legacy transport timestamps and rejects WIRE collisions, unreadable correlations, sequence gaps, wrong signatures/roles, contradictory NEXT_OWNER handoffs, evidence-free progress, and silent pending ownership
 - `node --test scripts/hermes-protocol-audit.test.mjs` — local protocol journal regressions; no network, bridge, credentials or runtime changes
+- `pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts` — run the real-PostgreSQL viral retrieval acceptance, including rollback-only synthetic provider snapshots, S2 prompt assembly and bandit updates; `DATABASE_URL` and `TEST_DATABASE_URL` must target the loopback disposable test database
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation

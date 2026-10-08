@@ -206,9 +206,8 @@ export function buildS1(platform: Platform): string {
 // ─── S2: Viral Exemplar Context Segment ───
 
 /**
- * Build the S2 viral exemplar context segment.
- * Provides examples of high-performing content for style reference.
- * Placeholder for P3 retrieval pipeline integration.
+ * Build the S2 viral exemplar context segment from model/platform-scoped
+ * retrieval results, providing high-performing content for style reference.
  */
 export function buildS2(exemplars: ViralExemplar[]): string {
   if (!exemplars || exemplars.length === 0) {
