@@ -3,6 +3,7 @@
 // (/api/* → API_ORIGIN). Cookies are forwarded so Better Auth sessions work.
 
 import { headers as nextHeaders } from 'next/headers';
+import { cache } from 'react';
 import {
   AXIOM_ERROR_RESPONSE_MAX_BYTES,
   readBoundedResponseJson,
@@ -866,8 +867,12 @@ export const api = {
   },
 };
 
-/** Resolve the Better Auth session server-side (for layout redirects). */
-export async function getSession() {
+/**
+ * Resolve the Better Auth session server-side (for layout redirects).
+ * React request caching lets layouts and pages share one lookup during the
+ * same render, without reusing a session across separate requests.
+ */
+export const getSession = cache(async function getSession() {
   const cookieHeader = (await nextHeaders()).get('cookie');
   const requestSignal = createRequestSignal(undefined, DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
   try {
@@ -898,4 +903,4 @@ export async function getSession() {
   } finally {
     requestSignal.cleanup();
   }
-}
+});
