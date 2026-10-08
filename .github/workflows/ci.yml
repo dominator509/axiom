@@ -131,7 +131,12 @@ jobs:
             let found = false;
             if (fs.existsSync(root)) for (const entry of fs.readdirSync(root)) {
               const file = `${root}/${entry}/receipt.json`;
-              if (fs.existsSync(file)) { console.log(fs.readFileSync(file, "utf8")); found = true; }
+              if (fs.existsSync(file)) {
+                const receipt = JSON.parse(fs.readFileSync(file, "utf8"));
+                if (receipt.cleanupVerified !== true) throw new Error(`Rehearsal cleanup was not verified for ${entry}`);
+                console.log(JSON.stringify(receipt, null, 2));
+                found = true;
+              }
             }
             if (!found) { console.error("No runtime receipt produced; acceptance unavailable"); process.exitCode = 1; }
           '
