@@ -1618,9 +1618,36 @@
       "requirement": "- [ ] Relay commands signed, single-use (nonce), expiring; replay + expiry rejected (LBI-04).",
       "requirementSha256": "5f3f4c10059550454cc40ab38a78ae75deb2159e77939914339e40311201ec6f",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Rerun this acceptance at the final release SHA; the isolated fixture does not prove live provider delivery.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-4",
+          "sha": "d7af843636137f3a44b801b4f5d704965d5db10e",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-disabled Docker, PostgreSQL, and model fixtures with synthetic data",
+          "scope": "Accepted a valid signed hold once; acknowledged a durable duplicate without a second mutation; rejected expired, forged, replayed, and foreign-secret signatures with HTTP 403. Verified one durable hold mutation, one relay-command row, no publish.target job, one valid audit row, and sanitized rejection logs omitting the card ID, nonce, and signatures. Two repetitions, 50 assertions each.",
+          "limitations": "Synthetic isolated CI fixtures only. No external Relay delivery, live credentials, production/shared database, or owner infrastructure. The foreign-secret control verifies signer authentication, not a separate application-role model.",
+          "observedAt": "2026-10-08T05:27:57Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37731994385",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37731994385/job/113162991960",
+          "logSha256": "2db4da002a745020cf47aa3ef5ad6e97122c946c095411c3dfa9f445a9ae7421",
+          "counts": {
+            "passed": 100,
+            "failed": 0,
+            "skipped": 0,
+            "total": 100,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:65e3ad85f337804fd92dc58acdfd7c6197ee972822eb4fd7879b3f3496a0028f",
+            "sha256:d03bb6a976847f9640a381633ad98b73ae93f687274930f4e759dbf9181b5c69",
+            "sha256:143bffdb6a2818d32614f036f6e96d269d9c3cb7b4490ee703b221d6d303272b",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Submit valid, expired, forged, replayed, and unauthorized Relay commands; assert only the valid single-use command mutates state.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
