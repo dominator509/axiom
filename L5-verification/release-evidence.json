@@ -826,9 +826,27 @@
       "requirement": "| A5 | Self-improving viral loop | high performer becomes exemplar; appears in later S2; bandit updates |",
       "requirementSha256": "899e8c202cee85569ec5feb2be59cbb10706621b691981df42d6d76ee5c5ce90",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance at the final release SHA; this isolated fixture does not establish live-provider performance telemetry or external publishing.",
+      "evidence": [
+        {
+          "criterion": "A5",
+          "sha": "07b6723a963add92249e637151e53852d042b485",
+          "command": "pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, pnpm 9.14.0; synthetic records in the disposable PostgreSQL service pinned to timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a; no provider credentials or external provider calls.",
+          "scope": "The rollback-only PostgreSQL integration fixture verifies that provider performance changes move worker-written exemplars and learned guidance, the later S2 prompt contains the current exemplar and excludes the former one, and bandit state updates. Negative assertions cover stale/weak and cross-model evidence. The fixture transaction rolls back and the database pool closes; GitHub tears down the disposable service after the job.",
+          "limitations": "This validates internal database-backed retrieval, prompt assembly, and bandit selection with synthetic performance snapshots. It does not prove live-provider metric accuracy, external dispatch/readback, production outcomes, or external model inference.",
+          "observedAt": "2026-10-08T21:28:09Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37845929231",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37845929231/job/113546673845",
+          "logSha256": "73d1e0722ae36b9bfb4a10a5c65a32d40c3facfc6d35cf622a157fbecab173ed",
+          "counts": { "passed": 11, "failed": 0, "skipped": 0, "total": 11, "unit": "tests" },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "high performer becomes exemplar; appears in later S2; bandit updates",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",

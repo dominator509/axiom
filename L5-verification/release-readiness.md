@@ -1,21 +1,36 @@
 # Release readiness: evidence register and execution order
 
-Implementation baseline for this plan: `50123ffd7ddf4e93625d44e828c85521089d03cc` on main, after PR #98. Its post-merge CI run is [37614786241](https://github.com/dominator509/axiom/actions/runs/37614786241), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `7c83cd3f7ec31c776d9f1723942003cf9484cb7a` and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, and the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
+Implementation baseline audited by this reconciliation: `07b6723a963add92249e637151e53852d042b485` on main, after PR #123. Its post-merge CI run is [37845929231](https://github.com/dominator509/axiom/actions/runs/37845929231), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `50123ffd7ddf4e93625d44e828c85521089d03cc`, `7c83cd3f7ec31c776d9f1723942003cf9484cb7a`, and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, plus the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria.
 
-Exact-SHA verification was attempted with
+The earlier exact-SHA check at historical baseline
 `node scripts/check-release-evidence.mjs --verify-receipts 50123ffd7ddf4e93625d44e828c85521089d03cc`
-and failed closed at `LBI-01: stale evidence SHA`: the five accepted rows in
-the tracked register have receipts from earlier commits. The 47 other criteria
-remain open. This is a receipt freshness gap, not evidence that those rows
-failed. The verifier now accepts a post-run external register while loading
-requirements and invariant mappings from the immutable tested commit; the
-external file cannot redefine acceptance criteria. Exact-SHA hosted readback
-is still required before any receipt is counted, and this does not authorize
-release.
+failed closed at `LBI-01: stale evidence SHA`; that historical register had five
+accepted rows and 47 open. This remains a receipt-freshness finding for that
+baseline, not evidence that those rows failed. The current register has 54
+criteria, 19 accepted, and 35 open. The validator checks requirements and
+invariant mappings against the canonical sources; a post-run external register
+cannot redefine acceptance criteria. Exact-SHA hosted readback remains required
+for final release, and this register does not authorize release.
 
-## Current main receipt (2026-10-07)
+## Main baseline receipt used by this reconciliation (2026-10-08)
+
+PR #123 is on main at exact SHA `07b6723a963add92249e637151e53852d042b485`.
+Post-merge [CI run 37845929231](https://github.com/dominator509/axiom/actions/runs/37845929231)
+completed with 10 successful jobs, 0 failed, and 0 cancelled. The [test job](https://github.com/dominator509/axiom/actions/runs/37845929231/job/113546673845)
+ran the focused A5 command `pnpm --filter @axiom/worker exec vitest run
+src/viral-retrieval.integration.test.ts`: 1 file, 11 passed, 0 failed, and
+0 skipped. The job used the pinned PostgreSQL service; the fixture rolls its
+synthetic data back and closes its pool. Its raw log SHA-256 is
+`73d1e0722ae36b9bfb4a10a5c65a32d40c3facfc6d35cf622a157fbecab173ed`.
+
+This closes A5 at the verified baseline for internal exemplar retrieval, S2
+prompt assembly, and bandit updates. It does not prove live-provider metrics,
+external dispatch/readback, or production outcomes. A5 must be repeated at the
+final release SHA.
+
+## Historical main receipt (2026-10-07)
 
 PR #98 merged as main SHA `50123ffd7ddf4e93625d44e828c85521089d03cc`. Post-merge [CI run 37614786241](https://github.com/dominator509/axiom/actions/runs/37614786241) completed with 10 successful jobs, 0 failed, and 0 cancelled.
 
@@ -82,7 +97,7 @@ The first browser attempt's transient schedule-page failure did not reproduce on
 the same-SHA retry, but its cause is not established; this historical receipt
 does not substitute for later candidate or final-SHA validation.
 
-The current implementation baseline is `7c83cd3f7ec31c776d9f1723942003cf9484cb7a`.
+An earlier implementation baseline was `7c83cd3f7ec31c776d9f1723942003cf9484cb7a`.
 Readback command `gh run view 37551519602 --repo dominator509/axiom --json headSha,status,conclusion,url,jobs`
 confirmed [post-merge CI run 37551519602](https://github.com/dominator509/axiom/actions/runs/37551519602)
 completed at that exact SHA with 10 successful jobs, 0 failed and 0 cancelled.
@@ -179,8 +194,9 @@ egress results are available in their jobs; none proves live provider acceptance
 One focused PR at a time, verified green at its exact head before merging under
 the owner's standing authorization. Recheck main CI after each merge.
 
-1. Evidence register: complete L5 coverage, historical baseline and fail-closed
-   validator. This PR; hosted validation is required before completion.
+1. Evidence register: complete L5 coverage, canonical invariant crosswalk, and
+   exact-main A5 receipt are validated. The register remains open at 19 accepted
+   and 35 open; repeat accepted rows at the final release SHA.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
    Isolated acceptance passed at `d8bfb217b4549e8b53c513de71fd92c1ea499c95`;
