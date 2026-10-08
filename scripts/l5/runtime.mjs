@@ -9,7 +9,7 @@ import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
 import { sql, eq, and } from 'drizzle-orm';
-import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick } from '@axiom/worker';
+import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick, connectorForConnection } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
 import { createCapabilityTokenWithMetadata, Tier } from '@axiom/mcp-server';
 import apiApp, { createRelayApp } from './dist/index.js';
@@ -233,10 +233,10 @@ async function blockedPublishFixture(tosReport) {
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, target, job: result.rows[0] };
 }
-function syntheticConsentRows(org, model) {
+function syntheticConsentRows(org, model, platform = 'discord') {
   const today = new Date().toISOString().slice(0, 10);
   return ['2257', 'model_release', 'id_verify', 'platform_consent'].map(docKind => ({
-    id: randomUUID(), orgId: org, modelId: model, platform: 'discord', consentType: `l5-${docKind}`,
+    id: randomUUID(), orgId: org, modelId: model, platform, consentType: `l5-${docKind}`,
     docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), expiresAt: null, revokedAt: null,
     subjectRef: 'synthetic-l5-fixture', blobRef: `l5-fixture/${docKind}`,
     sha256: randomBytes(32), documentCiphertext: null, documentMimeType: null, documentSize: null,
@@ -274,6 +274,91 @@ async function successfulPublishFixture({ includeConsent = true, startReady = fa
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, target, job: result.rows[0], connection, idemKey,
     mediaUrl: 'https://media.example.invalid/assets/fixture.png' };
+}
+async function manualSnapchatPublishFixture() {
+  const { org, model } = await tenant();
+  const cookie = await credentialOperatorCookie(org);
+  const clientIdEnvKey = ['SNAPCHAT', 'CLIENT', 'ID'].join('_');
+  const clientSecretEnvKey = ['SNAPCHAT', 'CLIENT', 'SECRET'].join('_');
+  const originalClientId = process.env[clientIdEnvKey];
+  const originalClientSecret = process.env[clientSecretEnvKey];
+  process.env[clientIdEnvKey] = '';
+  process.env[clientSecretEnvKey] = '';
+  let connection;
+  try {
+    const authorize = await apiApp.request(`/api/v1/connectors/snapchat/authorize?modelId=${encodeURIComponent(model)}`, {
+      headers: { Cookie: cookie, Accept: 'application/json' },
+    });
+    const authorizeBody = await authorize.text();
+    assert.equal(authorize.status, 503, authorizeBody);
+    assert.match(authorizeBody, /OAuth credentials are not configured/);
+    assert.doesNotMatch(authorizeBody, /client_id|client_secret|access_token/i);
+
+    const response = await apiApp.request('/api/v1/connectors/snapchat/manual', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: 'https://l5-fixture.invalid',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
+      },
+      body: JSON.stringify({ modelId: model, username: 'synthetic.creator' }),
+    });
+    const responseBody = await response.text();
+    assert.equal(response.status, 200, responseBody);
+    const connected = JSON.parse(responseBody);
+    assert.deepEqual(Object.keys(connected).sort(), ['connectionId', 'mode', 'platform', 'status']);
+    assert.deepEqual({ status: connected.status, platform: connected.platform, mode: connected.mode }, {
+      status: 'success', platform: 'snapchat', mode: 'manual-assist',
+    });
+    assert.match(connected.connectionId, /^[0-9a-f-]{36}$/i);
+    assert.doesNotMatch(responseBody, /accessToken|refreshToken|clientSecret/i);
+
+    const connections = await scoped(org, tx => tx.select().from(schema.platformConnection)
+      .where(eq(schema.platformConnection.id, connected.connectionId)));
+    assert.equal(connections.length, 1);
+    connection = connections[0];
+    assert.equal(connection.modelId, model);
+    assert.equal(connection.platform, 'snapchat');
+    assert.equal(connection.status, 'connected');
+    assert.ok(connection.encToken.length > 0, 'Manual Snapchat metadata must use the encrypted credential envelope');
+    assert.deepEqual(connection.capabilities, ['publish', 'publish.manual_assist', 'publish.image', 'publish.video', 'publish.story']);
+
+    const resolved = await connectorForConnection(connection);
+    assert.equal(resolved.connector.publishMode, 'assisted');
+    assert.deepEqual(resolved.connector.capability().metrics, []);
+    assert.equal(resolved.connector.capability().refreshMetrics, false);
+  } finally {
+    if (originalClientId === undefined) delete process.env[clientIdEnvKey];
+    else process.env[clientIdEnvKey] = originalClientId;
+    if (originalClientSecret === undefined) delete process.env[clientSecretEnvKey];
+    else process.env[clientSecretEnvKey] = originalClientSecret;
+  }
+
+  const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID();
+  const idemKey = randomBytes(32);
+  const media = readFileSync('/app/var/media/fixture.png');
+  await scoped(org, async tx => {
+    await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
+      fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey: 'fixture.png',
+      sha256: createHash('sha256').update(media).digest() });
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      assetId: asset, state: 'approved', captions: { snapchat: 'Synthetic Snapchat manual-assist fixture.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'snapchat', score: 0, verdict: 'pass' }] } });
+    await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model, 'snapchat'));
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'snapchat', connectionId: connection.id, state: 'pending', idemKey });
+    await tx.insert(schema.job).values([
+      { id: randomUUID(), orgId: org, queue: 'media', kind: 'tos.scan', state: 'done',
+        payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1 },
+      { id: job, orgId: org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: target }, attempts: 0, maxAttempts: 1,
+        lockedBy: 'l5-worker', lockedAt: new Date() },
+    ]);
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, model, bundle, target, job: result.rows[0], connection: connection.id, idemKey };
 }
 async function localDiscordProvider(fixture, { holdResponse = false,
   webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN } = {}) {
@@ -492,6 +577,31 @@ for (const kind of Object.keys(defaultExecutors)) {
       assert.equal(records.dispatchMarkers.length, 0, 'A blocked report cannot create a provider-dispatch marker');
     });
   }
+  await check('Snapchat manual-assist connection and worker never claim automatic publication', async () => {
+    const fixture = await manualSnapchatPublishFixture();
+    assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'done');
+    const records = await publishRecords(fixture);
+    assert.equal(records.job.state, 'done');
+    assert.equal(records.target.state, 'manual_assist');
+    assert.equal(records.target.remoteId, null);
+    assert.match(records.target.error, /Human action required/);
+    assert.equal(records.ledger, null, 'Manual handoff cannot create a published idempotency outcome');
+    assert.deepEqual(records.markers.map(({ status }) => status), ['skipped']);
+    const cardWhere = and(
+      eq(schema.relayCard.orgId, fixture.org),
+      eq(schema.relayCard.bundleId, fixture.bundle),
+      eq(schema.relayCard.channel, 'manual-assist'),
+      eq(schema.relayCard.externalRef, fixture.target),
+    );
+    const cards = await scoped(fixture.org, tx => tx.select().from(schema.relayCard).where(cardWhere));
+    assert.equal(cards.length, 1, 'The worker must persist one review card for the owner');
+    assert.equal(cards[0].enabled, false);
+    assert.match(cards[0].description, /AXIOM does not claim the Story was published until you confirm it/);
+    assert.equal(cards[0].config.snapchatManualAssist.handoffUrl, 'https://www.snapchat.com/add/synthetic.creator');
+    await assert.rejects(processJob(fixture.job, defaultExecutors, 'l5-worker', {}), /lease ownership lost/);
+    assert.equal((await scoped(fixture.org, tx => tx.select().from(schema.relayCard).where(cardWhere))).length, 1,
+      'A completed assisted handoff cannot be duplicated by replay');
+  });
   await check('publish.target: expired model consent blocks provider dispatch after approval', async () => {
     const fixture = await successfulPublishFixture();
     const provider = await localDiscordProvider(fixture);

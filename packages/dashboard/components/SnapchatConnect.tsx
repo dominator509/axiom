@@ -53,7 +53,7 @@ export default function SnapchatConnect({ modelId }: { modelId: string }) {
     <form className="stack" onSubmit={event => void connectManual(event)}>
       <label>
         {t('network.snapchatUsername')}
-        <input autoComplete="off" maxLength={64} pattern="[A-Za-z0-9._-]+" required value={username} onChange={event => setUsername(event.target.value)} />
+        <input autoComplete="off" maxLength={64} pattern={"[A-Za-z0-9._\\x2d]+"} required value={username} onChange={event => setUsername(event.target.value)} />
       </label>
       <button className="btn secondary" type="submit" disabled={busy || complete || !username.trim()}>
         {busy ? t('network.snapchatConnecting') : t('network.connectSnapchatManual')}

@@ -68,8 +68,10 @@ const recordBrowserError = error => {
 };
 const check = async (label, work) => {
   currentCheck = label;
+  console.log(JSON.stringify({ event: "browser-check-start", label }));
   await work();
   results.push(label);
+  console.log(JSON.stringify({ event: "browser-check-complete", label }));
 };
 const browser = await chromium.launch({ headless: true });
 let context;
@@ -532,6 +534,17 @@ COMMIT;
       await expect(page.locator('p[role="alert"]').filter({ hasText: `${providerName} OAuth is not configured on this service` })).toBeVisible();
       await expect(page.locator('body')).not.toContainText('application/problem+json');
     }
+  });
+  await check('Snapchat connection explains and persists manual assist without claiming publication', async () => {
+    await page.goto(`/models/${ownModel}/network`);
+    await expect(page.getByText(/Automatic Story publishing and metrics require Snap Public Profile API app approval and allowlisting\. Without that approval, manual assist creates a review card and never claims a post was sent\./)).toBeVisible();
+    await page.getByLabel('Snapchat username', { exact: true }).fill('synthetic_creator');
+    const connected = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/connectors/snapchat/manual'
+      && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Connect Snapchat for manual assist', exact: true }).click();
+    expect((await connected).status()).toBe(200);
+    await expect(page.getByRole('status').filter({ hasText: 'Snapchat manual-assist connection saved.' })).toBeVisible();
+    await expect(page.getByText(/never claims a post was sent/)).toBeVisible();
   });
   await check('Telegram setup never sends a message before a destination and token are supplied', async () => {
     await page.goto(`/models/${ownModel}/network`);
