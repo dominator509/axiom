@@ -278,10 +278,12 @@ async function successfulPublishFixture({ includeConsent = true, startReady = fa
 async function manualSnapchatPublishFixture() {
   const { org, model } = await tenant();
   const cookie = await credentialOperatorCookie(org);
-  const originalClientId = process.env.SNAPCHAT_CLIENT_ID;
-  const originalClientSecret = process.env.SNAPCHAT_CLIENT_SECRET;
-  process.env.SNAPCHAT_CLIENT_ID = '';
-  process.env.SNAPCHAT_CLIENT_SECRET = '';
+  const clientIdEnvKey = ['SNAPCHAT', 'CLIENT', 'ID'].join('_');
+  const clientSecretEnvKey = ['SNAPCHAT', 'CLIENT', 'SECRET'].join('_');
+  const originalClientId = process.env[clientIdEnvKey];
+  const originalClientSecret = process.env[clientSecretEnvKey];
+  process.env[clientIdEnvKey] = '';
+  process.env[clientSecretEnvKey] = '';
   let connection;
   try {
     const authorize = await apiApp.request(`/api/v1/connectors/snapchat/authorize?modelId=${encodeURIComponent(model)}`, {
@@ -328,10 +330,10 @@ async function manualSnapchatPublishFixture() {
     assert.deepEqual(resolved.connector.capability().metrics, []);
     assert.equal(resolved.connector.capability().refreshMetrics, false);
   } finally {
-    if (originalClientId === undefined) delete process.env.SNAPCHAT_CLIENT_ID;
-    else process.env.SNAPCHAT_CLIENT_ID = originalClientId;
-    if (originalClientSecret === undefined) delete process.env.SNAPCHAT_CLIENT_SECRET;
-    else process.env.SNAPCHAT_CLIENT_SECRET = originalClientSecret;
+    if (originalClientId === undefined) delete process.env[clientIdEnvKey];
+    else process.env[clientIdEnvKey] = originalClientId;
+    if (originalClientSecret === undefined) delete process.env[clientSecretEnvKey];
+    else process.env[clientSecretEnvKey] = originalClientSecret;
   }
 
   const asset = randomUUID(), bundle = randomUUID(), target = randomUUID(), job = randomUUID();

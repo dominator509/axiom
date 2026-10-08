@@ -123,7 +123,7 @@ try {
   if (git.status !== 0 || status.status !== 0 || status.stdout.trim()) throw new Error('A clean committed source checkout is required');
   receipt.sourceSha = git.stdout.trim();
   if (!/^[a-f0-9]{40}$/.test(receipt.sourceSha)) throw new Error('Invalid source SHA');
-  // All three builds consume the same immutable tracked source, even if the
+  // All four builds consume the same immutable tracked source, even if the
   // working directory changes while a long-running dependency install runs.
   const archive = spawnSync('git', ['archive', '--format=tar', receipt.sourceSha],
     { cwd: root, maxBuffer: 128 * 1024 * 1024 });
@@ -132,7 +132,7 @@ try {
     sha256: createHash('sha256').update(archive.stdout).digest('hex') };
   const endpoint = process.env.DOCKER_HOST || JSON.parse(execute('docker-context', ['context', 'inspect']))[0].Endpoints.docker.Host;
   if (!endpoint.startsWith('npipe://') && !endpoint.startsWith('unix://')) throw new Error('Only a local Docker engine is allowed');
-  for (const [kind, file] of [['api', 'hono'], ['dashboard', 'next'], ['runner', 'browser']]) {
+  for (const [kind, file] of [['api', 'hono'], ['dashboard', 'next'], ['egress', 'rust'], ['runner', 'browser']]) {
     const tag = `${prefix}:${kind}`;
     console.log(`Building disposable ${kind} image at ${receipt.sourceSha}`);
     const args = ['build', ...labels, '-f', `infra/Dockerfile.${file}`, '-t', tag];
@@ -151,14 +151,18 @@ try {
     const runner = fixture + '-runner';
     const api = fixture + '-api';
     const dashboard = fixture + '-dashboard';
+    const egress = fixture + '-egress';
     const volume = fixture + '-database';
     const ownerPassword = secret();
     const appPassword = secret();
     const sentinel = secret();
+    const egressToken = secret();
+    const egressDek = secret();
     const ownerUrl = `postgresql://axiom:${ownerPassword}@127.0.0.1:5432/axiom_test`;
     const apiEnv = { NODE_ENV: 'production', API_HOST: '0.0.0.0',
       DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
       BETTER_AUTH_SECRET: secret(), BETTER_AUTH_URL: 'https://127.0.0.1:3443', RELAY_SECRET: secret(),
+      EGRESS_PLANE_URL: `http://${egress}:9090`, EGRESS_PLANE_TOKEN: egressToken,
       BROWSER_SECRET_SENTINEL: sentinel };
     execute('network-' + repetition, ['network', 'create', '--internal', ...labels, fixture]);
     owned.networks.add(fixture);
@@ -174,12 +178,18 @@ try {
     execute('migrate-' + repetition, ['exec', runner, 'bash', 'scripts/migrate.sh']);
     execute('runtime-role-' + repetition, ['exec', '-i', runner, 'sh', '-c', 'psql -X -q -v ON_ERROR_STOP=1 -d "$MIGRATOR_DATABASE_URL"'],
       { input: `ALTER ROLE axiom_app WITH LOGIN PASSWORD '${appPassword}';\n` });
+    start(egress, receipt.images.egress, fixture, {
+      NODE_ENV: 'production',
+      EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@${db}:5432/axiom_test`,
+      EGRESS_PLANE_TOKEN: egressToken,
+      EGRESS_DEK: egressDek,
+    });
     start(api, receipt.images.api, 'container:' + db, apiEnv);
     start(dashboard, receipt.images.dashboard, 'container:' + db, { NODE_ENV: 'production', PORT: '3000', HOSTNAME: '0.0.0.0', BROWSER_SECRET_SENTINEL: sentinel, AXIOM_BROWSER_DIAGNOSTICS: '1' });
     const wait = async () => {
       for (let attempt = 0; attempt < 60; attempt++) {
         const probe = spawnSync('docker', ['exec', runner, 'node', '-e',
-          "Promise.all(['http://127.0.0.1:3001/api/v1/ready','http://127.0.0.1:3000/login'].map(async u=>{if(!(await fetch(u)).ok)throw Error()})).catch(()=>process.exit(1))"], { stdio: 'ignore', timeout: 15000 });
+          `Promise.all(['http://127.0.0.1:3001/api/v1/ready','http://127.0.0.1:3000/login','http://${egress}:9090/health'].map(async u=>{if(!(await fetch(u)).ok)throw Error()})).catch(()=>process.exit(1))`], { stdio: 'ignore', timeout: 15000 });
         if (probe.status === 0) return;
         await delay(1000);
       }
@@ -214,7 +224,7 @@ try {
     await wait();
     if (repetition === 1) { await journey('negative-brand'); await journey('negative-cookie'); }
     await journey('configured');
-    for (const container of [dashboard, api, runner, db]) remove('containers', container);
+    for (const container of [dashboard, api, egress, runner, db]) remove('containers', container);
     remove('volumes', volume);
     remove('networks', fixture);
   }
