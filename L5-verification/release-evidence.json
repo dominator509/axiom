@@ -788,16 +788,43 @@
       }
     },
     {
+      "id": "A7",
+      "source": "L5-verification/L5.0-test-matrix.md",
+      "requirement": "| A7 | Beacon CRM account records connector | separately connect an authorized Beacon account; keep credentials encrypted and responses secret-free; discover that account's schema only using its logged-in documented API contract; synchronize only explicitly approved fields with dedicated-account readback, audit/idempotency, rate-limit handling, revoke, and cleanup; no guessed auth/endpoints/mappings, unapproved workflow-triggering writes, deletes, or Beacons.ai/link-in-bio behavior |",
+      "requirementSha256": "0b6759749324a59799bb9320a9f881f4b85cd64ca07076f8e4d123b3fd2b372c",
+      "lane": 4,
+      "status": "blocked",
+      "nextStep": "Obtain the authorized account-specific Beacon developer documentation for authentication and record endpoints plus an approved test-account field map; keep record sync unavailable until those inputs exist.",
+      "evidence": [],
+      "verification": {
+        "test": "Verify safe configured/verified/unavailable/failed states and secret-free responses; after account documentation is available, verify schema discovery, approved mapped record sync and remote readback, rate-limit handling, audit/idempotency, revoke, and cleanup. Negative controls must reject guessed endpoints, missing field maps, unauthorized access, and unapproved writes or deletes.",
+        "environment": "Dedicated authorized non-production Beacon account on an eligible plan, with credentials entered directly into the test application's encrypted secret store. CI uses synthetic schema fixtures only; no customer records or credential values.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted account-specific contract, permission, schema, readback, revocation, and cleanup evidence; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: | A7 | Beacon CRM account records connector | separately connect an authorized Beacon account; keep credentials encrypted and responses secret-free; discover that account's schema only using its logged-in documented API contract; synchronize only explicitly approved fields with dedicated-account readback, audit/idempotency, rate-limit handling, revoke, and cleanup; no guessed auth/endpoints/mappings, unapproved workflow-triggering writes, deletes, or Beacons.ai/link-in-bio behavior |; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
+    },
+    {
       "id": "FEATURE-PRESERVATION",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control) and F-91 (Patreon creator/community integration) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.",
-      "requirementSha256": "e1ccbf2a46de0c718fe4f8f5f5a81f973f6efdebae283f39c01c4010e161e598",
+      "requirement": "A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control), F-91 (Patreon creator/community integration), and F-92 (Beacon CRM account records connector) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.",
+      "requirementSha256": "655a200f15acc809c9864420d87fcf36f6b2e4386f43a3dd561622cd4cb0b27d",
       "lane": 8,
       "status": "unverified",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
       "evidence": [],
       "verification": {
-        "test": "Resolve every F-01 through F-91 row to an observable UI/API/worker route and execute its acceptance journey.",
+        "test": "Resolve every F-01 through F-92 row to an observable UI/API/worker route and execute its acceptance journey.",
         "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
         "dependencies": [
           1,
@@ -1304,6 +1331,33 @@
           "Redacted provider permission/readback evidence and verified revocation/cleanup; never credential values."
         ],
         "completionCondition": "Satisfy this exact acceptance requirement: **F-91 Patreon**: v2 OAuth/minimum scopes, campaign/member/tier/post sync, cursor/idempotency/reconciliation, signed webhook verification, truthful manual-assist/unsupported-publish UI, RLS and desktop/mobile/provider acceptance pass; no member mutation, DM, payout or unsupported analytics is implied.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+      }
+    },
+    {
+      "id": "FUNCTIONAL-12",
+      "source": "L5-verification/L5.2-acceptance-and-security-audit.md",
+      "requirement": "- [ ] **F-92 Beacon CRM account connector**: connect an authorized Beacon account with an encrypted server-side key; expose only safe connection state; use account-specific documentation for authentication and schema discovery; synchronize only explicitly approved field mappings with dedicated test-account readback, rate-limit handling, audit/idempotency, revocation and cleanup. No Beacons.ai/link-in-bio behavior, guessed endpoint or field mapping, credential disclosure, unapproved workflow-triggering writes, or record deletion is accepted.",
+      "requirementSha256": "cf97b32b14a944395d39f2c8fb0c7d7bbe3e3927f523733bb7b09ac159c80421",
+      "lane": 4,
+      "status": "blocked",
+      "nextStep": "Obtain the authorized account-specific Beacon developer documentation for authentication and record endpoints plus an approved test-account field map; keep record sync unavailable until those inputs exist.",
+      "evidence": [],
+      "verification": {
+        "test": "Connect and verify a dedicated Beacon test account; test tenant authorization, encrypted credential handling, account schema discovery, approved field mapping, record sync and remote readback, rate limits and 429 handling, audit/idempotency, disconnect, and cleanup. Reject missing documentation/mappings, credential leakage, unauthorized roles, cross-tenant access, unapproved workflow-triggering mutations, and deletes.",
+        "environment": "Dedicated authorized non-production Beacon account on an eligible plan, with credentials entered directly into the test application's encrypted secret store. CI uses synthetic schema fixtures only; no customer records or credential values.",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "requiredEvidence": [
+          "Exact tested commit SHA, exact command, environment, scope, and limitations.",
+          "Hosted CI run and job URLs plus SHA-256 of the raw job log.",
+          "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
+          "Verified cleanup for created resources and immutable image digests when containers are used.",
+          "Redacted account-specific contract, permission, schema, readback, revocation, and cleanup evidence; never credential values."
+        ],
+        "completionCondition": "Satisfy this exact acceptance requirement: - [ ] **F-92 Beacon CRM account connector**: connect an authorized Beacon account with an encrypted server-side key; expose only safe connection state; use account-specific documentation for authentication and schema discovery; synchronize only explicitly approved field mappings with dedicated test-account readback, rate-limit handling, audit/idempotency, revocation and cleanup. No Beacons.ai/link-in-bio behavior, guessed endpoint or field mapping, credential disclosure, unapproved workflow-triggering writes, or record deletion is accepted.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
       }
     },
     {
