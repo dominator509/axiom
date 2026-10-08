@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
+import { buildS2 } from '@axiom/llm-gateway';
 import { retrieveTopExemplars, retrieveCaptionGuidance } from './viral-retrieval.js';
 import { captionGuidanceReceipt } from './caption-guidance.js';
 import { embedExemplarIntent } from './embedding.js';
@@ -259,6 +260,9 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const statementWinner = await retrieveCaptionGuidance(tx, orgId, modelId, 'threads', 10, 'creator update');
       expect(statementWinner.exemplars).toHaveLength(1);
       expect(statementWinner.exemplars[0].caption).toBe(records[0].caption);
+      const firstS2 = buildS2(statementWinner.exemplars);
+      expect(firstS2).toContain(`Caption: ${records[0].caption}`);
+      expect(firstS2).not.toContain(records[3].caption);
       expect(statementWinner.selectedArm).toBe('short:statement');
       const firstPosterior = await posterior();
       const firstStatement = firstPosterior.get('short:statement');
@@ -272,6 +276,9 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const questionWinner = await retrieveCaptionGuidance(tx, orgId, modelId, 'threads', 10, 'creator update');
       expect(questionWinner.exemplars).toHaveLength(1);
       expect(questionWinner.exemplars[0].caption).toBe(records[3].caption);
+      const laterS2 = buildS2(questionWinner.exemplars);
+      expect(laterS2).toContain(`Caption: ${records[3].caption}`);
+      expect(laterS2).not.toContain(records[0].caption);
       expect(questionWinner.selectedArm).toBe('short:question');
       const secondPosterior = await posterior();
       const secondStatement = secondPosterior.get('short:statement');

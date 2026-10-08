@@ -353,6 +353,13 @@ jobs:
           pnpm typecheck && pnpm lint && pnpm build
           pnpm audit:dependencies
 
+      - name: Run focused viral-loop S2 and bandit acceptance
+        if: matrix.task == 'test'
+        env:
+          DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
+          TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
+        run: pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts
+
       - name: Rust cargo check
         if: matrix.task == 'test'
         run: |
