@@ -46,7 +46,7 @@ function incremental() {
 
 test('current register is structurally complete without implying release acceptance', () => {
   assert.equal(validate(current, expected).criteria, expected.length);
-  assert.equal(validate(current, expected).passed, 15);
+  assert.equal(validate(current, expected).passed, 16);
   assert.throws(() => validate(current, expected, { releaseSha: currentSha }));
 });
 test('exact-SHA requirements load from the pinned release commit', () => {
