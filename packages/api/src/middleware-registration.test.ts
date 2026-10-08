@@ -20,6 +20,10 @@ describe('application idempotency registration', () => {
     expect(source).toContain("app.use('/api/v1/incidents/*', incidentMutation);");
     expect(source).not.toContain("app.use('/api/v1/incidents/*', operationalMutation);");
   });
+  it('limits explicit audit integrity checks to incident-capable roles', () => {
+    expect(source).toContain("app.post('/api/v1/audit/verify', incidentMutation);");
+    expect(paths).toContain('/api/v1/audit/verify');
+  });
   it.each([
     '/api/v1/models',
     '/api/v1/models/model',

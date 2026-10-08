@@ -8,6 +8,7 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ auditLog: {} }));
+vi.mock('../crash-reporter.js', () => ({ reportAuditIntegrityIncident: vi.fn() }));
 // verifyAuditChain reads rows from the tx; with the chainable mock, the rows
 // come from mockState.result. Reuse the real helper so chain verification is
 // exercised (genesis special-case included).
@@ -18,6 +19,7 @@ vi.mock('./helpers.js', async (importOriginal) => {
 
 import { auditRouter } from './audit.js';
 import { canonical, verifyAuditChain, writeAudit } from './helpers.js';
+import { reportAuditIntegrityIncident } from '../crash-reporter.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -33,7 +35,9 @@ function appWithOrg(orgId: string | null) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   mockState.result = [];
+  vi.mocked(reportAuditIntegrityIncident).mockResolvedValue({ id: 'incident-1' });
 });
 
 afterEach(() => {
@@ -192,11 +196,84 @@ describe('GET /audit/verify — chain integrity', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.valid).toBe(false);
+    expect(reportAuditIntegrityIncident).not.toHaveBeenCalled();
+  });
+
+  it('records a durable incident only when explicit verification finds tampering', async () => {
+    mockState.result = [{
+      id: 'a1',
+      ts: new Date('2026-01-01T00:01:00Z'),
+      action: 'model.create',
+      prevHash: Buffer.alloc(32),
+      rowHash: createHash('sha256').update('tampered').digest(),
+      actorRef: 'user-1',
+      target: 'm1',
+      detail: {},
+    }];
+
+    const res = await appWithOrg(ORG_ID).request('/audit/verify', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.valid).toBe(false);
+    expect(body.incident).toEqual({ status: 'recorded' });
+    expect(reportAuditIntegrityIncident).toHaveBeenCalledWith(ORG_ID);
+  });
+
+  it('does not create an incident for a valid chain', async () => {
+    const ts = new Date('2026-01-01T00:01:00Z');
+    const prevHash = Buffer.alloc(32);
+    const payload = {
+      org_id: ORG_ID,
+      actor_ref: 'user-1',
+      action: 'model.create',
+      target: 'm1',
+      detail: {},
+      ts: ts.toISOString(),
+      prev_hash: prevHash.toString('hex'),
+    };
+    mockState.result = [{
+      id: 'a1', ts, action: payload.action, prevHash,
+      rowHash: createHash('sha256').update(canonical(payload)).digest(),
+      actorRef: payload.actor_ref, target: payload.target, detail: payload.detail,
+    }];
+
+    const res = await appWithOrg(ORG_ID).request('/audit/verify', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.valid).toBe(true);
+    expect(body.incident).toBeNull();
+    expect(reportAuditIntegrityIncident).not.toHaveBeenCalled();
+  });
+
+  it('keeps tampering visible when the incident store is unavailable', async () => {
+    mockState.result = [{
+      id: 'a1',
+      ts: new Date('2026-01-01T00:01:00Z'),
+      action: 'model.create',
+      prevHash: Buffer.alloc(32),
+      rowHash: createHash('sha256').update('tampered').digest(),
+      actorRef: 'user-1',
+      target: 'm1',
+      detail: {},
+    }];
+    vi.mocked(reportAuditIntegrityIncident).mockResolvedValue(null);
+
+    const res = await appWithOrg(ORG_ID).request('/audit/verify', { method: 'POST' });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as any;
+    expect(body.data.valid).toBe(false);
+    expect(body.incident).toEqual({ status: 'unavailable' });
   });
 
   it('rejects without org context (401)', async () => {
     const res = await appWithOrg(null).request('/audit/verify');
     expect(res.status).toBe(401);
+  });
+
+  it('rejects explicit verification without org context before incident reporting', async () => {
+    const res = await appWithOrg(null).request('/audit/verify', { method: 'POST' });
+    expect(res.status).toBe(401);
+    expect(reportAuditIntegrityIncident).not.toHaveBeenCalled();
   });
 });
 

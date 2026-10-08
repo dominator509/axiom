@@ -861,6 +861,7 @@ app.use('/api/v1/*', enforceModelAccess);
 const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');
 const incidentMutation = requireMutationRole('owner', 'manager', 'operator');
 const ownerOnly = requireRole('owner');
+app.post('/api/v1/audit/verify', incidentMutation);
 app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
 
 app.use('/api/v1/models', operationalMutation);
@@ -964,6 +965,7 @@ app.use('/api/v1/bundles', idempotency());
 app.use('/api/v1/incidents/:jobId/replay', idempotency());
 app.use('/api/v1/incidents/:jobId/discard', idempotency());
 app.use('/api/v1/incidents/report', idempotency());
+app.use('/api/v1/audit/verify', idempotency());
 app.use('/api/v1/killswitch/enable', idempotency());
 app.use('/api/v1/killswitch/disable', idempotency());
 app.use('/api/v1/kill-switch', idempotency());
