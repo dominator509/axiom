@@ -353,12 +353,34 @@
       "requirement": "| LBI-10 | Greenfield marker discipline | a satisfied step skips; marker checksum drift fails closed | build |",
       "requirementSha256": "21d6da357ffe41f030093661750f5adbe770bff2a3f23ef3ea086294aff9f5c4",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this marker acceptance on the final release SHA after all remaining code lanes are complete.",
+      "evidence": [
+        {
+          "criterion": "LBI-10",
+          "sha": "a3b7d80dd73f069804fce8169789c5052dfe1f2b",
+          "command": "node scripts/test-step-markers.mjs",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; isolated synthetic temporary files; no database, provider credentials, or external services.",
+          "scope": "Nine marker lifecycle cases including a satisfied-step skip, explicit refresh, manifest and input checksum drift rejection, malformed or missing checksum handling, path escape rejection, orphan sidecar rejection, and verified temporary-file cleanup.",
+          "limitations": "This receipt validates marker integrity and lifecycle only; it is not release approval and does not replace final-SHA verification.",
+          "observedAt": "2026-10-07T23:45:30.7557771Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37703863308",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37703863308/job/113073470472",
+          "logSha256": "f88b0953698ab31131c3a27fd0994b459ee7af50d11b6ef7cc2d4fb66a21efdf",
+          "counts": {
+            "passed": 9,
+            "failed": 0,
+            "skipped": 0,
+            "total": 9,
+            "unit": "tests"
+          },
+          "skips": [],
+          "images": []
+        }
+      ],
       "verification": {
         "test": "a satisfied step skips; marker checksum drift fails closed",
-        "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
+        "environment": "Pinned Node 22.23.3 CI runner with isolated synthetic temporary files; no database, provider credentials, or external services.",
         "dependencies": [
           1,
           2
