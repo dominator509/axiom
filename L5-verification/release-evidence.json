@@ -1770,9 +1770,36 @@
       "requirement": "- [ ] Agent `requires_approval` tools cannot publish directly; RBAC + tier enforced (LBI-04).",
       "requirementSha256": "3afd8f8c1416e75ea960c2f1b0a3b5b9988da3f58bd924e2e9ae2e94320ff875",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Rerun this acceptance at the final release SHA; this receipt does not prove external provider delivery.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-9",
+          "sha": "77874d3746583dc1a0a88ba5add737e755065a56",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-disabled Docker fixtures",
+          "scope": "Real /api/mcp requests against an isolated PostgreSQL fixture with durable synthetic grants for viewer, operator, manager, and autonomous roles. Viewer/operator and sibling-model targeting rejected; manager/autonomous publish requests stayed pending_approval; only ToS scan jobs were created, with no post targets or publish dispatch jobs; all five requests appeared in the valid audit chain. Two repetitions, 50 assertions each.",
+          "limitations": "Synthetic isolated CI fixtures only. No external provider dispatch, live credentials, production/shared database, or owner infrastructure. This verifies the MCP agent approval/RBAC boundary only.",
+          "observedAt": "2026-10-08T03:59:18Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37724769111",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37724769111/job/113140314638",
+          "logSha256": "79e2af2215d6293026425c13e2385ef9ba8f819cd40f4917a620e509b86f8668",
+          "counts": {
+            "passed": 100,
+            "failed": 0,
+            "skipped": 0,
+            "total": 100,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:b3588ef3eb2a48d02500d8ba6c22c569087cc03946485fbd2b74990885ab1ee9",
+            "sha256:fae91d47c36a8e21c187e358a59e36271fd2761698a4b6f2a2f8ce9c7b3fcc74",
+            "sha256:61c3c0a9292268dfc1d44d741434a2cd3c9231a2c2cc357e85bdf661ca0ceb9d",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Attempt direct publish through every approval-required agent tool and unauthorized role; assert rejection and audit evidence.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
