@@ -85,6 +85,15 @@ The same isolated command reported **20 passed/0 failed/0 skipped**, `cleanup: t
 and the pinned Timescale image. The register preserves both hosted receipts and
 the latest job-log digest. This refresh is not the planned final-release-SHA replay.
 
+The current-main rehearsal ran at source SHA
+`d29d9064e4c212bb563cab2db1b6c959544070a7`: [CI run 37852118351](https://github.com/dominator509/axiom/actions/runs/37852118351),
+[test job 113567314237](https://github.com/dominator509/axiom/actions/runs/37852118351/job/113567314237).
+The exact isolated command again reported **20 passed/0 failed/0 skipped**,
+`cleanup: true`, using the pinned Timescale image. The raw job-log SHA-256 is
+`9d98955386b983ce11d0182b59e67f97f59b9beaa8af5804657d495f3e05cf48`. This receipt
+is on the pre-lane-2 current main SHA; final-release-SHA replay and deployed
+database state remain open.
+
 ## Limits
 
 Catalog flags and policy composition do not prove arbitrary policy-expression
