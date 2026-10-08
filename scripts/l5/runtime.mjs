@@ -14,6 +14,7 @@ import { CommandRouter } from '@axiom/relay';
 import { createCapabilityTokenWithMetadata, Tier } from '@axiom/mcp-server';
 import apiApp, { createRelayApp } from './dist/index.js';
 import { encryptOAuthCredentials, decryptOAuthCredentials } from './dist/routes/oauth-connection.js';
+import { auditRouter } from './dist/routes/audit.js';
 import { bundlesRouter } from './dist/routes/bundles.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
@@ -55,6 +56,16 @@ const scoped = (org, operation) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${org}, true)`);
   return operation(tx);
 });
+function auditVerifier(org) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    c.set('orgId', org);
+    c.set('userId', 'l5-audit-operator');
+    await next();
+  });
+  app.route('/', auditRouter);
+  return app;
+}
 async function tenant() {
   const org = randomUUID(), model = randomUUID();
   await admin.query('INSERT INTO org(id,name,slug) VALUES($1,$2,$3)', [org, 'Owned L5 fixture', org]);
@@ -1267,6 +1278,17 @@ for (const kind of Object.keys(defaultExecutors)) {
       // Only this new disposable tenant is altered by its fixture owner.
       await admin.query('UPDATE audit_log SET detail=detail || $2::jsonb WHERE org_id=$1', [org, JSON.stringify(detail)]);
       assert.equal((await scoped(org, tx => verifyAuditChain(tx, org))).valid, false);
+      const response = await auditVerifier(org).request('/audit/verify', { method: 'POST' });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.data.valid, false);
+      assert.deepEqual(result.incident, { status: 'recorded' });
+      const incidents = await scoped(org, tx => tx.select().from(schema.crashReport));
+      assert.equal(incidents.length, 1);
+      assert.equal(incidents[0].severity, 'sev-1');
+      assert.equal(incidents[0].status, 'open');
+      assert.equal(incidents[0].service, 'api');
+      assert.equal(incidents[0].message, 'Audit log integrity verification failed; tampering detected.');
     });
   }
   for (const verb of ['UPDATE', 'DELETE']) {

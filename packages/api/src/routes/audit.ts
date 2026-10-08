@@ -8,6 +8,7 @@ import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, verifyAuditChain, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { reportAuditIntegrityIncident } from '../crash-reporter.js';
 
 const router = new Hono<AppBindings>();
 
@@ -48,6 +49,23 @@ router.get('/audit/verify', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const result = await withOrgContext(orgId, (tx) => verifyAuditChain(tx, orgId));
   return c.json({ data: result });
+});
+
+// POST /audit/verify — explicitly verify and record tampering outside the
+// audit chain, which cannot be trusted once its integrity check fails.
+router.post('/audit/verify', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const result = await withOrgContext(orgId, (tx) => verifyAuditChain(tx, orgId));
+  if (result.valid) return c.json({ data: result, incident: null });
+
+  try {
+    const incident = await reportAuditIntegrityIncident(orgId);
+    if (incident) return c.json({ data: result, incident: { status: 'recorded' } });
+  } catch {
+    // Keep the tamper result visible without leaking database diagnostics.
+  }
+  return c.json({ data: result, incident: { status: 'unavailable' } }, 503);
 });
 
 export { router as auditRouter };

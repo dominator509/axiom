@@ -186,6 +186,23 @@ export async function recordCrashReport(
   });
 }
 
+/** Persist audit-chain tampering as a redacted, tenant-scoped security incident. */
+export async function reportAuditIntegrityIncident(
+  orgId: string,
+): Promise<StoredCrashReport | null> {
+  return recordCrashReport({
+    orgId,
+    eventId: randomUUID(),
+    service: 'api',
+    release: process.env.AXIOM_RELEASE ?? 'unknown',
+    environment: process.env.NODE_ENV ?? 'production',
+    message: 'Audit log integrity verification failed; tampering detected.',
+    stacktrace: [],
+    severity: 'sev-1',
+    fingerprint: 'audit-chain-integrity-v1',
+  });
+}
+
 /** Capture an unhandled authenticated API request failure without masking it. */
 export async function captureUnhandledApiError(
   orgId: string | undefined,
