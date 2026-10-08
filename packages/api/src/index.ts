@@ -753,8 +753,10 @@ app.route('/affiliate', publicPlatformAffiliateRouter);
 // move between pages. Give that read-only endpoint the ordinary API budget,
 // while keeping credential-changing and other auth operations on the stricter
 // password/account-processing budget.
+// Cookie-authenticated session reads use the same 180-request navigation burst as protected REST.
+// API-key and anonymous traffic keep the base budget; auth mutations stay at 20 requests, refilling at 1/sec.
 const authRequestRateLimit = rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 });
-const authSessionReadRateLimit = rateLimit({ capacity: 60, refillPerSec: 5, maxBuckets: 100_000 });
+const authSessionReadRateLimit = rateLimit({ capacity: 60, sessionCapacity: 180, refillPerSec: 5, maxBuckets: 100_000 });
 app.use('/api/auth/*', (c, next) => {
   const isSessionRead = c.req.method === 'GET' && c.req.path === '/api/auth/get-session';
   return (isSessionRead ? authSessionReadRateLimit : authRequestRateLimit)(c, next);

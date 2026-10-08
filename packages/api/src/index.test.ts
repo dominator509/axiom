@@ -1,6 +1,7 @@
 // ─── @axiom/api app wiring — Vitest Suite ───
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import * as database from '@axiom/db';
+import { randomUUID } from 'node:crypto';
 
 // The api index mounts the fanvue auth router which reads env at load time.
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
@@ -73,6 +74,13 @@ describe('better-auth mounted at /api/auth/*', () => {
       const response = await app.request('/api/auth/get-session', { headers });
       expect([200, 401]).toContain(response.status);
     }
+  });
+
+  it('allows cookie-authenticated session fan-out up to the protected REST navigation budget', async () => {
+    const headers = { Cookie: 'axiom.session_token=' + randomUUID() };
+    const responses = await Promise.all(Array.from({ length: 120 }, () =>
+      app.request('/api/auth/get-session', { headers })));
+    expect(responses.every(response => [200, 401].includes(response.status))).toBe(true);
   });
 
   it('keeps strict rate limits on auth mutations', async () => {
