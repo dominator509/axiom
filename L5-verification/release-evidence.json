@@ -1865,9 +1865,31 @@
       "requirement": "- [ ] Audit log hash chain verifies; tamper detectable (LBI-06).",
       "requirementSha256": "41bb1cb567ba15755c474c084039689bd7992f4934b88e5a57b947ff519d0d60",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat on the final release SHA; real on-call paging and production incident delivery remain separate acceptance.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-5",
+          "sha": "e8c1e228fd3a4bd304c0c2685e2320718f7cf0db",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; two network-disabled disposable Docker/PostgreSQL/model fixture repetitions with synthetic data and no provider credentials.",
+          "scope": "108 passed checks, including two 52-check runtime repetitions; the audit chain round-trip passed, and three disposable detail tamper mutations were rejected. The explicit POST /audit/verify returned valid=false and persisted an open sev-1 crash_report outside the corrupted audit chain; GET verification remained read-only. cleanup=true.",
+          "limitations": "Isolated fixture only; this proves durable internal incident recording, not real on-call paging, production incident retention, or external provider behavior.",
+          "observedAt": "2026-10-08T19:34:44Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37830118381",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37830118381/job/113492980037",
+          "logSha256": "72d541c1b1439db89627235e420af352f8b3b393ad90ac1284b7b9afbbfe5730",
+          "counts": { "passed": 108, "failed": 0, "skipped": 0, "total": 108, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:ccbdf63a224a1af561e88c616def939c3e0e28028b88bad975c13d7cfc8df4b5",
+            "sha256:efeb1bfc6dfd74711c2e901d12aa929e907032e8283df136e84fd1f850cc9470",
+            "sha256:e8b0f540a35a162bf036d7904232a489650c0a0b5ac4569aec1a2f05cc4acaf2",
+            "sha256:fa5a22d89688b9f79bdace7ac10de16a554f324f69ac3e0b6bcab4c1c32b8ad9",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Verify the audit chain end to end, alter a disposable audit row, and assert tamper detection and incident handling.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
