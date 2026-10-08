@@ -68,8 +68,10 @@ const recordBrowserError = error => {
 };
 const check = async (label, work) => {
   currentCheck = label;
+  console.log(JSON.stringify({ event: "browser-check-start", label }));
   await work();
   results.push(label);
+  console.log(JSON.stringify({ event: "browser-check-complete", label }));
 };
 const browser = await chromium.launch({ headless: true });
 let context;
