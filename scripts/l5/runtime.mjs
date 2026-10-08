@@ -11,7 +11,8 @@ import { createConnector } from '@axiom/connectors';
 import { sql, eq, and } from 'drizzle-orm';
 import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
-import { createRelayApp } from './dist/index.js';
+import { createCapabilityTokenWithMetadata, Tier } from '@axiom/mcp-server';
+import apiApp, { createRelayApp } from './dist/index.js';
 import { bundlesRouter } from './dist/routes/bundles.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
@@ -871,6 +872,104 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0);
     assert.equal(records.audit.rows, 1);
     assert.equal(records.audit.valid, true);
+  });
+  await check('MCP publishing enforces tier and waits for human approval without dispatch', async () => {
+    const fixture = await tenant();
+    const otherModel = randomUUID();
+    await admin.query('INSERT INTO model_profile(id,org_id,display_name,handle) VALUES($1,$2,$3,$4)',
+      [otherModel, fixture.org, 'Synthetic sibling talent', otherModel]);
+
+    async function issueMcpToken(tier) {
+      const agentRef = `l5-${tier}-${randomUUID()}`;
+      const permissionId = randomUUID();
+      const issued = createCapabilityTokenWithMetadata(fixture.model, tier, agentRef);
+      await scoped(fixture.org, async tx => {
+        await tx.insert(schema.agentPermission).values({
+          id: permissionId,
+          orgId: fixture.org,
+          modelId: fixture.model,
+          agentRef,
+          tier,
+          canPublish: tier === Tier.Manager || tier === Tier.Autonomous,
+        });
+        await tx.insert(schema.mcpCapabilityToken).values({
+          tokenId: issued.tokenId,
+          orgId: fixture.org,
+          permissionId,
+          modelId: fixture.model,
+          agentRef,
+          tier,
+          expiresAt: new Date(issued.expiresAt),
+        });
+      });
+      return issued.token;
+    }
+
+    async function callPublishingTool(token, modelId = fixture.model) {
+      const response = await apiApp.request('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: randomUUID(),
+          method: 'tools/call',
+          params: {
+            name: 'publishing_post',
+            arguments: {
+              modelId,
+              action: 'publish',
+              post: { platform: 'x', text: 'Synthetic approval-boundary fixture.' },
+            },
+          },
+        }),
+      });
+      assert.equal(response.status, 200, 'authenticated MCP tool calls use the JSON-RPC transport');
+      return response.json();
+    }
+
+    for (const tier of [Tier.Viewer, Tier.Operator]) {
+      const token = await issueMcpToken(tier);
+      const denied = await callPublishingTool(token);
+      assert.equal(denied.result?.isError, true, `${tier} cannot invoke publishing_post`);
+      assert.equal(denied.result?.content?.[0]?.text,
+        'Tool call failed. Check the AXIOM dashboard for status.', 'denial response hides internal permission details');
+    }
+
+    const managerToken = await issueMcpToken(Tier.Manager);
+    const crossModel = await callPublishingTool(managerToken, otherModel);
+    assert.equal(crossModel.result?.isError, true, 'a model-scoped token cannot target a sibling model');
+    assert.equal(crossModel.result?.content?.[0]?.text,
+      'Tool call failed. Check the AXIOM dashboard for status.', 'model-scope denial hides internal identifiers');
+
+    const bundleIds = [];
+    for (const tier of [Tier.Manager, Tier.Autonomous]) {
+      const token = tier === Tier.Manager ? managerToken : await issueMcpToken(tier);
+      const accepted = await callPublishingTool(token);
+      assert.equal(accepted.result?.isError, false, `${tier} may request publication`);
+      const result = JSON.parse(accepted.result.content[0].text);
+      assert.equal(result.requiresApproval, true);
+      assert.equal(result.status, 'pending_approval');
+      assert.equal(result.action, 'publish');
+      bundleIds.push(result.bundleId);
+    }
+
+    const records = await scoped(fixture.org, async tx => ({
+      bundles: await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.orgId, fixture.org)),
+      targets: await tx.select().from(schema.postTarget).where(eq(schema.postTarget.modelId, fixture.model)),
+      jobs: await tx.select().from(schema.job).where(eq(schema.job.orgId, fixture.org)),
+      audit: await verifyAuditChain(tx, fixture.org),
+    }));
+    assert.deepEqual(records.bundles.map(bundle => bundle.id).sort(), bundleIds.sort());
+    assert.ok(records.bundles.every(bundle => bundle.state === 'generated'
+      && bundle.publishIntent?.action === 'publish'), 'approved-tier requests remain generated and unapproved');
+    assert.equal(records.targets.length, 0, 'agent requests must not create post targets');
+    assert.equal(records.jobs.filter(job => job.kind === 'publish.target').length, 0,
+      'agent requests must not enqueue external dispatch');
+    assert.equal(records.jobs.filter(job => job.kind === 'tos.scan').length, 2,
+      'each request only schedules the required ToS scan');
+    assert.equal(records.jobs.length, 2, 'no other jobs are created by an agent publishing request');
+    assert.equal(records.audit.rows, 5, 'all denied, model-mismatched, and approved requests are audited');
+    assert.equal(records.audit.valid, true, 'MCP authorization audit chain remains valid');
   });
   await check('Relay metrics ingest is authenticated, durable, and never queues publishing', async () => {
     const fixture = await viralIngestFixture();
