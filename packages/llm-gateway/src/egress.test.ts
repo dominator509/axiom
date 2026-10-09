@@ -14,7 +14,6 @@ vi.mock('undici', async (importOriginal) => {
     fetch: (...args: unknown[]) => undiciFetchMock(...args),
   };
 });
-
 // The module reads EGRESS_PLANE_URL at import time — use a fresh module
 // registry per test so env changes apply.
 async function loadEgress(planeUrl?: string) {
@@ -61,7 +60,7 @@ describe('resolveEgressBinding', () => {
       ) as unknown as typeof fetch;
     const { resolveEgressBinding } = await loadEgress();
     const binding = await resolveEgressBinding('gpt-4o');
-    expect(binding).toEqual({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' });
+    expect(binding).toEqual({ kind: 'proxy', modelId: 'gpt-4o', proxyUrl: 'http://10.77.0.2:8080' });
   });
 
   it('returns direct only for an explicitly healthy direct binding', async () => {
@@ -71,7 +70,7 @@ describe('resolveEgressBinding', () => {
         statusBody([{ model_id: 'gpt-4o', mode: 'direct', healthy: true }]),
       ) as unknown as typeof fetch;
     const { resolveEgressBinding } = await loadEgress();
-    expect(await resolveEgressBinding('gpt-4o')).toEqual({ kind: 'direct' });
+    expect(await resolveEgressBinding('gpt-4o')).toEqual({ kind: 'direct', modelId: 'gpt-4o' });
   });
 
   it('returns null for a model that is bound but unhealthy', async () => {
@@ -120,10 +119,12 @@ describe('resolveEgressBinding', () => {
     const { resolveEgressBinding } = await loadEgress();
     expect(await resolveEgressBinding('gpt-4o')).toEqual({
       kind: 'proxy',
+      modelId: 'gpt-4o',
       proxyUrl: 'http://10.77.0.2:8080',
     });
     expect(await resolveEgressBinding('gpt-4o')).toEqual({
       kind: 'proxy',
+      modelId: 'gpt-4o',
       proxyUrl: 'http://10.77.0.2:8080',
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -250,5 +251,33 @@ describe('buildEgressFetch', () => {
     expect(() => assertEgressFetchCaller(env, {
       platform: 'linux', stat: (path) => path === expectedPath ? { dev: 4, ino: 4026533001 } : { dev: 4, ino: 4026532001 },
     })).toThrow('Egress fetch caller is not running in its assigned network namespace');
+  });
+
+  it('rejects an egress binding owned by a different model than the confined runner', async () => {
+    const { assertEgressFetchCaller } = await loadEgress();
+    const runnerModelId = '11111111-1111-4111-8111-111111111111';
+    const otherModelId = '22222222-2222-4222-8222-222222222222';
+    const env = {
+      AXIOM_EGRESS_CONFINEMENT_REQUIRED: '1',
+      AXIOM_EGRESS_RUNNER: '1',
+      WORKER_EGRESS_MODEL_ID: runnerModelId,
+    };
+    const bindingOptions: Parameters<typeof assertEgressFetchCaller>[1] = {
+      platform: 'linux',
+      stat: () => ({ dev: 4, ino: 4026533001 }),
+      bindingModelId: otherModelId,
+    };
+
+    expect(() => assertEgressFetchCaller(env, {
+      ...bindingOptions,
+      bindingModelId: runnerModelId,
+    })).not.toThrow();
+    expect(() => assertEgressFetchCaller(env, {
+      ...bindingOptions,
+      bindingModelId: undefined,
+    })).toThrow('Egress binding model does not match the assigned worker model');
+    expect(() => assertEgressFetchCaller(env, bindingOptions)).toThrow(
+      'Egress binding model does not match the assigned worker model',
+    );
   });
 });

@@ -4,7 +4,11 @@ import { readFileSync, statSync } from 'node:fs';
 import { assertEgressFetchCaller, buildEgressFetch } from '/app/packages/llm-gateway/dist/egress.js';
 
 const mode = process.argv[2];
-assert.ok(['matching-runner', 'host-reject', 'proxy-positive', 'proxy-disable', 'proxy-outage'].includes(mode), 'probe mode is required');
+assert.ok(
+  ['matching-runner', 'host-reject', 'binding-mismatch', 'proxy-positive', 'proxy-disable', 'proxy-outage']
+    .includes(mode),
+  'probe mode is required',
+);
 
 const modelId = process.env.WORKER_EGRESS_MODEL_ID;
 assert.match(modelId ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
@@ -76,7 +80,7 @@ const targetUrl = 'http://127.0.0.1:18991/permitted';
 const proxyUrl = 'http://127.0.0.1:18992';
 
 if (mode === 'matching-runner') {
-  const egressFetch = buildEgressFetch({ kind: 'direct' });
+  const egressFetch = buildEgressFetch({ kind: 'direct', modelId });
   let response;
   let lastError;
   for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -95,8 +99,20 @@ if (mode === 'matching-runner') {
   process.exit(0);
 }
 
+if (mode === 'binding-mismatch') {
+  const otherModelId = modelId === '11111111-1111-4111-8111-111111111111'
+    ? '22222222-2222-4222-8222-222222222222'
+    : '11111111-1111-4111-8111-111111111111';
+  assert.throws(
+    () => buildEgressFetch({ kind: 'proxy', modelId: otherModelId, proxyUrl }),
+    /Egress binding model does not match the assigned worker model/,
+  );
+  console.log('ASSERT_CROSS_MODEL_BINDING_REJECT PASS');
+  process.exit(0);
+}
+
 if (mode === 'proxy-positive') {
-  const proxyFetch = buildEgressFetch({ kind: 'proxy', proxyUrl });
+  const proxyFetch = buildEgressFetch({ kind: 'proxy', modelId, proxyUrl });
   const response = await proxyFetch(targetUrl, { signal: AbortSignal.timeout(1000) });
   assert.equal(response.status, 200);
   assert.equal(await response.text(), 'model-namespace-canary');
@@ -118,7 +134,7 @@ if (mode === 'proxy-disable') {
 }
 
 if (mode === 'proxy-outage') {
-  const proxyFetch = buildEgressFetch({ kind: 'proxy', proxyUrl });
+  const proxyFetch = buildEgressFetch({ kind: 'proxy', modelId, proxyUrl });
   await assert.rejects(
     proxyFetch(targetUrl, { signal: AbortSignal.timeout(1000) }),
     'proxy outage must reject the request',

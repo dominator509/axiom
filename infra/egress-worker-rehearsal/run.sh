@@ -51,6 +51,7 @@ env -i PATH="$PATH" HOME=/tmp $COMMON_ENV \
 # Stopping the model proxy is the controlled network fault: the real Undici
 # ProxyAgent must fail without reaching the target directly.
 run_namespace_probe matching-runner
+run_namespace_probe binding-mismatch
 run_namespace_probe proxy-positive
 run_namespace_probe proxy-disable
 run_namespace_probe proxy-outage
