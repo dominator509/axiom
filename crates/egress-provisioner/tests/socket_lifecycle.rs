@@ -75,7 +75,8 @@ fn call(socket: &Path, child: &mut Child, request: &Request) -> Response {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    let line = String::from_utf8_lossy(&output.stdout)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout
         .lines()
         .find_map(|line| line.strip_prefix("AXIOM_SOCKET_RESPONSE="))
         .expect("unprivileged socket client must return one response");
