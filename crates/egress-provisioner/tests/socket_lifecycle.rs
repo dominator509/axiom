@@ -81,7 +81,7 @@ fn call(socket: &Path, child: &mut Child, request: &Request) -> Response {
 
 fn assert_root_peer_rejected(socket: &Path, child: &mut Child) {
     wait_for_socket(socket, child);
-    let stream = UnixStream::connect(socket).unwrap();
+    let mut stream = UnixStream::connect(socket).unwrap();
     let mut response = String::new();
     stream.read_to_string(&mut response).unwrap();
     assert!(
