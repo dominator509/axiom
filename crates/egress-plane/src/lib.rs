@@ -21,6 +21,7 @@ pub mod health;
 pub mod killswitch;
 pub mod metrics;
 pub mod netns;
+pub mod provisioner_protocol;
 pub mod proxy;
 pub mod tunnel;
 
