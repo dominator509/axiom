@@ -6,8 +6,8 @@ use egress_provisioner::{
     PROTOCOL,
 };
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::fs::MetadataExt;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -35,10 +35,11 @@ fn request(action: Action, model_id: &str, nonce: &str) -> Request {
     }
 }
 
-fn connect(socket: &Path, child: &mut Child) -> UnixStream {
+fn wait_for_socket(socket: &Path, child: &mut Child) {
     for _ in 0..100 {
-        if let Ok(stream) = UnixStream::connect(socket) {
-            return stream;
+        if socket.exists() {
+            fs::set_permissions(socket, fs::Permissions::from_mode(0o660)).unwrap();
+            return;
         }
         if let Some(status) = child.try_wait().unwrap() {
             panic!("provisioner exited before accepting the local socket: {status}");
@@ -49,15 +50,68 @@ fn connect(socket: &Path, child: &mut Child) -> UnixStream {
 }
 
 fn call(socket: &Path, child: &mut Child, request: &Request) -> Response {
-    let mut stream = connect(socket, child);
+    wait_for_socket(socket, child);
+    let output = Command::new("setpriv")
+        .args(["--reuid=65534", "--regid=0", "--clear-groups", "--"])
+        .arg(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "unprivileged_socket_client_helper",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("AXIOM_EGRESS_SOCKET_HELPER", "1")
+        .env("AXIOM_EGRESS_SOCKET_PATH", socket)
+        .env(
+            "AXIOM_EGRESS_SOCKET_REQUEST",
+            serde_json::to_string(request).unwrap(),
+        )
+        .output()
+        .expect("setpriv must launch the unprivileged socket client");
+    if !output.status.success() {
+        panic!(
+            "unprivileged socket client failed: {}; {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let line = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("AXIOM_SOCKET_RESPONSE="))
+        .expect("unprivileged socket client must return one response");
+    let response: Result<Response, String> = serde_json::from_str(line).unwrap();
+    response.unwrap_or_else(|error| panic!("provisioner rejected signed socket request: {error}"))
+}
+
+#[test]
+fn unprivileged_socket_client_helper() {
+    if std::env::var_os("AXIOM_EGRESS_SOCKET_HELPER").is_none() {
+        return;
+    }
+    let socket = std::env::var_os("AXIOM_EGRESS_SOCKET_PATH").expect("socket path must be set");
+    let request = std::env::var("AXIOM_EGRESS_SOCKET_REQUEST").expect("request must be set");
+    let mut stream =
+        UnixStream::connect(socket).expect("control socket must be accessible to its group");
+    stream.write_all(format!("{request}\n").as_bytes()).unwrap();
+    stream.flush().unwrap();
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line).unwrap();
+    println!("AXIOM_SOCKET_RESPONSE={}", line.trim());
+}
+
+fn assert_root_peer_rejected(socket: &Path, child: &mut Child, request: &Request) {
+    wait_for_socket(socket, child);
+    let mut stream = UnixStream::connect(socket).unwrap();
     stream
         .write_all(format!("{}\n", serde_json::to_string(request).unwrap()).as_bytes())
         .unwrap();
     stream.flush().unwrap();
-    let mut line = String::new();
-    BufReader::new(stream).read_line(&mut line).unwrap();
-    let response: Result<Response, String> = serde_json::from_str(&line).unwrap();
-    response.unwrap_or_else(|error| panic!("provisioner rejected signed socket request: {error}"))
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(
+        response.is_empty(),
+        "root peer received a provisioner response"
+    );
 }
 
 #[test]
@@ -72,11 +126,10 @@ fn signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace() {
     let state_file = std::env::temp_dir().join(format!("axiom-state-{suffix}.json"));
     let model_id = format!("socket_model_{suffix}");
     let _ = fs::remove_file(&socket);
-    let uid = fs::metadata("/proc/self").unwrap().uid().to_string();
     let mut child = Command::new(env!("CARGO_BIN_EXE_egress-provisioner"))
         .args(["--socket", socket.to_str().unwrap()])
         .env("AXIOM_EGRESS_LEASE_KEY", KEY)
-        .env("AXIOM_EGRESS_CONTROL_UID", uid)
+        .env("AXIOM_EGRESS_CONTROL_UID", "65534")
         .env("AXIOM_EGRESS_RUNTIME_MODE", "isolated-direct")
         .env(
             "AXIOM_EGRESS_SIDECAR_BIN",
@@ -87,11 +140,16 @@ fn signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace() {
         .env("AXIOM_EGRESS_STATE_FILE", &state_file)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::inherit())
         .spawn()
         .unwrap();
 
     let result = (|| {
+        assert_root_peer_rejected(
+            &socket,
+            &mut child,
+            &request(Action::Create, &model_id, "root_peer_create_0001"),
+        );
         assert_eq!(
             call(
                 &socket,
@@ -139,11 +197,10 @@ fn signed_socket_bind_starts_non_root_sidecar_and_releases_exact_resources() {
     let model_id = format!("socket_bind_{suffix}");
     let _ = fs::remove_file(&socket);
     let _ = fs::remove_file(&state_file);
-    let uid = fs::metadata("/proc/self").unwrap().uid().to_string();
     let mut child = Command::new(env!("CARGO_BIN_EXE_egress-provisioner"))
         .args(["--socket", socket.to_str().unwrap()])
         .env("AXIOM_EGRESS_LEASE_KEY", KEY)
-        .env("AXIOM_EGRESS_CONTROL_UID", uid)
+        .env("AXIOM_EGRESS_CONTROL_UID", "65534")
         .env("AXIOM_EGRESS_RUNTIME_MODE", "isolated-direct")
         .env(
             "AXIOM_EGRESS_SIDECAR_BIN",
@@ -154,7 +211,7 @@ fn signed_socket_bind_starts_non_root_sidecar_and_releases_exact_resources() {
         .env("AXIOM_EGRESS_STATE_FILE", &state_file)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::inherit())
         .spawn()
         .unwrap();
 

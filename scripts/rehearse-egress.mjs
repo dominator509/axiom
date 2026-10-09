@@ -119,10 +119,11 @@ try {
   if (builtImage.Config.Labels?.[label] !== id) throw new Error('rehearsal image ownership mismatch');
   receipt.imageId = builtImage.Id;
   // SYS_ADMIN is needed by ip netns add/exec (mount + setns). It is granted
-  // ONLY inside this disposable container, never to a host-network service.
+  // KILL is needed only to simulate a non-root sidecar crash in the watchdog test.
+  // These capabilities exist ONLY inside this disposable container.
   run(['create', '--name', name, '--label', `${label}=${id}`,
     '--network', 'none', '--cap-drop', 'ALL', '--cap-add', 'NET_ADMIN', '--cap-add', 'SYS_ADMIN', '--cap-add', 'SETPCAP',
-    '--cap-add', 'SETUID', '--cap-add', 'SETGID',
+    '--cap-add', 'SETUID', '--cap-add', 'SETGID', '--cap-add', 'KILL',
     '--security-opt', 'no-new-privileges', '--security-opt', 'apparmor=unconfined',
     '--pids-limit', '256', '--memory', '3g', '--cpus', '2', '--tmpfs', '/run', image]);
   const inspect = JSON.parse(run(['inspect', name], { capture: true }).stdout)[0];
@@ -142,7 +143,7 @@ try {
   // receipt must accept either spelling while still requiring a successful
   // result for the exact final test identifier.
   const missingTests = requiredTests.filter(test => !new RegExp(`^test (?:[A-Za-z0-9_:]+::)*${test} \\.{3} ok$`, 'm').test(testOutput));
-  const suites = [...testOutput.matchAll(/test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out\./g)];
+  const suites = [...testOutput.matchAll(/test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out(?=;|\s|$)/g)];
   const summary = suites.reduce((total, suite) => ({
     passed: total.passed + Number(suite[2]),
     failed: total.failed + Number(suite[3]),
