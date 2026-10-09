@@ -1,13 +1,21 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
 // This is deliberately a source-only, network-none fixture. It has no host
 // mounts, Docker socket, published ports, provider credentials, or database.
 if (process.argv[2] !== '--isolated-fixture') throw new Error('Use --isolated-fixture');
 const root = resolve(import.meta.dirname, '..');
+const testedSha = process.env.TESTED_SHA
+  ?? execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+if (!/^[a-f0-9]{40}$/i.test(testedSha)) throw new Error('TESTED_SHA must identify the exact 40-character tested commit');
+const gatewayRequire = createRequire(join(root, 'packages', 'llm-gateway', 'package.json'));
+const undiciRoot = dirname(gatewayRequire.resolve('undici'));
+if (!undiciRoot.startsWith(`${root}${sep}`)) throw new Error('Resolved undici dependency escaped the workspace');
+const undiciVersion = JSON.parse(readFileSync(join(undiciRoot, 'package.json'), 'utf8')).version;
 const id = randomUUID();
 const name = `axiom-egress-worker-runtime-${id}`;
 const image = `axiom-egress-worker-runtime:${id}`;
@@ -15,7 +23,7 @@ const label = 'axiom.egress-worker-runtime';
 const evidence = join(root, 'var', 'egress-worker-runtime-rehearsal', id);
 const receiptPath = join(evidence, 'receipt.json');
 mkdirSync(evidence, { recursive: true });
-const context = mkdtempSync(join(tmpdir(), 'axiom-egress-worker-source-'));
+let context = null;
 
 const run = (args, { capture = false, allowFailure = false } = {}) => {
   const result = spawnSync('docker', args, {
@@ -28,14 +36,21 @@ const run = (args, { capture = false, allowFailure = false } = {}) => {
 const hashes = {};
 const requiredMarkers = [
   'EGRESS_RUNTIME_CANARY_READY', 'ASSERT_UNPRIVILEGED_CAPS PASS', 'ASSERT_UNSHARE_DENIED PASS',
-  'ASSERT_HOST_NAMESPACE_REJECT PASS', 'ASSERT_HOST_LOOPBACK_UNREACHABLE PASS',
+  'ASSERT_NO_DEFAULT_ROUTE PASS', 'ASSERT_HOST_NAMESPACE_REJECT PASS', 'ASSERT_HOST_LOOPBACK_UNREACHABLE PASS',
   'ASSERT_NAMESPACE_MATCH PASS', 'ASSERT_MATCHING_RUNNER_FETCH PASS',
 ];
+const plannedChecks = 8 + requiredMarkers.length + 1;
 const receipt = {
-  id, imageId: null, network: 'none', privileged: false, hostMounts: false,
+  id, testedSha, environment: { node: process.versions.node, platform: process.platform, arch: process.arch },
+  dependencyVersions: { undici: undiciVersion },
+  imageId: null, network: 'none', privileged: false, hostMounts: false,
   capabilities: [], exitCode: null, hashes, requiredMarkers, missingMarkers: [],
+  assertionCount: plannedChecks,
+  assertions: { isolation: null, markers: null, containerExitedZero: null },
+  counts: { total: plannedChecks, passed: 0, failed: 0, skipped: plannedChecks },
+  testOutputSha256: null,
   productionAcceptance: false,
-  scope: 'Docker-only Node namespace caller-boundary rehearsal; no target systemd, provider, tunnel, DNS, proxy rotation, or host policy acceptance.',
+  scope: 'Docker-only Node namespace caller-boundary rehearsal; asserts no namespace default route and no host namespace fallback. No target systemd, provider, tunnel, DNS, proxy rotation, or host policy acceptance.',
   status: 'running',
   cleanup: { containerRemoved: false, imageRemoved: false, sourceContextRemoved: false, verified: false },
 };
@@ -56,6 +71,7 @@ const hashTree = (directory, prefix = '') => {
 };
 
 try {
+  context = mkdtempSync(join(tmpdir(), 'axiom-egress-worker-source-'));
   // The caller must compile these artifacts before invoking this fixture. The
   // relevant TypeScript sources travel alongside them so the receipt binds the
   // Docker execution to both the audited source and exact built output.
@@ -64,7 +80,7 @@ try {
   copy('packages/core/dist');
   copy('packages/llm-gateway/src/egress.ts');
   copy('packages/llm-gateway/dist/egress.js');
-  copy('node_modules/.pnpm/undici@8.10.0/node_modules/undici');
+  copy(relative(root, undiciRoot));
   const runtime = join(context, 'runtime-packages');
   mkdirSync(join(runtime, 'core'), { recursive: true });
   mkdirSync(join(runtime, 'llm-gateway'), { recursive: true });
@@ -72,7 +88,7 @@ try {
   cpSync(join(root, 'packages', 'core', 'package.json'), join(runtime, 'core', 'package.json'));
   cpSync(join(root, 'packages', 'core', 'dist'), join(runtime, 'core', 'dist'), { recursive: true });
   cpSync(join(root, 'packages', 'llm-gateway', 'dist', 'egress.js'), join(runtime, 'llm-gateway', 'egress.js'));
-  cpSync(join(root, 'node_modules', '.pnpm', 'undici@8.10.0', 'node_modules', 'undici'), join(runtime, 'undici'), { recursive: true });
+  cpSync(undiciRoot, join(runtime, 'undici'), { recursive: true });
   copy('infra/egress-worker-rehearsal');
   hashTree(context);
   writeFileSync(join(evidence, 'source-manifest.json'), JSON.stringify(hashes, null, 2) + '\n');
@@ -91,6 +107,7 @@ try {
     '--pids-limit', '128', '--memory', '1g', '--cpus', '1', '--tmpfs', '/run', image]);
   const inspect = JSON.parse(run(['inspect', name], { capture: true }).stdout)[0];
   const caps = inspect.HostConfig.CapAdd ?? [];
+  const normalizedCaps = new Set(caps.map(cap => String(cap).replace(/^CAP_/, '').toUpperCase()));
   const isolation = {
     label: inspect.Config.Labels[label] === id,
     imageMatches: inspect.Image === receipt.imageId,
@@ -99,8 +116,9 @@ try {
     noMounts: inspect.Mounts.length === 0,
     noPublishedPorts: Object.keys(inspect.HostConfig.PortBindings ?? {}).length === 0,
     capDropAll: inspect.HostConfig.CapDrop?.join(',') === 'ALL',
-    requiredCaps: ['CAP_NET_ADMIN', 'CAP_SYS_ADMIN', 'CAP_SETPCAP', 'CAP_SETUID', 'CAP_SETGID'].every(cap => caps.includes(cap)),
+    requiredCaps: ['NET_ADMIN', 'SYS_ADMIN', 'SETPCAP', 'SETUID', 'SETGID'].every(cap => normalizedCaps.has(cap)),
   };
+  receipt.assertions.isolation = isolation;
   if (!Object.values(isolation).every(Boolean)) {
     throw new Error(`worker runtime rehearsal isolation mismatch: ${JSON.stringify({ isolation, caps, capDrop: inspect.HostConfig.CapDrop, mounts: inspect.Mounts })}`);
   }
@@ -111,6 +129,9 @@ try {
   process.stderr.write(output.stderr);
   const exitCode = Number(run(['inspect', '--format', '{{.State.ExitCode}}', name], { capture: true }).stdout.trim());
   const missingMarkers = requiredMarkers.filter(marker => !testOutput.includes(marker));
+  receipt.testOutputSha256 = createHash('sha256').update(testOutput).digest('hex');
+  receipt.assertions.markers = Object.fromEntries(requiredMarkers.map(marker => [marker, !missingMarkers.includes(marker)]));
+  receipt.assertions.containerExitedZero = exitCode === 0;
   Object.assign(receipt, {
     capabilities: caps, exitCode, hashes, missingMarkers,
     status: exitCode === 0 && missingMarkers.length === 0 ? 'passed' : 'failed',
@@ -123,6 +144,19 @@ try {
   receipt.error = error instanceof Error ? error.message : String(error);
   throw error;
 } finally {
+  const assertionResults = [
+    ...(receipt.assertions.isolation ? Object.values(receipt.assertions.isolation) : []),
+    ...(receipt.assertions.markers ? Object.values(receipt.assertions.markers) : []),
+    ...(receipt.assertions.containerExitedZero === null ? [] : [receipt.assertions.containerExitedZero]),
+  ];
+  const passed = assertionResults.filter(Boolean).length;
+  const failed = assertionResults.length - passed;
+  receipt.counts = {
+    total: plannedChecks,
+    passed,
+    failed,
+    skipped: plannedChecks - assertionResults.length,
+  };
   const cleanupErrors = [];
   try {
     const found = run(['ps', '--all', '--quiet', '--filter', `label=${label}=${id}`], { capture: true });
@@ -153,9 +187,11 @@ try {
     cleanupErrors.push(`image cleanup: ${error instanceof Error ? error.message : String(error)}`);
   }
   try {
-    if (!context.startsWith(join(tmpdir(), 'axiom-egress-worker-source-'))) throw new Error('temporary source context ownership mismatch');
-    rmSync(context, { recursive: true, force: true });
-    if (existsSync(context)) throw new Error('temporary source context remains');
+    if (context) {
+      if (!context.startsWith(join(tmpdir(), 'axiom-egress-worker-source-'))) throw new Error('temporary source context ownership mismatch');
+      rmSync(context, { recursive: true, force: true });
+      if (existsSync(context)) throw new Error('temporary source context remains');
+    }
     receipt.cleanup.sourceContextRemoved = true;
   } catch (error) {
     cleanupErrors.push(`source context cleanup: ${error instanceof Error ? error.message : String(error)}`);

@@ -140,6 +140,55 @@ jobs:
             }
             if (!found) { console.error("No runtime receipt produced; acceptance unavailable"); process.exitCode = 1; }
           '
+  egress-worker-runtime:
+    # Exercise the built Node egress caller in its real isolated namespace
+    # fixture. This remains separate from production host-policy acceptance.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: '9.14.0'
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+      - name: Verify development and CI environment contract
+        run: node scripts/check-ci-environment.mjs
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build egress caller and workspace dependencies
+        run: pnpm --filter @axiom/llm-gateway... build
+      - name: Rehearse worker namespace caller boundary
+        run: node scripts/rehearse-egress-worker-runtime.mjs --isolated-fixture
+      - name: Preserve and verify source-bound receipt
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/egress-worker-runtime-rehearsal";
+            if (!fs.existsSync(root)) throw new Error("Worker egress receipt unavailable");
+            const entries = fs.readdirSync(root).filter(entry => fs.existsSync(`${root}/${entry}/receipt.json`));
+            if (entries.length !== 1) throw new Error(`Expected one worker egress receipt, found ${entries.length}`);
+            const receipt = JSON.parse(fs.readFileSync(`${root}/${entries[0]}/receipt.json`, "utf8"));
+            if (receipt.testedSha !== process.env.TESTED_SHA) throw new Error("Worker egress receipt SHA mismatch");
+            if (receipt.assertionCount !== 17 || receipt.counts?.total !== 17 || receipt.counts.passed !== 17 || receipt.counts.failed !== 0 || receipt.counts.skipped !== 0) {
+              throw new Error(`Worker egress acceptance counts incomplete: ${JSON.stringify(receipt.counts)}`);
+            }
+            if (!/^[a-f0-9]{64}$/.test(receipt.testOutputSha256 ?? "")) throw new Error("Worker egress test output hash missing");
+            if (receipt.cleanupVerified !== true || receipt.productionAcceptance !== false) {
+              throw new Error("Worker egress cleanup or scope declaration failed");
+            }
+            console.log(JSON.stringify(receipt, null, 2));
+          '
   ci:
     runs-on: ubuntu-latest
     services:
