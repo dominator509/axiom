@@ -31,8 +31,12 @@ interface EgressStatus {
  * explicit, persisted egress policy — never the fallback for a missing or
  * unhealthy model.  Consumers must therefore reject `null` rather than
  * treating it as permission to use the host route.
+ * `modelId` preserves the plane's binding identity so a confined runner cannot
+ * borrow another model's direct or proxy route.
  */
-export type EgressBinding = { kind: 'direct' } | { kind: 'proxy'; proxyUrl: string };
+export type EgressBinding =
+  | { kind: 'direct'; modelId?: string }
+  | { kind: 'proxy'; modelId?: string; proxyUrl: string };
 
 const cache = new Map<string, { binding: EgressBinding | null; at: number }>();
 const CACHE_TTL_MS = 5000;
@@ -53,9 +57,9 @@ export async function resolveEgressBinding(modelId: string): Promise<EgressBindi
       const status = await readBoundedResponseJson<EgressStatus>(res);
       const model = status.models?.find((m) => m.model_id === modelId);
       if (model?.healthy && model.mode === 'direct') {
-        binding = { kind: 'direct' };
+        binding = { kind: 'direct', modelId };
       } else if (model?.healthy && model.host_ip) {
-        binding = { kind: 'proxy', proxyUrl: `http://${model.host_ip}:8080` };
+        binding = { kind: 'proxy', modelId, proxyUrl: `http://${model.host_ip}:8080` };
       }
     }
   } catch {
@@ -87,7 +91,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export function assertEgressFetchCaller(
   env: Record<string, string | undefined> = process.env,
-  options: { platform?: NodeJS.Platform; stat?: (path: string) => Pick<Stats, 'dev' | 'ino'> } = {},
+  options: {
+    platform?: NodeJS.Platform;
+    stat?: (path: string) => Pick<Stats, 'dev' | 'ino'>;
+    /** Resolved binding identity; required when confinement is enabled. */
+    bindingModelId?: string;
+  } = {},
 ): void {
   const required = env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
   if (required === undefined) return;
@@ -109,6 +118,9 @@ export function assertEgressFetchCaller(
   if (current.dev !== expected.dev || current.ino !== expected.ino) {
     throw new Error('Egress fetch caller is not running in its assigned network namespace');
   }
+  if ('bindingModelId' in options && options.bindingModelId !== modelId) {
+    throw new Error('Egress binding model does not match the assigned worker model');
+  }
 }
 
 /**
@@ -120,7 +132,7 @@ export function assertEgressFetchCaller(
  * to the global fetch fails with `invalid onRequestStart method`).
  */
 export function buildEgressFetch(binding: EgressBinding): typeof fetch {
-  assertEgressFetchCaller();
+  assertEgressFetchCaller(process.env, { bindingModelId: binding.modelId });
   if (binding.kind === 'direct') {
     return undiciFetch as unknown as typeof fetch;
   }
