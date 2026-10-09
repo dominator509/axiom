@@ -138,7 +138,46 @@
       "lane": 5,
       "status": "unverified",
       "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "evidence": [
+        {
+          "criterion": "LBI-02",
+          "sha": "dc1a3ee42b8ba1d1fdbcaeb2e8eba3d1ce2fdbd9",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two isolated disposable Docker/PostgreSQL/model fixture repetitions with synthetic data and no live provider credentials.",
+          "scope": "Two complete harness repetitions, 53 checks each. The real publish.target executor attempted to construct the egress client with confinement enabled and no assigned model namespace; both runs rejected the job before provider I/O, leaving the target pending with no dispatch marker or idempotency result. The remaining runtime and audit checks passed; cleanup was verified.",
+          "limitations": "Network-disabled synthetic fixtures only. This proves the publish path fails closed when its assigned namespace is unavailable, not external provider delivery or deployed host-policy, tunnel/DNS/proxy fault, restart, kill-switch timing, or production observability behavior.",
+          "observedAt": "2026-10-09T02:01:34Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909/job/113631896986",
+          "logSha256": "1db5356d6351893d953143ce083854a8de54f74df4ac440ff29624c2df2cce20",
+          "counts": { "passed": 110, "failed": 0, "skipped": 0, "total": 110, "unit": "checks" },
+          "skips": [],
+          "images": [
+            "sha256:98e0ddb0a733107362ee87032f214ec5ef7f11c965eb8257bd6ab52197e4718c",
+            "sha256:d69331fa95e31be2fcf8d3fc178377ac80dddd314e901670948054f08b6802ad",
+            "sha256:c4384829b522ae8abd3601892ff32e91efdea489b54da1de411f1b6dcd162c29",
+            "sha256:002a99d9d579a5931878515a19e857f841f28681af2f768870d7ab1d1b3ee027",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "LBI-02",
+          "sha": "dc1a3ee42b8ba1d1fdbcaeb2e8eba3d1ce2fdbd9",
+          "command": "node scripts/rehearse-egress-worker-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; isolated unprivileged Docker fixture on network=none with no host mounts or published ports.",
+          "scope": "17 checks verified that the worker caller is rejected outside the assigned namespace, the isolated namespace has no default route or host-route fallback, and only the matching runner reaches its model-specific canary. The temporary container, image, and source context were removed and cleanup verified.",
+          "limitations": "Docker-only namespace caller-boundary rehearsal. It does not establish target-host systemd/policy handoff, provider delivery, tunnel/DNS/proxy rotation, deployment restart behavior, kill-switch timing, or production acceptance.",
+          "observedAt": "2026-10-09T01:54:43Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909/job/113631896691",
+          "logSha256": "1bf1d938bd9f2ffffb3cbd12c0a2ea91ddbff7846513b5317d74e355c3de0532",
+          "counts": { "passed": 17, "failed": 0, "skipped": 0, "total": 17, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "sha256:8f01c2a76548f0c530ba97ef8619fc0758e0c3aa3e032d0c3309994b019be194"
+          ]
+        }
+      ],
       "verification": {
         "test": "egress-off publish is blocked at netns; no default route or host-route fallback exists in the worker namespace",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",

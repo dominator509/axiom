@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
+import { buildEgressFetch } from '@axiom/llm-gateway';
 import { sql, eq, and } from 'drizzle-orm';
 import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick, connectorForConnection } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
@@ -612,6 +613,46 @@ for (const kind of Object.keys(defaultExecutors)) {
     await assert.rejects(processJob(fixture.job, defaultExecutors, 'l5-worker', {}), /lease ownership lost/);
     assert.equal((await scoped(fixture.org, tx => tx.select().from(schema.relayCard).where(cardWhere))).length, 1,
       'A completed assisted handoff cannot be duplicated by replay');
+  });
+  await check('publish.target: egress confinement blocks dispatch when the assigned model namespace is unavailable', async () => {
+    const fixture = await successfulPublishFixture();
+    const provider = await localDiscordProvider(fixture);
+    const guardedEnvironment = [
+      'AXIOM_EGRESS_CONFINEMENT_REQUIRED',
+      'AXIOM_EGRESS_RUNNER',
+      'WORKER_EGRESS_MODEL_ID',
+    ];
+    const previousEnvironment = new Map(guardedEnvironment.map(key => [key, process.env[key]]));
+    try {
+      process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED = '1';
+      process.env.AXIOM_EGRESS_RUNNER = '1';
+      process.env.WORKER_EGRESS_MODEL_ID = fixture.model;
+
+      const outcome = await processJob(fixture.job, {
+        ...defaultExecutors,
+        'publish.target': ctx => publishTarget(ctx, async (...args) => {
+          buildEgressFetch({ kind: 'direct' });
+          return provider.resolver(...args);
+        }),
+      }, 'l5-worker', {});
+
+      const records = await publishRecords(fixture);
+      assert.equal(outcome, 'dead', 'A publish without its assigned namespace must fail closed');
+      assert.match(records.job.lastError ?? '', /assigned network namespace|ENOENT/i,
+        'The job must record the namespace boundary failure');
+      assert.equal(provider.deliveries.length, 0, 'The provider transport must receive no request');
+      assert.equal(records.job.state, 'dead');
+      assert.equal(records.target.state, 'pending');
+      assert.equal(records.ledger, null, 'A denied dispatch cannot create an idempotency result');
+      assert.equal(records.markers.length, 0, 'A denied dispatch cannot create a provider dispatch marker');
+    } finally {
+      for (const key of guardedEnvironment) {
+        const value = previousEnvironment.get(key);
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      await provider.close();
+    }
   });
   await check('publish.target: expired model consent blocks provider dispatch after approval', async () => {
     const fixture = await successfulPublishFixture();
