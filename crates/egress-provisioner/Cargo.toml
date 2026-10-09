@@ -9,6 +9,5 @@ egress-plane = { path = "../egress-plane" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-ring.workspace = true
-base64 = "0.22"
-thiserror.workspace = true
+tracing.workspace = true
+zeroize = { version = "1", features = ["zeroize_derive"] }

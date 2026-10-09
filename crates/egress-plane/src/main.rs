@@ -113,18 +113,28 @@ async fn run_healthcheck() {
 }
 
 async fn run_sidecar(args: &[String]) {
-    // --listen host:port
-    let listen: std::net::SocketAddr = args
-        .windows(2)
-        .find(|w| w[0] == "--listen")
-        .and_then(|w| w[1].parse().ok())
-        .or_else(proxy::listen_from_env)
-        .unwrap_or_else(|| "127.0.0.1:8080".parse().expect("default listen"));
-
-    let upstream = proxy::upstream_from_env().unwrap_or_else(|_| {
-        eprintln!("Invalid or missing sidecar upstream configuration");
+    let config = proxy::sidecar_config_from_env().unwrap_or_else(|_| {
+        eprintln!("Invalid or missing typed sidecar configuration");
         std::process::exit(1);
     });
+    let (listen, upstream) = match config {
+        Some(config) => config,
+        None => {
+            // Compatibility for the local CLI path. Production provisioning
+            // always uses the typed, base64-encoded configuration above.
+            let listen: std::net::SocketAddr = args
+                .windows(2)
+                .find(|w| w[0] == "--listen")
+                .and_then(|w| w[1].parse().ok())
+                .or_else(proxy::listen_from_env)
+                .unwrap_or_else(|| "127.0.0.1:8080".parse().expect("default listen"));
+            let upstream = proxy::upstream_from_env().unwrap_or_else(|_| {
+                eprintln!("Invalid or missing sidecar upstream configuration");
+                std::process::exit(1);
+            });
+            (listen, upstream)
+        }
+    };
     info!(listen = %listen, "Sidecar proxy starting");
     if let Err(e) = proxy::run_sidecar(listen, upstream).await {
         warn!(error = %e, "Sidecar proxy exited with error");

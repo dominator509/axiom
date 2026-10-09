@@ -6,20 +6,27 @@ fn main() {
 
 #[cfg(unix)]
 mod unix {
-    use egress_provisioner::{apply, now_unix, ProvisionError, ReplayRegistry, Request, Response};
+    use egress_provisioner::{
+        now_unix, ProvisionError, ProvisionerRuntime, ReplayRegistry, Request, Response,
+        RuntimeSettings,
+    };
     use std::env;
     use std::io;
     use std::os::fd::{FromRawFd, RawFd};
     use std::os::unix::net::UnixListener as StdUnixListener;
     use std::path::Path;
     use std::sync::Arc;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
     use tokio::net::{UnixListener, UnixStream};
+    use zeroize::{Zeroize, Zeroizing};
+
+    const MAX_REQUEST_BYTES: usize = 16 * 1024;
 
     struct Server {
-        key: Vec<u8>,
+        key: Zeroizing<Vec<u8>>,
         allowed_uid: u32,
         used_nonces: ReplayRegistry,
+        runtime: Arc<ProvisionerRuntime>,
     }
 
     #[tokio::main]
@@ -55,14 +62,19 @@ mod unix {
 
     async fn stdio() {
         let key = match env::var("AXIOM_EGRESS_LEASE_KEY") {
-            Ok(value) => value.into_bytes(),
+            Ok(value) => Zeroizing::new(value.into_bytes()),
             Err(_) => fail(io::Error::other("AXIOM_EGRESS_LEASE_KEY is required")),
+        };
+        let runtime = match RuntimeSettings::from_env().and_then(ProvisionerRuntime::new) {
+            Ok(runtime) => runtime,
+            Err(error) => fail(error),
         };
         let mut lines = BufReader::new(tokio::io::stdin()).lines();
         let mut output = tokio::io::stdout();
         let used_nonces = ReplayRegistry::default();
-        while let Ok(Some(line)) = lines.next_line().await {
-            let response = parse_and_apply(&line, &key, &used_nonces);
+        while let Ok(Some(mut line)) = lines.next_line().await {
+            let response = parse_and_apply(&mut line, &key, &used_nonces, &runtime);
+            line.zeroize();
             let encoded = serde_json::to_string(&response)
                 .unwrap_or_else(|_| "{\"status\":\"error\"}".to_string());
             let _ = output.write_all(format!("{encoded}\n").as_bytes()).await;
@@ -71,16 +83,29 @@ mod unix {
 
     fn server_from_env() -> io::Result<Server> {
         let key = env::var("AXIOM_EGRESS_LEASE_KEY")
-            .map_err(|_| io::Error::other("AXIOM_EGRESS_LEASE_KEY is required"))?
-            .into_bytes();
+            .map_err(|_| io::Error::other("AXIOM_EGRESS_LEASE_KEY is required"))?;
+        if key.len() < 32 {
+            return Err(io::Error::other(
+                "AXIOM_EGRESS_LEASE_KEY must be at least 32 bytes",
+            ));
+        }
+        let key = Zeroizing::new(key.into_bytes());
         let allowed_uid = env::var("AXIOM_EGRESS_CONTROL_UID")
             .map_err(|_| io::Error::other("AXIOM_EGRESS_CONTROL_UID is required"))?
             .parse::<u32>()
             .map_err(|_| io::Error::other("AXIOM_EGRESS_CONTROL_UID must be numeric"))?;
+        if allowed_uid == 0 {
+            return Err(io::Error::other(
+                "AXIOM_EGRESS_CONTROL_UID must identify an unprivileged caller",
+            ));
+        }
+        let runtime = Arc::new(ProvisionerRuntime::new(RuntimeSettings::from_env()?)?);
+        let _watchdog = ProvisionerRuntime::start_sidecar_watchdog(&runtime)?;
         Ok(Server {
             key,
             allowed_uid,
             used_nonces: ReplayRegistry::default(),
+            runtime,
         })
     }
 
@@ -121,25 +146,50 @@ mod unix {
             ));
         }
         let (read, mut write) = stream.into_split();
-        let mut lines = BufReader::new(read).lines();
-        let Some(line) = lines.next_line().await? else {
+        let mut reader = BufReader::new(read).take((MAX_REQUEST_BYTES + 2) as u64);
+        let mut bytes = Vec::with_capacity(512);
+        let read = reader.read_until(b'\n', &mut bytes).await?;
+        if read == 0 {
             return Ok(());
-        };
-        if line.len() > 16 * 1024 {
+        }
+        if bytes.len() > MAX_REQUEST_BYTES + 1 || bytes.last() != Some(&b'\n') {
+            bytes.zeroize();
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "request exceeds size limit",
             ));
         }
-        let response = parse_and_apply(&line, &server.key, &server.used_nonces);
+        bytes.pop();
+        if bytes.len() > MAX_REQUEST_BYTES {
+            bytes.zeroize();
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "request exceeds size limit",
+            ));
+        }
+        let mut line = match String::from_utf8(bytes) {
+            Ok(line) => line,
+            Err(error) => {
+                let mut bytes = error.into_bytes();
+                bytes.zeroize();
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "request is not valid UTF-8",
+                ));
+            }
+        };
+        let response =
+            parse_and_apply(&mut line, &server.key, &server.used_nonces, &server.runtime);
+        line.zeroize();
         let encoded = serde_json::to_string(&response).map_err(io::Error::other)?;
         write.write_all(format!("{encoded}\n").as_bytes()).await
     }
 
     fn parse_and_apply(
-        line: &str,
+        line: &mut String,
         key: &[u8],
         used_nonces: &ReplayRegistry,
+        runtime: &ProvisionerRuntime,
     ) -> Result<Response, String> {
         let request: Request =
             serde_json::from_str(line).map_err(|_| "invalid request".to_string())?;
@@ -147,7 +197,7 @@ mod unix {
         egress_provisioner::validate_request(&request, key, now).map_err(error_text)?;
         let nonce = request.lease.nonce.clone();
         used_nonces.reserve(&nonce).map_err(error_text)?;
-        apply(&request, key, now).map_err(error_text)
+        runtime.apply(&request, key, now).map_err(error_text)
     }
 
     fn error_text(error: ProvisionError) -> String {

@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
-RUN cargo test --locked -p egress-plane -p egress-provisioner --no-run
+RUN cargo test --locked -p egress-plane -p egress-provisioner --no-run \
+    && cargo build --locked -p egress-plane \
+    && cargo build --locked -p egress-provisioner --example egress_socket_client
 ENV AXIOM_EGRESS_ISOLATED_REHEARSAL=1
+ENV AXIOM_EGRESS_SIDECAR_BIN=/app/target/debug/egress-plane
+ENV AXIOM_EGRESS_SOCKET_CLIENT_BIN=/app/target/debug/examples/egress_socket_client
 CMD ["cargo", "test", "--locked", "--offline", "--no-fail-fast", "-p", "egress-plane", "-p", "egress-provisioner", "--", "--include-ignored", "--test-threads=1", "--nocapture"]

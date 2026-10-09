@@ -15,6 +15,7 @@ const directory = join(root, 'var', 'l5-runtime', id);
 mkdirSync(directory, { recursive: true });
 const receipt = { sourceSha: '', command: 'node scripts/rehearse-l5-runtime.mjs --isolated-fixture',
   node: process.versions.node, environment: 'owned network-disabled Docker fixtures',
+  egressFixture: { mode: 'test', scope: 'database-backed-health-only', productionProvisioner: 'scripts/rehearse-egress.mjs' },
   images: {}, runs: [], auditChecks: [], passed: 0, failed: 0, skipped: 0, cleanup: false };
 const secrets = [];
 const secret = () => { const value = randomBytes(32).toString('hex'); secrets.push(value); return value; };
@@ -125,8 +126,11 @@ try {
       '--mount', `type=volume,source=${media},target=/app/var/media`, '--mount', `type=volume,source=${models},target=/models`],
       ['node', '-e', 'setInterval(()=>{},1000)']);
     const egress = `${prefix}-${repetition}-egress`;
+    // Production provisioner lifecycle is exercised by the separate isolated
+    // Linux socket rehearsal; this unprivileged worker/model fixture verifies
+    // the database-backed control-plane health endpoint only.
     create(egress, receipt.images.egress, `container:${db}`, {
-      NODE_ENV: 'production', LISTEN_ADDR: '0.0.0.0:9090',
+      NODE_ENV: 'test', LISTEN_ADDR: '0.0.0.0:9090',
       EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
       EGRESS_PLANE_TOKEN: egressToken, EGRESS_DEK: egressDek,
     }, ['--cap-drop=ALL', '--security-opt=no-new-privileges']);

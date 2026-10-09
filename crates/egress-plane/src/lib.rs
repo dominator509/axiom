@@ -21,12 +21,15 @@ pub mod health;
 pub mod killswitch;
 pub mod metrics;
 pub mod netns;
+pub mod provisioner_client;
+pub mod provisioner_protocol;
 pub mod proxy;
 pub mod tunnel;
 
 use config::{EgressMode, NetworkConfig};
 use health::HealthState;
 use killswitch::KillSwitch;
+use provisioner_client::ProvisionerClient;
 use proxy::{ProxyKind, Upstream};
 
 /// Port the sidecar proxy listens on INSIDE the model netns.
@@ -98,6 +101,8 @@ pub struct Config {
     /// Path to the egress-plane binary used to spawn per-model sidecars
     /// (defaults to the running executable). Overridable for tests.
     pub sidecar_bin: Option<std::path::PathBuf>,
+    /// Capability-free production path to the root-owned local provisioner.
+    pub provisioner: Option<ProvisionerClient>,
 }
 
 impl Config {
@@ -119,6 +124,7 @@ impl Config {
             sidecar_bin: std::env::var("SIDECAR_BIN")
                 .ok()
                 .map(std::path::PathBuf::from),
+            provisioner: ProvisionerClient::from_env().ok().flatten(),
         }
     }
 
@@ -144,13 +150,19 @@ impl Config {
         if self.dek.is_none() {
             return Err("EGRESS_DEK must be a 32-byte hex key in production".into());
         }
+        if self.provisioner.is_none() {
+            return Err(
+                "EGRESS_PROVISIONER_SOCKET and AXIOM_EGRESS_LEASE_KEY are required in production"
+                    .into(),
+            );
+        }
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod config_tests {
-    use super::{Config, CONTROL_PLANE_LISTEN_ADDR};
+    use super::{Config, ProvisionerClient, CONTROL_PLANE_LISTEN_ADDR};
 
     fn production_config() -> Config {
         Config {
@@ -161,6 +173,7 @@ mod config_tests {
             database_url: Some("postgresql://egress@db.example/axiom".to_string()),
             dek: Some([0; 32]),
             sidecar_bin: None,
+            provisioner: Some(ProvisionerClient::for_test()),
         }
     }
 
@@ -193,6 +206,15 @@ mod config_tests {
                 .expect_err("DEK must be required"),
             "EGRESS_DEK must be a 32-byte hex key in production"
         );
+
+        let mut config = production_config();
+        config.provisioner = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("the local provisioner must be required"),
+            "EGRESS_PROVISIONER_SOCKET and AXIOM_EGRESS_LEASE_KEY are required in production"
+        );
     }
 
     #[test]
@@ -213,6 +235,9 @@ pub struct BoundEgress {
     pub host_ip: String, // host-side veth address clients connect to
     pub ns_ip: String,   // netns-side veth address sidecar binds to
     pub child: Option<std::process::Child>,
+    /// Present for production-managed namespaces; all privileged lifecycle
+    /// operations are delegated to this capability-free local client.
+    pub provisioner: Option<ProvisionerClient>,
     pub upstream: Upstream,
     pub health: HealthState,
     pub failover_index: usize,
@@ -484,6 +509,7 @@ mod registry_tests {
             host_ip: "10.240.7.2".to_string(),
             ns_ip: String::new(),
             child: None,
+            provisioner: None,
             upstream: Upstream::Direct,
             health: HealthState::default(),
             failover_index: 0,
@@ -507,6 +533,7 @@ mod registry_tests {
                 database_url: None,
                 dek: None,
                 sidecar_bin: None,
+                provisioner: None,
             },
             kill_switch: KillSwitch::new(false),
             db: Mutex::new(None),
@@ -611,7 +638,7 @@ mod registry_tests {
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
+#[derive(Clone, Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct BindRequest {
     pub model_id: String,
     #[serde(default)]
@@ -775,12 +802,21 @@ fn proxy_upstream_for(
     req: &BindRequest,
     addr: &str,
 ) -> Result<Upstream, EgressError> {
-    let connect_addr = Some(netns::resolve_endpoint(addr)?);
-    Ok(match cfg.mode {
+    let connect_addr = netns::resolve_endpoint(addr)?;
+    Ok(proxy_upstream_with_resolved(cfg, req, addr, connect_addr))
+}
+
+fn proxy_upstream_with_resolved(
+    cfg: &NetworkConfig,
+    req: &BindRequest,
+    addr: &str,
+    connect_addr: std::net::SocketAddr,
+) -> Upstream {
+    match cfg.mode {
         EgressMode::Socks5 => Upstream::Proxy {
             kind: ProxyKind::Socks5,
             addr: addr.to_string(),
-            connect_addr,
+            connect_addr: Some(connect_addr),
             username: req.proxy_username.clone(),
             password: req.proxy_password.clone(),
         },
@@ -791,12 +827,12 @@ fn proxy_upstream_for(
                 ProxyKind::Http
             },
             addr: addr.to_string(),
-            connect_addr,
+            connect_addr: Some(connect_addr),
             username: req.proxy_username.clone(),
             password: req.proxy_password.clone(),
         },
         _ => Upstream::Direct,
-    })
+    }
 }
 
 async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEgress, EgressError> {
@@ -824,7 +860,90 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
             host_ip: String::new(),
             ns_ip: String::new(),
             child: None,
+            provisioner: None,
             upstream: Upstream::Direct,
+            health: HealthState::default(),
+            failover_index: 0,
+        });
+    }
+
+    // The production systemd unit has no namespace capabilities. All kernel
+    // topology, tunnel setup and sidecar lifecycle are delegated over the
+    // authenticated local Unix socket when that production client is set.
+    if let Some(client) = state.config.provisioner.clone() {
+        let octet = {
+            let mut reg = state.registry.lock().unwrap();
+            reg.alloc_octet()?
+        };
+        let client_for_bind = client.clone();
+        let request_for_bind = req.clone();
+        let result =
+            tokio::task::spawn_blocking(move || client_for_bind.bind(&request_for_bind, octet))
+                .await;
+        let response = match result {
+            Ok(Ok(response)) => response,
+            Ok(Err(error)) => {
+                if release_after_uncertain_bind(&client, &cfg).await {
+                    state.registry.lock().unwrap().release_octet(octet);
+                } else {
+                    warn!(model_id = %cfg.model_id, "Provisioner bind outcome could not be reconciled; subnet remains reserved");
+                }
+                return Err(EgressError::Netns(error));
+            }
+            Err(_) => {
+                if release_after_uncertain_bind(&client, &cfg).await {
+                    state.registry.lock().unwrap().release_octet(octet);
+                } else {
+                    warn!(model_id = %cfg.model_id, "Provisioner bind task ended without a confirmed release; subnet remains reserved");
+                }
+                return Err(EgressError::Config("egress provisioner call failed".into()));
+            }
+        };
+        let binding = match response.binding {
+            Some(binding) => binding,
+            None => {
+                if release_after_uncertain_bind(&client, &cfg).await {
+                    state.registry.lock().unwrap().release_octet(octet);
+                }
+                return Err(EgressError::Netns(
+                    "egress provisioner omitted binding metadata".into(),
+                ));
+            }
+        };
+        let upstream = if cfg.mode.is_proxy() {
+            let Some(addr) = cfg.proxy_addr.as_deref() else {
+                if release_after_uncertain_bind(&client, &cfg).await {
+                    state.registry.lock().unwrap().release_octet(octet);
+                }
+                return Err(EgressError::Validation(
+                    "proxy modes require proxy_addr".into(),
+                ));
+            };
+            let Some(connect_addr) = binding
+                .upstream_connect_addr
+                .as_deref()
+                .and_then(|value| value.parse().ok())
+            else {
+                if release_after_uncertain_bind(&client, &cfg).await {
+                    state.registry.lock().unwrap().release_octet(octet);
+                }
+                return Err(EgressError::Netns(
+                    "provisioner omitted the resolved proxy endpoint".into(),
+                ));
+            };
+            proxy_upstream_with_resolved(&cfg, req, addr, connect_addr)
+        } else {
+            Upstream::Direct
+        };
+        return Ok(BoundEgress {
+            config: cfg,
+            ns: response.namespace,
+            veth_host: binding.veth_host,
+            host_ip: binding.host_ip,
+            ns_ip: binding.ns_ip,
+            child: None,
+            provisioner: Some(client),
+            upstream,
             health: HealthState::default(),
             failover_index: 0,
         });
@@ -923,6 +1042,7 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
         host_ip: ns_ip.clone(),
         ns_ip,
         child: Some(child),
+        provisioner: None,
         upstream,
         health: HealthState::default(),
         failover_index: 0,
@@ -1146,7 +1266,26 @@ pub async fn egress_bind(
     ))
 }
 
+async fn release_after_uncertain_bind(client: &ProvisionerClient, config: &NetworkConfig) -> bool {
+    let client = client.clone();
+    let config = config.clone();
+    tokio::task::spawn_blocking(move || client.release(&config))
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .is_some_and(|response| response.status == "released")
+}
+
 fn teardown_bound(mut bound: BoundEgress) -> io::Result<()> {
+    if let Some(client) = bound.provisioner.as_ref() {
+        let response = client.release(&bound.config).map_err(io::Error::other)?;
+        if response.status != "released" {
+            return Err(io::Error::other(
+                "provisioner did not release the model binding",
+            ));
+        }
+        return Ok(());
+    }
     if let Some(mut child) = bound.child.take() {
         if child.try_wait()?.is_none() {
             if let Err(error) = child.kill() {
@@ -1271,48 +1410,98 @@ pub async fn egress_health_check_model(
         let next = bound.config.failover_proxy_addrs[bound.failover_index].clone();
         bound.failover_index += 1;
         warn!(model_id = %body.model_id, failover = %next, "Failing over to approved alternate egress");
-        let exe = state
-            .config
-            .sidecar_bin
-            .clone()
-            .unwrap_or_else(|| std::env::current_exe().unwrap());
-        if let Some(mut child) = bound.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        let attempt = (|| -> Result<(Upstream, std::process::Child), EgressError> {
-            let upstream = proxy_upstream_for(&bound.config, &from_bound(&bound), &next)?;
-            let gateway = format!(
-                "10.240.{}.1",
-                bound_octet(&bound)
-                    .ok_or_else(|| EgressError::Validation("invalid binding subnet".into()))?
-            );
-            netns::configure_firewall(&bound.ns, &gateway, SIDECAR_PORT)?;
-            if let Upstream::Proxy {
-                connect_addr: Some(endpoint),
-                ..
-            } = &upstream
-            {
-                netns::allow_endpoint(&bound.ns, &gateway, *endpoint, "tcp")?;
-            }
-            let child = proxy::spawn_sidecar_in_netns(
-                &bound.ns,
-                &exe,
-                &bound.ns_ip,
-                SIDECAR_PORT,
-                &upstream,
-            )?;
-            Ok((upstream, child))
-        })();
-        match attempt {
-            Ok((upstream, child)) => {
-                bound.child = Some(child);
-                bound.upstream = upstream;
-                reprobe = true;
-            }
-            Err(_) => {
-                let _ = netns::flush_allow_rules(&bound.ns);
+        if let Some(client) = bound.provisioner.clone() {
+            let octet = bound_octet(&bound);
+            if octet.is_none() {
                 bound.health.last_error = Some("approved failover setup failed".into());
+            } else {
+                let octet = octet.unwrap_or_default();
+                let mut failover_request = from_bound(&bound);
+                failover_request.proxy_addr = Some(next.clone());
+                let client_for_bind = client.clone();
+                let response = tokio::task::spawn_blocking(move || {
+                    client_for_bind.bind(&failover_request, octet)
+                })
+                .await
+                .ok()
+                .and_then(Result::ok);
+                match response
+                    .and_then(|response| response.binding.map(|info| (response.namespace, info)))
+                {
+                    Some((namespace, info))
+                        if namespace == bound.ns && info.upstream_connect_addr.is_some() =>
+                    {
+                        let connect_addr = info
+                            .upstream_connect_addr
+                            .as_deref()
+                            .and_then(|value| value.parse().ok());
+                        if let Some(connect_addr) = connect_addr {
+                            let mut request = from_bound(&bound);
+                            request.proxy_addr = Some(next.clone());
+                            bound.upstream = proxy_upstream_with_resolved(
+                                &bound.config,
+                                &request,
+                                &next,
+                                connect_addr,
+                            );
+                            bound.host_ip = info.host_ip;
+                            bound.ns_ip = info.ns_ip;
+                            bound.veth_host = info.veth_host;
+                            bound.child = None;
+                            reprobe = true;
+                        } else {
+                            bound.health.last_error = Some("approved failover setup failed".into());
+                        }
+                    }
+                    _ => {
+                        bound.health.last_error = Some("approved failover setup failed".into());
+                    }
+                }
+            }
+        } else {
+            let exe = state
+                .config
+                .sidecar_bin
+                .clone()
+                .unwrap_or_else(|| std::env::current_exe().unwrap());
+            if let Some(mut child) = bound.child.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            let attempt = (|| -> Result<(Upstream, std::process::Child), EgressError> {
+                let upstream = proxy_upstream_for(&bound.config, &from_bound(&bound), &next)?;
+                let gateway = format!(
+                    "10.240.{}.1",
+                    bound_octet(&bound)
+                        .ok_or_else(|| EgressError::Validation("invalid binding subnet".into()))?
+                );
+                netns::configure_firewall(&bound.ns, &gateway, SIDECAR_PORT)?;
+                if let Upstream::Proxy {
+                    connect_addr: Some(endpoint),
+                    ..
+                } = &upstream
+                {
+                    netns::allow_endpoint(&bound.ns, &gateway, *endpoint, "tcp")?;
+                }
+                let child = proxy::spawn_sidecar_in_netns(
+                    &bound.ns,
+                    &exe,
+                    &bound.ns_ip,
+                    SIDECAR_PORT,
+                    &upstream,
+                )?;
+                Ok((upstream, child))
+            })();
+            match attempt {
+                Ok((upstream, child)) => {
+                    bound.child = Some(child);
+                    bound.upstream = upstream;
+                    reprobe = true;
+                }
+                Err(_) => {
+                    let _ = netns::flush_allow_rules(&bound.ns);
+                    bound.health.last_error = Some("approved failover setup failed".into());
+                }
             }
         }
     }

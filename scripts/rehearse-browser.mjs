@@ -14,7 +14,8 @@ const directory = join(root, 'var', 'browser-rehearsal', id);
 mkdirSync(directory, { recursive: true });
 const label = 'axiom.browser.run';
 const labels = ['--label', `${label}=${id}`];
-const receipt = { runId: id, sourceSha: '', commands: [], images: {}, journeys: [], cleanup: [], status: 'running' };
+const receipt = { runId: id, sourceSha: '', commands: [], images: {}, journeys: [], cleanup: [], status: 'running',
+  egressFixture: { mode: 'test', scope: 'database-backed-health-only', productionProvisioner: 'scripts/rehearse-egress.mjs' } };
 const secrets = [];
 const secret = () => { const value = randomBytes(32).toString('hex'); secrets.push(value); return value; };
 const scrub = text => secrets.reduce((output, value) => output.replaceAll(value, '[FIXTURE-REDACTED]'), String(text ?? ''));
@@ -178,8 +179,12 @@ try {
     execute('migrate-' + repetition, ['exec', runner, 'bash', 'scripts/migrate.sh']);
     execute('runtime-role-' + repetition, ['exec', '-i', runner, 'sh', '-c', 'psql -X -q -v ON_ERROR_STOP=1 -d "$MIGRATOR_DATABASE_URL"'],
       { input: `ALTER ROLE axiom_app WITH LOGIN PASSWORD '${appPassword}';\n` });
+    // This browser fixture checks database-backed health and app journeys. The
+    // production provisioner/socket lifecycle is exercised by the separate
+    // isolated Linux egress rehearsal, so this fixture does not pretend to run
+    // the host-owned provisioner inside its unprivileged container.
     start(egress, receipt.images.egress, fixture, {
-      NODE_ENV: 'production',
+      NODE_ENV: 'test',
       EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@${db}:5432/axiom_test`,
       EGRESS_PLANE_TOKEN: egressToken,
       EGRESS_DEK: egressDek,
