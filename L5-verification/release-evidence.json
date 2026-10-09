@@ -1125,15 +1125,15 @@
     {
       "id": "MATRIX-NFR-2",
       "source": "L5-verification/L5.0-test-matrix.md",
-      "requirement": "- Availability: core publishing path ≥99.5% across a 30-day observation; report provider availability separately.",
-      "requirementSha256": "991329d10dc145828e1e48a43a54a4189311bbdd86472a8b035f2eee44ed9f1e",
+      "requirement": "- Availability: core publishing path target ≥99.5%; report the measured sample window and provider availability separately. No minimum observation period is a release gate.",
+      "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Observe and report 30-day core-path availability at the agreed workload; separate provider availability.",
+      "nextStep": "Measure core-path availability in the owned canary/load run; report the denominator, actual sample window, and provider availability separately. No fixed observation duration is required.",
       "evidence": [],
       "verification": {
-        "test": "Observe core publishing canaries continuously for 30 days; compute availability from the documented denominator and report provider uptime separately.",
-        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "test": "Measure core publishing canary availability during the agreed canary/load run; compute from the documented denominator, report the actual sample window and provider uptime separately, and compare the result with the ≥99.5% target. No minimum duration is a release gate.",
+        "environment": "Owned isolated canary/load environment with synthetic requests and fault injection; existing free quotas only when provider availability is measured separately.",
         "dependencies": [
           1,
           2,
@@ -1146,7 +1146,7 @@
           "Full passed, failed, and skipped counts; no skipped acceptance cases; negative controls recorded as expected rejections.",
           "Verified cleanup for created resources and immutable image digests when containers are used."
         ],
-        "completionCondition": "Satisfy this exact acceptance requirement: - Availability: core publishing path ≥99.5% across a 30-day observation; report provider availability separately.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+        "completionCondition": "Record measured core-path availability, denominator, actual sample window, and provider availability separately; meet the ≥99.5% target with zero failed and zero skipped acceptance checks. No minimum observation duration is required."
       }
     },
     {

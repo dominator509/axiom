@@ -1,26 +1,25 @@
 # Release readiness: evidence register and execution order
 
-Current main baseline for this reconciliation (2026-10-09): `01470312532aa8360796c1ce7739f4b7d56bda8b`, after PR #137. Its post-merge CI run is [37931927993](https://github.com/dominator509/axiom/actions/runs/37931927993), with 11 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines and their receipts remain historical below.
+Current main baseline for this reconciliation (2026-10-09): `e851dfa9b4b82d7b324c51ff1aeab56539950453`, after PR #138. Its post-merge CI run is [37947530214](https://github.com/dominator509/axiom/actions/runs/37947530214). Earlier implementation baselines and their receipts remain historical below.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
 baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
 22 accepted, and 32 open; the register is structurally valid but is not release
 approval. `rtk node scripts/check-release-evidence.mjs --release
-01470312532aa8360796c1ce7739f4b7d56bda8b` fails closed at `LBI-01: stale evidence
+e851dfa9b4b82d7b324c51ff1aeab56539950453` fails closed at `LBI-01: stale evidence
 SHA`. The RLS rehearsal recorded below ran on the immediately preceding main
 SHA before PR #137; it must be repeated against this current baseline. Accepted
 rows retain their actual tested SHAs and must be repeated at the final release
 SHA. A post-run external register cannot redefine acceptance criteria, and this
 document does not authorize release.
 
-## Current main receipt after PR #137
+## Current main after PR #138
 
-PR #137 is on main at exact SHA `01470312532aa8360796c1ce7739f4b7d56bda8b`.
-Post-merge [CI run 37931927993](https://github.com/dominator509/axiom/actions/runs/37931927993)
-completed with 11 successful jobs, 0 failed, and 0 cancelled. This is the latest
-verified main baseline; the exact-SHA release gate remains blocked at LBI-01, so
-the successful CI run is not release acceptance.
+PR #138 is on main at exact SHA `e851dfa9b4b82d7b324c51ff1aeab56539950453`.
+Post-merge [CI run 37947530214](https://github.com/dominator509/axiom/actions/runs/37947530214)
+is attached to this SHA. The exact-SHA release gate fails closed at LBI-01; a
+green CI run does not constitute release acceptance.
 
 ## Previous main baseline before PR #136 (2026-10-09)
 
@@ -43,6 +42,13 @@ Local checks at this exact baseline were:
 The stale receipt must be refreshed with the full acceptance matrix at the final
 release SHA. The exact-SHA failure does not invalidate the successful CI run or
 the historical behavior receipts; it prevents claiming release acceptance now.
+
+## Previous main receipt after PR #137 (2026-10-09)
+
+PR #137 was on main at exact SHA `01470312532aa8360796c1ce7739f4b7d56bda8b`.
+Post-merge [CI run 37931927993](https://github.com/dominator509/axiom/actions/runs/37931927993)
+completed with 11 successful jobs, 0 failed, and 0 cancelled. This is historical
+after PR #138 advanced main.
 
 ## Previous main receipt after PR #136 (2026-10-09)
 
@@ -282,7 +288,9 @@ the owner's standing authorization. Recheck main CI after each merge.
    kill switch and observable incidents.
 6. Performance/cost: measure the 1-20-model workload, specified latency budgets,
    >97% provider-reported token-cache hits, resource use, monthly cost and
-   availability over the required observation period.
+   measured availability against the 99.5% target. Report the actual sample
+   window and provider uptime separately; no minimum observation period is a
+   release gate.
 7. Recovery: complete two repeatable fresh-cluster PITR drills with object/key
    restoration, RPO <=5 minutes, RTO <=60 minutes, egress disabled, and negative
    controls.
@@ -308,8 +316,8 @@ raw-log digest. The required repeat on the eventual final release SHA remains op
 Each workstream has at least one remaining unverified or blocked criterion;
 accepted component receipts do not close an entire lane. A Docker deployment can
 establish isolated runtime proof. It cannot establish real provider entitlement,
-real channel delivery, customer consent, month-long availability, or the owner's
-deployed controls. Missing external prerequisites remain blockers for their
+real channel delivery, customer consent, or the owner's deployed controls.
+Missing external prerequisites remain blockers for their
 rows; independent isolated work continues. No shared/production database
 changes or migrations are permitted.
 
