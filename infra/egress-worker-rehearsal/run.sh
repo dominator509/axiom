@@ -19,6 +19,11 @@ trap cleanup EXIT INT TERM
 
 ip netns add "$NETNS"
 ip -n "$NETNS" link set lo up
+if [ -n "$(ip -n "$NETNS" route show default)" ]; then
+  echo "ASSERT_NO_DEFAULT_ROUTE FAIL" >&2
+  exit 1
+fi
+echo "ASSERT_NO_DEFAULT_ROUTE PASS"
 
 # Root exists only to create/delete the disposable namespace.  Both Node
 # probes execute as nobody with all capability sets empty and no_new_privs.
