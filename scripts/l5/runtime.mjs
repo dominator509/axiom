@@ -585,20 +585,29 @@ try {
     const fixture = await preparePassingApprovalFixture(await jobFixture(), 'done');
     let transactionOpen = false;
     let requests = [];
+    let requestsSettled = 0;
     await admin.query('BEGIN');
     transactionOpen = true;
     try {
       await admin.query('SELECT id FROM public.content_bundle WHERE id = $1 FOR UPDATE', [fixture.bundle]);
-      const approval = requestBundleApproval(fixture);
+      const approval = requestBundleApproval(fixture).then(response => {
+        requestsSettled++;
+        return response;
+      });
       const draft = requestBundleDraft(fixture, {
         expectedRevisionId: null,
         captions: { discord: 'The concurrent draft revision won.' },
         hashtags: [],
         scheduleRequest: null,
+      }).then(response => {
+        requestsSettled++;
+        return response;
       });
       requests = [approval, draft];
-      assert.equal(await waitForContentBundleLockWaiters(2), 2,
-        'Both API transitions must wait on the same locked bundle before the race is released');
+      assert.equal(await waitForContentBundleLockWaiters(1), 1,
+        'At least one API transition must reach the locked bundle before the race is released');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert.equal(requestsSettled, 0, 'Both concurrently submitted API transitions must remain pending while the row is locked');
       await admin.query('COMMIT');
       transactionOpen = false;
 
