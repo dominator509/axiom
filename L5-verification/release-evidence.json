@@ -113,6 +113,23 @@
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "LBI-01",
+          "sha": "35dfe3adfa3c925b155c5e6b4eac24a26c399696",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-disabled disposable PostgreSQL using the pinned TimescaleDB image.",
+          "scope": "Full effective migrated RLS catalog and runtime-role rehearsal across schema-derived tenant tables; cross-tenant read and write controls; 20 assertions passed; rollback-only controls and fixture cleanup verified.",
+          "limitations": "Disposable PostgreSQL only; no deployed/shared/production database inspection and no exhaustive CRUD exercise for every tenant table.",
+          "observedAt": "2026-10-09T04:05:08Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
+          "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
+          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -1629,6 +1646,23 @@
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "NONFUNCTIONAL-2",
+          "sha": "35dfe3adfa3c925b155c5e6b4eac24a26c399696",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-disabled disposable PostgreSQL using the pinned TimescaleDB image.",
+          "scope": "Full effective migrated RLS catalog and runtime-role rehearsal across schema-derived tenant tables; cross-tenant reads returned zero rows and writes were rejected; 20 assertions passed; rollback-only controls and fixture cleanup verified.",
+          "limitations": "Disposable PostgreSQL only; no deployed/shared/production database inspection and no exhaustive CRUD exercise for every tenant table.",
+          "observedAt": "2026-10-09T04:05:08Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
+          "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
+          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -1868,6 +1902,23 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729/job/113100918915",
           "logSha256": "1401886a3631a88aa413be17a470379a6f6ce9dcc849217c606c2835c8a1dcc4",
+          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "SECURITY-2",
+          "sha": "35dfe3adfa3c925b155c5e6b4eac24a26c399696",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned network-disabled disposable PostgreSQL using the pinned TimescaleDB image.",
+          "scope": "Every schema-derived tenant table checked against effective migrated RLS and runtime-role privileges; cross-tenant read/write controls; 20 assertions passed; rollback-only controls and fixture cleanup verified.",
+          "limitations": "Disposable PostgreSQL only; no deployed/shared/production database inspection and no exhaustive CRUD exercise for every tenant table.",
+          "observedAt": "2026-10-09T04:05:08Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
+          "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
           "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
           "skips": [],
           "images": [
