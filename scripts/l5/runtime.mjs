@@ -134,6 +134,13 @@ async function requestBundleApproval(fixture) {
     body: JSON.stringify(body),
   });
 }
+async function requestBundleDraft(fixture, body) {
+  return bundleApprovalApp(fixture).request(`/${fixture.bundle}/draft`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 async function assertApprovalRejectedWithoutMutation(fixture, response, expectedDetail) {
   const detail = await response.text();
   assert.equal(response.status, 409, detail);
@@ -156,7 +163,7 @@ async function assertApprovalRejectedWithoutMutation(fixture, response, expected
 async function preparePassingApprovalFixture(fixture, scanState) {
   const connection = randomUUID();
   await scoped(fixture.org, async tx => {
-    await tx.update(schema.contentBundle).set({ tosReport: {
+    await tx.update(schema.contentBundle).set({ captions: { discord: 'Synthetic approval fixture.' }, tosReport: {
       verdict: 'pass', scores: [{ platform: 'discord', score: 0, verdict: 'pass' }],
     } }).where(eq(schema.contentBundle.id, fixture.bundle));
     await tx.insert(schema.consentRecord).values(syntheticConsentRows(fixture.org, fixture.model));
@@ -181,10 +188,35 @@ async function preparePassingApprovalFixture(fixture, scanState) {
         lockedAt: null,
         completedAt: new Date(),
       }).where(eq(schema.job.id, fixture.job.id));
+    } else if (scanState === 'done') {
+      await tx.update(schema.job).set({
+        state: 'done',
+        lockedBy: null,
+        lockedAt: null,
+        completedAt: new Date(),
+      }).where(eq(schema.job.id, fixture.job.id));
     }
   });
   fixture.connection = connection;
   return fixture;
+}
+async function waitForContentBundleLockWaiters(expected) {
+  const deadline = Date.now() + 10_000;
+  let observed = 0;
+  while (Date.now() < deadline) {
+    const result = await admin.query(`
+      SELECT count(*)::int AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+        AND lower(query) LIKE '%content_bundle%'
+        AND lower(query) LIKE '%for update%'
+    `);
+    observed = result.rows[0]?.count ?? 0;
+    if (observed >= expected) return observed;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  throw new Error(`Expected ${expected} blocked content-bundle row-lock requests; observed ${observed}`);
 }
 async function relayDispatchFixture() {
   const { org, model } = await tenant();
@@ -376,7 +408,9 @@ async function localDiscordProvider(fixture, { holdResponse = false,
   webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN } = {}) {
   const deliveries = [];
   let resolveAccepted;
+  let releaseHeldResponse;
   const accepted = new Promise(resolve => { resolveAccepted = resolve; });
+  const heldResponse = new Promise(resolve => { releaseHeldResponse = resolve; });
   const server = createServer(async (request, response) => {
     try {
       assert.equal(request.method, 'POST');
@@ -385,7 +419,7 @@ async function localDiscordProvider(fixture, { holdResponse = false,
       for await (const chunk of request) chunks.push(chunk);
       deliveries.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
       resolveAccepted(deliveries.at(-1));
-      if (holdResponse) return;
+      if (holdResponse) await heldResponse;
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ id: `fixture-message-${deliveries.length}`, type: 0, channel_id: '123456789012345678' }));
     } catch {
@@ -425,7 +459,9 @@ async function localDiscordProvider(fixture, { holdResponse = false,
     accepted,
     transportPort: address.port,
     resolver,
+    releaseResponse: () => releaseHeldResponse(),
     close: () => new Promise((resolve, reject) => {
+      releaseHeldResponse();
       server.close(error => error ? reject(error) : resolve());
       server.closeAllConnections?.();
     }),
@@ -544,6 +580,74 @@ try {
     const fixture = await preparePassingApprovalFixture(await jobFixture(), 'running');
     const response = await requestBundleApproval(fixture);
     await assertApprovalRejectedWithoutMutation(fixture, response, 'ToS scan is still running');
+  });
+  await check('bundles.approve: draft revision and approval serialize without stale publishing work', async () => {
+    const fixture = await preparePassingApprovalFixture(await jobFixture(), 'done');
+    let transactionOpen = false;
+    let requests = [];
+    await admin.query('BEGIN');
+    transactionOpen = true;
+    try {
+      await admin.query('SELECT id FROM public.content_bundle WHERE id = $1 FOR UPDATE', [fixture.bundle]);
+      const approval = requestBundleApproval(fixture);
+      const draft = requestBundleDraft(fixture, {
+        expectedRevisionId: null,
+        captions: { discord: 'The concurrent draft revision won.' },
+        hashtags: [],
+        scheduleRequest: null,
+      });
+      requests = [approval, draft];
+      assert.equal(await waitForContentBundleLockWaiters(2), 2,
+        'Both API transitions must wait on the same locked bundle before the race is released');
+      await admin.query('COMMIT');
+      transactionOpen = false;
+
+      const [approvalResponse, draftResponse] = await Promise.all(requests);
+      assert.deepEqual([approvalResponse.status, draftResponse.status].sort((left, right) => left - right), [200, 409],
+        'Exactly one transition may succeed after concurrent requests recheck locked bundle state');
+
+      const records = await scoped(fixture.org, async tx => ({
+        bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
+        targets: await tx.select().from(schema.postTarget).where(eq(schema.postTarget.bundleId, fixture.bundle)),
+        publishJobs: await tx.select().from(schema.job).where(and(
+          eq(schema.job.orgId, fixture.org), eq(schema.job.kind, 'publish.target'),
+        )),
+        scans: await tx.select().from(schema.job).where(and(
+          eq(schema.job.orgId, fixture.org), eq(schema.job.kind, 'tos.scan'),
+        )),
+        approvals: await tx.select().from(schema.auditLog).where(and(
+          eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.action, 'bundle.approve'),
+        )),
+        draftEdits: await tx.select().from(schema.auditLog).where(and(
+          eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.action, 'bundle.draft.edit'),
+        )),
+      }));
+
+      if (approvalResponse.status === 200) {
+        assert.equal(records.bundle.state, 'approved');
+        assert.equal(records.bundle.captions.discord, 'Synthetic approval fixture.');
+        assert.equal(records.bundle.tosReport.verdict, 'pass');
+        assert.equal(records.targets.length, 1, 'The winning approval creates one target');
+        assert.equal(records.publishJobs.length, 1, 'The winning approval creates one durable publish job');
+        assert.equal(records.approvals.length, 1, 'The winning approval writes one audit event');
+        assert.equal(records.draftEdits.length, 0, 'A rejected draft edit cannot leave an audit event');
+      } else {
+        assert.equal(draftResponse.status, 200);
+        assert.equal(records.bundle.state, 'generated');
+        assert.equal(records.bundle.captions.discord, 'The concurrent draft revision won.');
+        assert.equal(records.bundle.tosReport.verdict, 'pending');
+        assert.match(records.bundle.tosReport.revisionId, /^[0-9a-f-]{36}$/i);
+        assert.equal(records.targets.length, 0, 'A losing approval cannot leave post targets');
+        assert.equal(records.publishJobs.length, 0, 'A losing approval cannot leave publish jobs');
+        assert.equal(records.approvals.length, 0, 'A losing approval cannot leave an approval audit event');
+        assert.equal(records.draftEdits.length, 1, 'The winning draft revision writes one audit event');
+        assert.equal(records.scans.filter(job => job.state === 'ready').length, 1,
+          'The winning draft revision queues a fresh ToS scan');
+      }
+    } finally {
+      if (transactionOpen) await admin.query('ROLLBACK');
+      if (requests.length) await Promise.allSettled(requests);
+    }
   });
 for (const kind of Object.keys(defaultExecutors)) {
     await check(`${kind}: missing and disabled organization safety state parks queued work`, async () => {
@@ -718,6 +822,55 @@ for (const kind of Object.keys(defaultExecutors)) {
       assert.equal(otherConsent.length, 4, 'The other tenant has a separate complete synthetic consent set');
       await assertConsentBlocksPublish(fixture, provider);
     } finally {
+      await provider.close();
+    }
+  });
+  await check('publish.target: an in-flight provider dispatch rejects a concurrent draft revision', async () => {
+    const fixture = await successfulPublishFixture();
+    const provider = await localDiscordProvider(fixture, { holdResponse: true });
+    const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
+    let dispatch;
+    try {
+      dispatch = processJob(fixture.job, executors, 'l5-worker', {});
+      await waitWithTimeout(provider.accepted, 15_000, 'Publish worker did not reach the isolated provider');
+      assert.equal(provider.deliveries.length, 1, 'The provider accepted exactly one in-flight request');
+
+      let records = await publishRecords(fixture);
+      assert.equal(records.job.state, 'running');
+      assert.equal(records.target.state, 'pending', 'Local state remains pending until the provider replies');
+      assert.equal(records.markers.length, 1);
+      assert.equal(records.markers[0].status, 'pending', 'The durable reconciliation marker remains in flight');
+
+      const response = await requestBundleDraft(fixture, {
+        expectedRevisionId: null,
+        captions: { discord: 'A forbidden edit during external delivery.' },
+        hashtags: ['concurrent-edit'],
+        scheduleRequest: null,
+      });
+      assert.equal(response.status, 409, await response.text());
+      const bundleAfterRejectedEdit = await scoped(fixture.org, async tx => ({
+        bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
+        draftEdits: await tx.select().from(schema.auditLog).where(and(
+          eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.action, 'bundle.draft.edit'),
+        )),
+      }));
+      assert.equal(bundleAfterRejectedEdit.bundle.state, 'approved');
+      assert.equal(bundleAfterRejectedEdit.bundle.captions.discord, 'Synthetic L5 publish acceptance.');
+      assert.equal(bundleAfterRejectedEdit.draftEdits.length, 0, 'A rejected edit cannot write a draft audit event');
+      assert.equal(provider.deliveries.length, 1, 'A rejected edit does not trigger a second provider request');
+
+      provider.releaseResponse();
+      assert.equal(await waitWithTimeout(dispatch, 15_000, 'Publish worker did not persist the provider response'), 'done');
+      records = await publishRecords(fixture);
+      assert.equal(records.job.state, 'done');
+      assert.equal(records.target.state, 'published');
+      assert.equal(records.target.remoteId, 'fixture-message-1');
+      assert.equal(records.ledger?.responseHash, 'fixture-message-1');
+      assert.deepEqual(records.markers.map(({ status }) => status), ['success']);
+      assert.equal(provider.deliveries.length, 1);
+    } finally {
+      provider.releaseResponse();
+      if (dispatch) await waitWithTimeout(dispatch, 15_000, 'In-flight publish cleanup timed out').catch(() => {});
       await provider.close();
     }
   });
