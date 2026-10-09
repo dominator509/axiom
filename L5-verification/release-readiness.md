@@ -1,34 +1,60 @@
 # Release readiness: evidence register and execution order
 
-Implementation baseline audited by this reconciliation: `07b6723a963add92249e637151e53852d042b485` on main, after PR #123. Its post-merge CI run is [37845929231](https://github.com/dominator509/axiom/actions/runs/37845929231), with 10 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines `50123ffd7ddf4e93625d44e828c85521089d03cc`, `7c83cd3f7ec31c776d9f1723942003cf9484cb7a`, and `08dbcc8a2adaa9071dac5cd41228d86ab6118e35`, plus the original evidence baseline `490f01d16b2bba3bf4366b1b2706a4879df3004e`, remain historical receipts below.
+Current main baseline for this reconciliation (2026-10-09): `baabc6624efe9977d9bb3396bd7c43c4b8a5a7d8`, after PR #135. Its post-merge CI run is [37921289132](https://github.com/dominator509/axiom/actions/runs/37921289132), with 11 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines and their receipts remain historical below.
+
 This register does not declare production readiness. Green build/test jobs,
-`ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria.
+`ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
+baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
+22 accepted, and 32 open; the register is structurally valid but is not release
+approval. `node scripts/check-release-evidence.mjs --release
+baabc6624efe9977d9bb3396bd7c43c4b8a5a7d8` fails closed at `LBI-01: stale evidence
+SHA`. That is a receipt-freshness failure, not evidence that the underlying
+behavior failed. Accepted rows retain their actual tested SHAs and must be
+repeated at the final release SHA. A post-run external register cannot redefine
+acceptance criteria, and this document does not authorize release.
 
-The earlier exact-SHA check at historical baseline
-`node scripts/check-release-evidence.mjs --verify-receipts 50123ffd7ddf4e93625d44e828c85521089d03cc`
-failed closed at `LBI-01: stale evidence SHA`; that historical register had five
-accepted rows and 47 open. This remains a receipt-freshness finding for that
-baseline, not evidence that those rows failed. The current register has 54
-criteria, 19 accepted, and 35 open. The validator checks requirements and
-invariant mappings against the canonical sources; a post-run external register
-cannot redefine acceptance criteria. Exact-SHA hosted readback remains required
-for final release, and this register does not authorize release.
+## Main baseline receipt used by this reconciliation (2026-10-09)
 
-## Main baseline receipt used by this reconciliation (2026-10-08)
+PR #135 is on main at exact SHA `baabc6624efe9977d9bb3396bd7c43c4b8a5a7d8`.
+Post-merge [CI run 37921289132](https://github.com/dominator509/axiom/actions/runs/37921289132)
+completed with 11 successful jobs, 0 failed, and 0 cancelled. The run includes
+the independent typecheck, lint, test, build, security, container, browser,
+runtime, and recovery-drill jobs; all are CI evidence at this SHA, not proof of
+external provider delivery or owner-deployed controls.
 
-PR #123 is on main at exact SHA `07b6723a963add92249e637151e53852d042b485`.
+Local checks at this exact baseline were:
+
+| Command | Result |
+| --- | --- |
+| `rtk node --test scripts/check-release-evidence.test.mjs` | 64 passed, 0 failed, 0 skipped |
+| `rtk node scripts/check-release-evidence.mjs --check` | 54 criteria, 22 accepted, 32 open; valid, not release approval |
+| `rtk sh scripts/verify.sh` | `verify: ok`; 11 gates passed, 0 failed, 1 skipped (12 total); `ufw` is Linux-production-host-only |
+| `rtk node scripts/check-release-evidence.mjs --release baabc6624efe9977d9bb3396bd7c43c4b8a5a7d8` | Failed closed at `LBI-01: stale evidence SHA` |
+
+The stale receipt must be refreshed with the full acceptance matrix at the final
+release SHA. The exact-SHA failure does not invalidate the successful CI run or
+the historical behavior receipts; it prevents claiming release acceptance now.
+
+## Prior main receipt (2026-10-08)
+
+PR #123 was on main at exact SHA `07b6723a963add92249e637151e53852d042b485`.
 Post-merge [CI run 37845929231](https://github.com/dominator509/axiom/actions/runs/37845929231)
 completed with 10 successful jobs, 0 failed, and 0 cancelled. The [test job](https://github.com/dominator509/axiom/actions/runs/37845929231/job/113546673845)
-ran the focused A5 command `pnpm --filter @axiom/worker exec vitest run
+ran `pnpm --filter @axiom/worker exec vitest run
 src/viral-retrieval.integration.test.ts`: 1 file, 11 passed, 0 failed, and
-0 skipped. The job used the pinned PostgreSQL service; the fixture rolls its
-synthetic data back and closes its pool. Its raw log SHA-256 is
+0 skipped. The job used the pinned PostgreSQL service; the fixture rolled its
+synthetic data back and closed its pool. Its raw log SHA-256 is
 `73d1e0722ae36b9bfb4a10a5c65a32d40c3facfc6d35cf622a157fbecab173ed`.
 
-This closes A5 at the verified baseline for internal exemplar retrieval, S2
+This closed A5 at that verified baseline for internal exemplar retrieval, S2
 prompt assembly, and bandit updates. It does not prove live-provider metrics,
 external dispatch/readback, or production outcomes. A5 must be repeated at the
 final release SHA.
+
+The historical exact-SHA check at `50123ffd7ddf4e93625d44e828c85521089d03cc`
+also failed closed at `LBI-01: stale evidence SHA`; its register snapshot had
+five accepted rows and 47 open. That dated count is retained as history and is
+superseded by the current 54-row snapshot above.
 
 ## Historical main receipt (2026-10-07)
 
@@ -194,25 +220,32 @@ egress results are available in their jobs; none proves live provider acceptance
 One focused PR at a time, verified green at its exact head before merging under
 the owner's standing authorization. Recheck main CI after each merge.
 
-1. Evidence register: complete L5 coverage, canonical invariant crosswalk, and
-   exact-main A5 receipt are validated. The register remains open at 19 accepted
-   and 35 open; repeat accepted rows at the final release SHA.
+1. Evidence register: all 54 rows have a test, environment, dependencies,
+   evidence requirements and completion condition; the canonical invariant
+   crosswalk is validated. Current status is 22 accepted and 32 open. Repeat all
+   accepted rows at the final release SHA and complete exact-SHA hosted readback.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
-   Isolated acceptance passed at `d8bfb217b4549e8b53c513de71fd92c1ea499c95`;
-   deployed-state inspection remains outside this lane.
-3. L5 matrix: extend real isolated stack/browser journeys and negative controls;
-   include pinned-model inference, unknown dispatch and durable audit outcomes.
-4. Providers/Relay: real dedicated accounts or sandboxes and supported hardware;
-   connection, dispatch, remote readback, reconciliation, revocation and cleanup.
-5. Deployment/egress: exact images, readiness, restart/rollback, real network
-   faults, <=5s kill switch and observable incidents in an owned environment.
-6. Performance/cost: 1-20 models, recorded resources and workload, specified
-   latency budgets, >97% measured provider token-cache hits, cost and availability.
-7. Recovery: fresh-cluster PITR and object/key restoration, RPO <=5m/RTO <=60m,
-   egress disabled, negative controls and two repeatable drills.
-8. Product/sign-off: F01-F91, six locales, desktop/native-mobile actions, synthetic
-   consent-vault controls, owner records attestation and release-specific sign-off.
+   Isolated acceptance has passed on prior main SHAs; the current register's
+   LBI-01 receipt is stale, and deployed-state inspection remains outside this lane.
+3. L5 matrix: close the remaining real isolated runtime/browser journeys and
+   negative controls, including pinned-model inference, uncertain dispatch,
+   durable audit outcomes, secrets and consent enforcement.
+4. Providers/Relay: use dedicated accounts or sandboxes and supported hardware
+   for connection, permission validation, permitted dispatch, remote readback,
+   reconciliation, revocation and cleanup. Missing external access remains open.
+5. Deployment/egress: use immutable images and an owned isolated deployment to
+   prove readiness, restart/rollback, injected network faults, the <=5-second
+   kill switch and observable incidents.
+6. Performance/cost: measure the 1-20-model workload, specified latency budgets,
+   >97% provider-reported token-cache hits, resource use, monthly cost and
+   availability over the required observation period.
+7. Recovery: complete two repeatable fresh-cluster PITR drills with object/key
+   restoration, RPO <=5 minutes, RTO <=60 minutes, egress disabled, and negative
+   controls.
+8. Product/sign-off: verify F01-F92, six locales, desktop and native-mobile
+   journeys, synthetic consent-vault controls, owner records attestation and
+   release-specific sign-off.
 
 Lane 2's isolated effective-RLS acceptance passed at main SHA
 `d8bfb217b4549e8b53c513de71fd92c1ea499c95`: [CI run 37211855138](https://github.com/dominator509/axiom/actions/runs/37211855138),
@@ -229,16 +262,17 @@ also passed 20/20 assertions with zero failures or skips and verified cleanup:
 Its receipt preserves the earlier SHA and records the pinned PostgreSQL image and
 raw-log digest. The required repeat on the eventual final release SHA remains open.
 
-Items 3-8 remain open, and this does not authorize release. A Docker deployment
-can establish isolated runtime proof. It cannot establish real provider
-entitlement, real channel delivery, customer consent, month-long availability,
-or the owner's deployed controls. Missing external prerequisites are blockers
-for their rows; independent isolated work continues. No shared/production
-database changes or migrations are permitted.
+Each workstream has at least one remaining unverified or blocked criterion;
+accepted component receipts do not close an entire lane. A Docker deployment can
+establish isolated runtime proof. It cannot establish real provider entitlement,
+real channel delivery, customer consent, month-long availability, or the owner's
+deployed controls. Missing external prerequisites remain blockers for their
+rows; independent isolated work continues. No shared/production database
+changes or migrations are permitted.
 
 ## Evidence format and gates
 
-`release-evidence.json` contains 52 rows extracted from the normative sections of
+`release-evidence.json` contains 54 rows extracted from the normative sections of
 L5.0 and L5.2. Dated checkpoint prose is excluded. Requirements are stored verbatim
 with SHA-256 hashes. Each row also records its planned test, isolated environment,
 prior-lane dependencies, required receipt contents, and exact completion condition.
