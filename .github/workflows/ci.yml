@@ -180,7 +180,7 @@ jobs:
             if (entries.length !== 1) throw new Error(`Expected one worker egress receipt, found ${entries.length}`);
             const receipt = JSON.parse(fs.readFileSync(`${root}/${entries[0]}/receipt.json`, "utf8"));
             if (receipt.testedSha !== process.env.TESTED_SHA) throw new Error("Worker egress receipt SHA mismatch");
-            if (receipt.assertionCount !== 17 || receipt.counts?.total !== 17 || receipt.counts.passed !== 17 || receipt.counts.failed !== 0 || receipt.counts.skipped !== 0) {
+            if (receipt.assertionCount !== 22 || receipt.counts?.total !== 22 || receipt.counts.passed !== 22 || receipt.counts.failed !== 0 || receipt.counts.skipped !== 0) {
               throw new Error(`Worker egress acceptance counts incomplete: ${JSON.stringify(receipt.counts)}`);
             }
             if (!/^[a-f0-9]{64}$/.test(receipt.testOutputSha256 ?? "")) throw new Error("Worker egress test output hash missing");

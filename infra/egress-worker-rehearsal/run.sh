@@ -33,6 +33,12 @@ ip netns exec "$NETNS" setpriv --reuid 65534 --regid 65534 --clear-groups \
 CANARY_PID=$!
 
 COMMON_ENV="AXIOM_EGRESS_RUNNER=1 AXIOM_EGRESS_CONFINEMENT_REQUIRED=1 WORKER_EGRESS_MODEL_ID=${MODEL_ID}"
+run_namespace_probe() {
+  mode="$1"
+  ip netns exec "$NETNS" env -i PATH="$PATH" HOME=/tmp $COMMON_ENV \
+    setpriv --reuid 65534 --regid 65534 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
+    node /app/infra/egress-worker-rehearsal/probe.mjs "$mode"
+}
 
 # The initial container namespace has no path to the canary and must be
 # rejected by the shared helper before a configured egress fetch is returned.
@@ -41,7 +47,10 @@ env -i PATH="$PATH" HOME=/tmp $COMMON_ENV \
   node /app/infra/egress-worker-rehearsal/probe.mjs host-reject
 
 # The matching namespace is the only one permitted through the helper, and it
-# can reach only its own loopback canary in this network-none fixture.
-ip netns exec "$NETNS" env -i PATH="$PATH" HOME=/tmp $COMMON_ENV \
-  setpriv --reuid 65534 --regid 65534 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
-  node /app/infra/egress-worker-rehearsal/probe.mjs matching-runner
+# can reach its own loopback canary through explicit direct and proxy bindings.
+# Stopping the model proxy is the controlled network fault: the real Undici
+# ProxyAgent must fail without reaching the target directly.
+run_namespace_probe matching-runner
+run_namespace_probe proxy-positive
+run_namespace_probe proxy-disable
+run_namespace_probe proxy-outage

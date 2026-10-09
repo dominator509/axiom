@@ -137,7 +137,7 @@
       "requirementSha256": "31260dfbb2dccb338bc52f22d8ad8c70fb8734d33525ceb9774a84ccb71d5e21",
       "lane": 5,
       "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "nextStep": "Run the owned isolated deployment with target-host policy handoff, tunnel/DNS/route faults, kill-switch timing, restarts and correlated observability; verify external provider delivery separately.",
       "evidence": [
         {
           "criterion": "LBI-02",
@@ -175,6 +175,23 @@
           "skips": [],
           "images": [
             "sha256:8f01c2a76548f0c530ba97ef8619fc0758e0c3aa3e032d0c3309994b019be194"
+          ]
+        },
+        {
+          "criterion": "LBI-02",
+          "sha": "b68779afddd2dab6ac4deebe5f0899f4691958e3",
+          "command": "node scripts/rehearse-egress-worker-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; owned unprivileged Docker fixture with network=none, no host mounts, and no published ports.",
+          "scope": "22 assertions passed. The built worker had no default route or host namespace access; a real Undici ProxyAgent reached only its assigned model canary through the proxy. After the proxy was disabled, the next request failed and the target recorded no direct-fallback hit. Cleanup removed and verified the temporary container, image, and source context.",
+          "limitations": "Docker-only worker caller-boundary and proxy-outage rehearsal. It does not establish target-host systemd/policy handoff, real tunnel/DNS/proxy rotation, external provider delivery, deployment restart behavior, kill-switch timing, or production acceptance.",
+          "observedAt": "2026-10-09T03:11:03Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37878019919",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37878019919/job/113650958679",
+          "logSha256": "5a5968b3ae24477496d1a1cc3d084b848f00dc68d6059d139d8caee7cb77a2d7",
+          "counts": { "passed": 22, "failed": 0, "skipped": 0, "total": 22, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "sha256:e0745ee79403de245cd54cdcc350dbd5963338c67f6c967dd40891f73e643f83"
           ]
         }
       ],

@@ -37,7 +37,9 @@ const hashes = {};
 const requiredMarkers = [
   'EGRESS_RUNTIME_CANARY_READY', 'ASSERT_UNPRIVILEGED_CAPS PASS', 'ASSERT_UNSHARE_DENIED PASS',
   'ASSERT_NO_DEFAULT_ROUTE PASS', 'ASSERT_HOST_NAMESPACE_REJECT PASS', 'ASSERT_HOST_LOOPBACK_UNREACHABLE PASS',
-  'ASSERT_NAMESPACE_MATCH PASS', 'ASSERT_MATCHING_RUNNER_FETCH PASS',
+  'ASSERT_HOST_PROXY_UNREACHABLE PASS', 'ASSERT_NAMESPACE_MATCH PASS', 'ASSERT_MATCHING_RUNNER_FETCH PASS',
+  'ASSERT_PROXY_ROUTE_VERIFIED PASS', 'ASSERT_PROXY_FAULT_INJECTED PASS',
+  'ASSERT_PROXY_OUTAGE_FAIL_CLOSED PASS', 'ASSERT_NO_DIRECT_FALLBACK PASS',
 ];
 const plannedChecks = 8 + requiredMarkers.length + 1;
 const receipt = {
@@ -50,7 +52,7 @@ const receipt = {
   counts: { total: plannedChecks, passed: 0, failed: 0, skipped: plannedChecks },
   testOutputSha256: null,
   productionAcceptance: false,
-  scope: 'Docker-only Node namespace caller-boundary rehearsal; asserts no namespace default route and no host namespace fallback. No target systemd, provider, tunnel, DNS, proxy rotation, or host policy acceptance.',
+  scope: 'Docker-only Node namespace caller-boundary rehearsal; verifies no default route or host namespace access, a real Undici ProxyAgent reaches the model canary through its assigned proxy, and stopping that proxy rejects the next request without direct fallback. No target systemd, provider, tunnel, DNS, proxy rotation, or host policy acceptance.',
   status: 'running',
   cleanup: { containerRemoved: false, imageRemoved: false, sourceContextRemoved: false, verified: false },
 };

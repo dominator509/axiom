@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { assertEgressFetchCaller, buildEgressFetch } from '/app/packages/llm-gateway/dist/egress.js';
 
 const mode = process.argv[2];
-assert.ok(['matching-runner', 'host-reject'].includes(mode), 'probe mode is required');
+assert.ok(['matching-runner', 'host-reject', 'proxy-positive', 'proxy-disable', 'proxy-outage'].includes(mode), 'probe mode is required');
 
 const modelId = process.env.WORKER_EGRESS_MODEL_ID;
 assert.match(modelId ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
@@ -55,6 +55,16 @@ if (mode === 'host-reject') {
   }
   assert.equal(reachable, false, 'host namespace reached model-only loopback canary');
   console.log('ASSERT_HOST_LOOPBACK_UNREACHABLE PASS');
+
+  let proxyReachable = false;
+  try {
+    const response = await fetch('http://127.0.0.1:18992/permitted', { signal: AbortSignal.timeout(500) });
+    proxyReachable = response.ok;
+  } catch {
+    // The model-specific proxy canary is bound only inside the assigned namespace.
+  }
+  assert.equal(proxyReachable, false, 'host namespace reached model-only proxy canary');
+  console.log('ASSERT_HOST_PROXY_UNREACHABLE PASS');
   process.exit(0);
 }
 
@@ -62,19 +72,63 @@ assertEgressFetchCaller();
 assert.equal(sameNamespace(), true);
 console.log('ASSERT_NAMESPACE_MATCH PASS');
 
-const egressFetch = buildEgressFetch({ kind: 'direct' });
-let response;
-let lastError;
-for (let attempt = 0; attempt < 30; attempt += 1) {
-  try {
-    response = await egressFetch('http://127.0.0.1:18991/permitted', { signal: AbortSignal.timeout(500) });
-    break;
-  } catch (error) {
-    lastError = error;
-    await new Promise(resolve => setTimeout(resolve, 50));
+const targetUrl = 'http://127.0.0.1:18991/permitted';
+const proxyUrl = 'http://127.0.0.1:18992';
+
+if (mode === 'matching-runner') {
+  const egressFetch = buildEgressFetch({ kind: 'direct' });
+  let response;
+  let lastError;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      response = await egressFetch(targetUrl, { signal: AbortSignal.timeout(500) });
+      break;
+    } catch (error) {
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
   }
+  assert.ok(response, `matching runner could not reach model canary: ${lastError}`);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), 'model-namespace-canary');
+  console.log('ASSERT_MATCHING_RUNNER_FETCH PASS');
+  process.exit(0);
 }
-assert.ok(response, `matching runner could not reach model canary: ${lastError}`);
-assert.equal(response.status, 200);
-assert.equal(await response.text(), 'model-namespace-canary');
-console.log('ASSERT_MATCHING_RUNNER_FETCH PASS');
+
+if (mode === 'proxy-positive') {
+  const proxyFetch = buildEgressFetch({ kind: 'proxy', proxyUrl });
+  const response = await proxyFetch(targetUrl, { signal: AbortSignal.timeout(1000) });
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), 'model-namespace-canary');
+  const state = await (await fetch('http://127.0.0.1:18991/_fixture/status')).json();
+  assert.equal(state.targetHits, 2, 'target must see the direct canary check and the proxied request');
+  assert.equal(state.proxyEnabled, true);
+  console.log('ASSERT_PROXY_ROUTE_VERIFIED PASS');
+  process.exit(0);
+}
+
+if (mode === 'proxy-disable') {
+  const disabled = await fetch('http://127.0.0.1:18991/_fixture/disable-proxy', { method: 'POST' });
+  assert.equal(disabled.status, 200, 'fault controller must stop the model proxy canary');
+  assert.equal(await disabled.text(), 'proxy-disabled');
+  const state = await (await fetch('http://127.0.0.1:18991/_fixture/status')).json();
+  assert.equal(state.proxyEnabled, false, 'proxy outage must be confirmed by fixture readback');
+  console.log('ASSERT_PROXY_FAULT_INJECTED PASS');
+  process.exit(0);
+}
+
+if (mode === 'proxy-outage') {
+  const proxyFetch = buildEgressFetch({ kind: 'proxy', proxyUrl });
+  await assert.rejects(
+    proxyFetch(targetUrl, { signal: AbortSignal.timeout(1000) }),
+    'proxy outage must reject the request',
+  );
+  console.log('ASSERT_PROXY_OUTAGE_FAIL_CLOSED PASS');
+  const state = await (await fetch('http://127.0.0.1:18991/_fixture/status')).json();
+  assert.equal(state.proxyEnabled, false);
+  assert.equal(state.targetHits, 2, 'failed proxy request must not reach the target through a direct fallback');
+  console.log('ASSERT_NO_DIRECT_FALLBACK PASS');
+  process.exit(0);
+}
+
+throw new Error(`unsupported probe mode: ${mode}`);
