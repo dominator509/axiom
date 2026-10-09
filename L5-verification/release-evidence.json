@@ -1191,9 +1191,98 @@
       "requirement": "- Security scan: dependency audit, secret scan, RLS coverage, egress default-deny.",
       "requirementSha256": "c9fc8f92ba36e2ee133fdb28d9d8e6846389bb632186f6a0000eb9b84c12df2d",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA dependency/secret-scan, RLS, and egress-deny evidence.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat security, RLS, and egress acceptance at the final release SHA; secret-scan scope and isolated infrastructure limitations remain as documented.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-NFR-4",
+          "sha": "7f604f53f710e7adca0e1277aaf36286d2f5e714",
+          "command": "pnpm security-check",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, pnpm 9.14.0; hosted security job",
+          "scope": "6 security-check sections completed: tracked-file secret-pattern scan, world-writable file check, patched-dependency regression gate, pnpm high/critical audit, cargo audit, and .env ignore check.",
+          "limitations": "The secret scan uses repository patterns against tracked files and excludes environment and test filenames; it does not inspect external secret stores or deployed host configuration. Audit retains only the exact node-forge upstream limitation.",
+          "observedAt": "2026-10-09T10:13:23Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594/job/113771571983",
+          "logSha256": "7d30f3cde6c7c538ba6692cd89f2e8d34aa6a859d208c7ec8321f7ef1c27254f",
+          "counts": {
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0,
+            "total": 6,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": []
+        },
+        {
+          "criterion": "MATRIX-NFR-4",
+          "sha": "7f604f53f710e7adca0e1277aaf36286d2f5e714",
+          "command": "pnpm audit:dependencies",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, pnpm 9.14.0; hosted security job",
+          "scope": "High/critical audit gate passed with 0 unmitigated high/critical findings; one locally patched advisory (GHSA-vfj7-8cjw-p6xm, braces) and one exact upstream limitation (GHSA-86w9-cpqp-85rv, node-forge).",
+          "limitations": "The node-forge exception remains narrow and unchanged; this is not a claim of zero advisories at all severity levels.",
+          "observedAt": "2026-10-09T10:13:27Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594/job/113771571983",
+          "logSha256": "7d30f3cde6c7c538ba6692cd89f2e8d34aa6a859d208c7ec8321f7ef1c27254f",
+          "counts": {
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "total": 1,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": []
+        },
+        {
+          "criterion": "MATRIX-NFR-4",
+          "sha": "7f604f53f710e7adca0e1277aaf36286d2f5e714",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "20 assertions passed against 74 tenant tables; effective RLS catalog and runtime-role checks, cross-tenant read/write behavior, 9 rollback-only fault controls, and verified fixture cleanup.",
+          "limitations": "Disposable database only; no shared or production database inspection and no exhaustive CRUD fixture for every tenant table.",
+          "observedAt": "2026-10-09T10:19:54Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594/job/113771571738",
+          "logSha256": "ff8b720e924e2bc5562161f6c5b9ebb1c04246d2de7a6464e5ca842e02f9c475",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-4",
+          "sha": "7f604f53f710e7adca0e1277aaf36286d2f5e714",
+          "command": "node scripts/rehearse-egress.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; isolated Linux Docker egress rehearsal with temporary build resources",
+          "scope": "16 fail-closed egress acceptance assertions passed; supporting Rust result was 84 passed, 0 failed, 0 ignored, 0 measured, 0 filtered across 10 suites. Temporary builder, container, image, and source context cleanup was verified. Immutable egress image sha256:f59e69c6a4167947adcb99fc32bd82aaa8aac14143dd18ab0704b02e0e71f922; source manifest SHA-256 b90d8d87302bd6693c966f20437005a933d1dd4ac2883082ee1dfc388dc656ee.",
+          "limitations": "Isolated CI network namespace only; does not establish owner-host policy handoff, external provider delivery, or production infrastructure egress behavior.",
+          "observedAt": "2026-10-09T10:12:54Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37915808594/job/113771571278",
+          "logSha256": "e55c1f287a5db42cae56b66f62d9e60229f42426589d27691823fa9a0821803a",
+          "counts": {
+            "passed": 16,
+            "failed": 0,
+            "skipped": 0,
+            "total": 16,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:f59e69c6a4167947adcb99fc32bd82aaa8aac14143dd18ab0704b02e0e71f922"
+          ]
+        }
+      ],
       "verification": {
         "test": "Run dependency audit, secret scan, isolated RLS catalog rehearsal, and fail-closed egress acceptance; review each result at the exact tested SHA.",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
