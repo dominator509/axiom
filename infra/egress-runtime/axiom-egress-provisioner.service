@@ -9,6 +9,8 @@ Type=exec
 User=root
 Group=root
 EnvironmentFile=/etc/axiom/egress-provisioner.env
+Environment=AXIOM_EGRESS_RUNTIME_MODE=systemd
+Environment=AXIOM_EGRESS_SIDECAR_BIN=/usr/local/lib/axiom/egress-plane
 ExecStart=/usr/local/lib/axiom/egress-provisioner --socket /run/axiom/egress/provisioner.sock
 
 # This is the sole long-lived process allowed to create/release AXIOM network
@@ -35,6 +37,7 @@ SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 ReadWritePaths=/run/axiom/egress /run/netns
 UMask=0077
+KillMode=control-group
 Restart=on-failure
 RestartSec=2s
 

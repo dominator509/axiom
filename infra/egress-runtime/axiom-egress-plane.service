@@ -10,6 +10,7 @@ User=axiom-egress
 Group=axiom-egress-control
 ExecStart=/usr/local/lib/axiom/egress-plane
 Environment=EGRESS_PROVISIONER_SOCKET=/run/axiom/egress/provisioner.sock
+EnvironmentFile=/etc/axiom/egress-provisioner-client.env
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 AmbientCapabilities=

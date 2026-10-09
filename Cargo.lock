@@ -593,8 +593,11 @@ name = "egress-provisioner"
 version = "0.1.0"
 dependencies = [
  "egress-plane",
+ "serde",
  "serde_json",
  "tokio",
+ "tracing",
+ "zeroize",
 ]
 
 [[package]]

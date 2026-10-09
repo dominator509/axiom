@@ -7,95 +7,16 @@
 //! blackhole defaults and both IPv4/IPv6 policy DROP.
 
 pub use egress_plane::provisioner_protocol::{
-    namespace_for, now_unix, sign_lease, validate_request, Action, Lease, ProvisionError,
-    ReplayRegistry, Request, Response, PROTOCOL,
+    namespace_for, now_unix, sign_lease, sign_lease_with_binding, validate_request, Action,
+    BindingInfo, BindingPolicy, Lease, ProvisionError, ReplayRegistry, Request, Response, PROTOCOL,
 };
-use egress_plane::{config::EgressMode, netns};
-
-/// Apply one signed lifecycle operation. Direct mode is intentionally rejected
-/// for `create`: it has no namespace and must never consume root privileges.
-pub fn apply(request: &Request, key: &[u8], now: u64) -> Result<Response, ProvisionError> {
-    let mode = validate_request(request, key, now)?;
-    if mode == EgressMode::Direct {
-        return Err(ProvisionError::Invalid(
-            "direct mode does not have a provisioned namespace".to_string(),
-        ));
-    }
-    let namespace = namespace_for(&request.lease.model_id)?;
-    match request.action {
-        Action::Create => {
-            create_default_deny_namespace(&namespace)?;
-            Ok(Response {
-                request_id: request.request_id.clone(),
-                status: "created".to_string(),
-                namespace,
-                mode: mode.as_str().to_string(),
-                default_deny: true,
-            })
-        }
-        Action::Inspect => {
-            inspect_default_deny_namespace(&namespace)?;
-            Ok(Response {
-                request_id: request.request_id.clone(),
-                status: "ready".to_string(),
-                namespace,
-                mode: mode.as_str().to_string(),
-                default_deny: true,
-            })
-        }
-        Action::Release => {
-            netns::delete_netns(&namespace)?;
-            Ok(Response {
-                request_id: request.request_id.clone(),
-                status: "released".to_string(),
-                namespace,
-                mode: mode.as_str().to_string(),
-                default_deny: true,
-            })
-        }
-    }
-}
-
-fn create_default_deny_namespace(namespace: &str) -> Result<(), ProvisionError> {
-    netns::create_netns(namespace)?;
-    let setup = (|| -> Result<(), std::io::Error> {
-        netns::execute_in_netns(namespace, &["ip", "link", "set", "lo", "up"])?;
-        netns::set_null_default_route(namespace)?;
-        // The provisioner does not accept a caller-selected gateway or port.
-        // It starts from a closed firewall; a later typed attach operation may
-        // add exactly the persisted model path before a runner receives a lease.
-        netns::configure_default_deny_firewall(namespace)?;
-        Ok(())
-    })();
-    if let Err(error) = setup {
-        let _ = netns::delete_netns(namespace);
-        return Err(error.into());
-    }
-    inspect_default_deny_namespace(namespace)?;
-    Ok(())
-}
-
-fn inspect_default_deny_namespace(namespace: &str) -> Result<(), ProvisionError> {
-    let route = netns::execute_in_netns(namespace, &["ip", "route", "show", "default"])?;
-    if !route.contains("blackhole default") {
-        return Err(ProvisionError::Invalid(
-            "namespace has no blackhole default route".to_string(),
-        ));
-    }
-    for tool in ["iptables", "ip6tables"] {
-        let output = netns::execute_in_netns(namespace, &[tool, "-S", "OUTPUT"])?;
-        if !output.contains("-P OUTPUT DROP") {
-            return Err(ProvisionError::Invalid(format!(
-                "{tool} output policy is not DROP"
-            )));
-        }
-    }
-    Ok(())
-}
+mod runtime;
+pub use runtime::{ProvisionerRuntime, RuntimeSettings};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egress_plane::netns;
 
     const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
 
@@ -114,6 +35,7 @@ mod tests {
             request_id: "request_for_test_0001".to_string(),
             action,
             lease,
+            binding: None,
         }
     }
 
@@ -122,7 +44,7 @@ mod tests {
         let request = request(Action::Create);
         assert_eq!(
             validate_request(&request, KEY, 1_700_000_000).unwrap(),
-            EgressMode::WireGuard
+            egress_plane::config::EgressMode::WireGuard
         );
         assert_eq!(
             namespace_for(&request.lease.model_id).unwrap(),
@@ -160,7 +82,7 @@ mod tests {
         direct.lease.mode = "direct".to_string();
         direct.lease.signature = sign_lease(KEY, Action::Create, &direct.lease).unwrap();
         assert!(matches!(
-            apply(&direct, KEY, 1_700_000_000),
+            validate_request(&direct, KEY, 1_700_000_000),
             Err(ProvisionError::Invalid(_))
         ));
     }
@@ -202,15 +124,30 @@ mod tests {
                 request_id: format!("request_{nonce}"),
                 action,
                 lease,
+                binding: None,
             }
         };
         let create = build_request(Action::Create, "create_nonce_0001");
         let inspect = build_request(Action::Inspect, "inspect_nonce_0001");
         let release = build_request(Action::Release, "release_nonce_0001");
         let namespace = namespace_for(&model_id).unwrap();
+        let state_file = std::env::temp_dir().join(format!(
+            "axiom-provisioner-runtime-{}-{model_id}.json",
+            std::process::id()
+        ));
+        let settings = RuntimeSettings::for_isolated_test(
+            std::env::current_exe().unwrap(),
+            state_file.clone(),
+        );
+        let runtime = ProvisionerRuntime::new(settings).unwrap();
         let _ = netns::delete_netns(&namespace);
-        assert_eq!(apply(&create, KEY, now).unwrap().status, "created");
-        assert_eq!(apply(&inspect, KEY, now).unwrap().status, "ready");
-        assert_eq!(apply(&release, KEY, now).unwrap().status, "released");
+        assert_eq!(runtime.apply(&create, KEY, now).unwrap().status, "created");
+        assert_eq!(runtime.apply(&inspect, KEY, now).unwrap().status, "ready");
+        assert_eq!(
+            runtime.apply(&release, KEY, now).unwrap().status,
+            "released"
+        );
+        drop(runtime);
+        let _ = std::fs::remove_file(state_file);
     }
 }

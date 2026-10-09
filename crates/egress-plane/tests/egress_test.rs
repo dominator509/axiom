@@ -41,6 +41,7 @@ fn test_config(echo_url: String) -> egress_plane::Config {
         database_url: None,
         dek: None,
         sidecar_bin: Some(sidecar_bin()),
+        provisioner: None,
     }
 }
 

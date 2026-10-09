@@ -1,0 +1,35 @@
+[Unit]
+Description=AXIOM unprivileged egress sidecar for model %i
+After=axiom-egress-provisioner.service
+BindsTo=axiom-egress-provisioner.service
+ConditionPathExists=/run/netns/egress_%i
+ConditionPathExists=/run/axiom/egress/sidecar-%i.env
+
+[Service]
+Type=exec
+DynamicUser=yes
+User=axiom-egress-sidecar
+NetworkNamespacePath=/run/netns/egress_%i
+EnvironmentFile=/run/axiom/egress/sidecar-%i.env
+ExecStart=/usr/local/lib/axiom/egress-plane --sidecar
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+Restart=no
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+KillMode=control-group

@@ -34,6 +34,33 @@ pub fn create_netns(name: &str) -> io::Result<()> {
     }
 }
 
+/// Check for an existing named namespace without changing host state.
+pub fn namespace_exists(name: &str) -> io::Result<bool> {
+    require_linux_netns()?;
+    match std::fs::symlink_metadata(format!("/run/netns/{name}")) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// Check whether a deterministic host-side veth name is already occupied.
+pub fn host_link_exists(name: &str) -> io::Result<bool> {
+    require_linux_netns()?;
+    let output = Command::new("ip")
+        .args(["link", "show", "dev", name])
+        .output()?;
+    if output.status.success() {
+        return Ok(true);
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("does not exist") || stderr.contains("Cannot find device") {
+        Ok(false)
+    } else {
+        Err(io::Error::other("could not inspect host veth state"))
+    }
+}
+
 /// Delete a network namespace using `ip netns delete`.
 #[instrument]
 pub fn delete_netns(name: &str) -> io::Result<()> {
@@ -360,16 +387,8 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
 #[instrument]
 pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
     require_linux_netns()?;
-    use std::hash::{Hash, Hasher};
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    ns.hash(&mut h);
-    let tag = format!("{:08x}", h.finish() & 0xffff_ffff);
-    let veth_host = format!("vh_{tag}");
-    let veth_ns = format!("vn_{tag}");
-    let _ = execute_in_netns(ns, &["ip", "link", "del", &veth_ns]);
-    let _ = Command::new("ip")
-        .args(["link", "del", &veth_host])
-        .output();
+    let veth_host = veth_host_name(ns);
+    let veth_ns = veth_ns_name(ns);
 
     let out = Command::new("ip")
         .args([
@@ -419,14 +438,41 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
         .args(["link", "set", &veth_host, "up"])
         .output()?;
     if !up.status.success() {
+        let _ = Command::new("ip")
+            .args(["link", "del", &veth_host])
+            .output();
         return Err(io::Error::other("host veth link activation failed"));
     }
-    execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns])?;
-    execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"])?;
+    if let Err(error) = execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns]) {
+        let _ = Command::new("ip")
+            .args(["link", "del", &veth_host])
+            .output();
+        return Err(error);
+    }
+    if let Err(error) = execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"]) {
+        let _ = Command::new("ip")
+            .args(["link", "del", &veth_host])
+            .output();
+        return Err(error);
+    }
     execute_in_netns(ns, &["ip", "link", "set", "lo", "up"])?;
 
     info!(netns = %ns, veth_host = %veth_host, host_ip = %host_ip, ns_ip = %ns_ip, "veth pair ready");
     Ok(veth_host)
+}
+
+/// Stable interface names derived solely from a validated namespace name.
+/// These let the provisioner recover only its own resources after restart.
+pub fn veth_host_name(ns: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    ns.hash(&mut h);
+    let tag = format!("{:08x}", h.finish() & 0xffff_ffff);
+    format!("vh_{tag}")
+}
+
+pub fn veth_ns_name(ns: &str) -> String {
+    veth_host_name(ns).replacen("vh_", "vn_", 1)
 }
 
 /// Remove a veth pair by host-side interface name (idempotent).
@@ -436,13 +482,17 @@ pub fn teardown_veth(veth_host: &str) -> io::Result<()> {
     let output = Command::new("ip")
         .args(["link", "del", veth_host])
         .output()?;
-    if output.status.success() || String::from_utf8_lossy(&output.stderr).contains("does not exist")
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success()
+        || stderr.contains("does not exist")
+        || stderr.contains("Cannot find device")
+        || stderr.contains("Cannot find device \"")
     {
         Ok(())
     } else {
         Err(io::Error::other(format!(
             "veth teardown failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
+            stderr.trim()
         )))
     }
 }

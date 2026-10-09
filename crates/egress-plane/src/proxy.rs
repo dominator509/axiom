@@ -17,12 +17,14 @@
 //!   namespace route forces every byte through the tunnel.
 
 use base64::Engine as _;
+use serde::{Deserialize, Serialize};
 use std::io;
 use std::net::SocketAddr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, TlsConnector};
 use tracing::{debug, info, warn};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// How the sidecar reaches the outside world.
 #[derive(Clone)]
@@ -474,13 +476,170 @@ pub fn spawn_sidecar_in_netns(
     sidecar_port: u16,
     upstream: &Upstream,
 ) -> io::Result<std::process::Child> {
+    spawn_sidecar_in_netns_with_identity(ns, exe, listen_ip, sidecar_port, upstream, None)
+}
+
+/// Secret-bearing configuration handed from the root provisioner to the
+/// unprivileged sidecar through a short-lived root-owned systemd environment
+/// file. The file contains only base64 JSON, is removed immediately after the
+/// service manager has started the sidecar, and is never logged.
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(deny_unknown_fields)]
+struct SidecarWireConfig {
+    listen: String,
+    upstream: SidecarWireUpstream,
+}
+
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum SidecarWireUpstream {
+    Direct,
+    Proxy {
+        proxy_kind: String,
+        addr: String,
+        connect_addr: Option<String>,
+        username: Option<String>,
+        password: Option<String>,
+    },
+}
+
+impl SidecarWireConfig {
+    fn new(listen: SocketAddr, upstream: &Upstream) -> Self {
+        let upstream = match upstream {
+            Upstream::Direct => SidecarWireUpstream::Direct,
+            Upstream::Proxy {
+                kind,
+                addr,
+                connect_addr,
+                username,
+                password,
+            } => SidecarWireUpstream::Proxy {
+                proxy_kind: kind_str(*kind).to_string(),
+                addr: addr.clone(),
+                connect_addr: connect_addr.map(|value| value.to_string()),
+                username: username.clone(),
+                password: password.clone(),
+            },
+        };
+        Self {
+            listen: listen.to_string(),
+            upstream,
+        }
+    }
+
+    fn into_runtime(mut self) -> io::Result<(SocketAddr, Upstream)> {
+        let listen = self
+            .listen
+            .parse()
+            .map_err(|_| io::Error::other("invalid sidecar listen address"))?;
+        let upstream = match &mut self.upstream {
+            SidecarWireUpstream::Direct => Upstream::Direct,
+            SidecarWireUpstream::Proxy {
+                proxy_kind,
+                addr,
+                connect_addr,
+                username,
+                password,
+            } => {
+                let kind = ProxyKind::from_str(proxy_kind)
+                    .ok_or_else(|| io::Error::other("invalid sidecar proxy kind"))?;
+                let connect_addr = connect_addr
+                    .as_deref()
+                    .map(str::parse)
+                    .transpose()
+                    .map_err(io::Error::other)?;
+                Upstream::Proxy {
+                    kind,
+                    addr: addr.clone(),
+                    connect_addr,
+                    username: username.clone(),
+                    password: password.clone(),
+                }
+            }
+        };
+        self.zeroize();
+        Ok((listen, upstream))
+    }
+}
+
+/// Encode a sidecar's typed runtime settings for the root-owned provisioner.
+/// The returned string is secret-bearing and must be zeroized by its caller.
+pub fn encode_sidecar_config(listen: SocketAddr, upstream: &Upstream) -> io::Result<String> {
+    let mut config = SidecarWireConfig::new(listen, upstream);
+    let mut encoded = Zeroizing::new(
+        serde_json::to_vec(&config).map_err(|_| io::Error::other("invalid sidecar config"))?,
+    );
+    config.zeroize();
+    let result = base64::engine::general_purpose::STANDARD.encode(encoded.as_slice());
+    encoded.zeroize();
+    Ok(result)
+}
+
+/// Decode the typed sidecar configuration emitted by the provisioner. The
+/// base64 environment value and decoded JSON are both cleared after parsing.
+pub fn sidecar_config_from_env() -> io::Result<Option<(SocketAddr, Upstream)>> {
+    let Ok(mut encoded) = std::env::var("SIDECAR_CONFIG_B64") else {
+        return Ok(None);
+    };
+    let decoded = decode_sidecar_config(&encoded);
+    encoded.zeroize();
+    decoded.map(Some)
+}
+
+fn decode_sidecar_config(encoded: &str) -> io::Result<(SocketAddr, Upstream)> {
+    let mut decoded = Zeroizing::new(
+        base64::engine::general_purpose::STANDARD
+            .decode(encoded.as_bytes())
+            .map_err(|_| io::Error::other("invalid sidecar configuration"))?,
+    );
+    let config = serde_json::from_slice::<SidecarWireConfig>(&decoded)
+        .map_err(|_| io::Error::other("invalid sidecar configuration"))?;
+    decoded.zeroize();
+    config.into_runtime()
+}
+
+/// Spawn a sidecar from the provisioner after it has installed the network
+/// namespace. The provisioner supplies a non-root runtime identity so its
+/// namespace-administration privilege is never inherited by the data plane.
+pub fn spawn_sidecar_in_netns_as(
+    ns: &str,
+    exe: &std::path::Path,
+    listen_ip: &str,
+    sidecar_port: u16,
+    upstream: &Upstream,
+    uid: u32,
+    gid: u32,
+) -> io::Result<std::process::Child> {
+    if uid == 0 || gid == 0 {
+        return Err(io::Error::other("sidecar identity must be non-root"));
+    }
+    spawn_sidecar_in_netns_with_identity(
+        ns,
+        exe,
+        listen_ip,
+        sidecar_port,
+        upstream,
+        Some((uid, gid)),
+    )
+}
+
+fn spawn_sidecar_in_netns_with_identity(
+    ns: &str,
+    exe: &std::path::Path,
+    listen_ip: &str,
+    sidecar_port: u16,
+    upstream: &Upstream,
+    identity: Option<(u32, u32)>,
+) -> io::Result<std::process::Child> {
     let listen = format!("{listen_ip}:{sidecar_port}");
     let mut cmd = std::process::Command::new("ip");
+    cmd.args(["netns", "exec", ns, "setpriv"]);
+    if let Some((uid, gid)) = identity {
+        let reuid = format!("--reuid={uid}");
+        let regid = format!("--regid={gid}");
+        cmd.args([reuid.as_str(), regid.as_str(), "--clear-groups"]);
+    }
     cmd.args([
-        "netns",
-        "exec",
-        ns,
-        "setpriv",
         "--no-new-privs",
         "--bounding-set=-all",
         "--inh-caps=-all",
@@ -620,5 +779,37 @@ mod tests {
         assert_eq!(listen_from_env(), Some("10.240.1.2:8080".parse().unwrap()));
         std::env::set_var("SIDECAR_LISTEN", "bogus");
         assert_eq!(listen_from_env(), None);
+    }
+
+    #[test]
+    fn typed_sidecar_config_round_trips_without_plaintext_credentials() {
+        let upstream = Upstream::Proxy {
+            kind: ProxyKind::Http,
+            addr: "192.0.2.10:3128".to_string(),
+            connect_addr: Some("192.0.2.10:3128".parse().unwrap()),
+            username: Some("synthetic-user".to_string()),
+            password: Some("synthetic-password".to_string()),
+        };
+        let encoded = encode_sidecar_config("10.240.7.2:8080".parse().unwrap(), &upstream).unwrap();
+        assert!(!encoded.contains("synthetic-user"));
+        assert!(!encoded.contains("synthetic-password"));
+        let (listen, decoded) = decode_sidecar_config(&encoded).unwrap();
+        assert_eq!(listen, "10.240.7.2:8080".parse().unwrap());
+        match &decoded {
+            Upstream::Proxy {
+                kind,
+                addr,
+                connect_addr,
+                username,
+                password,
+            } => {
+                assert_eq!(*kind, ProxyKind::Http);
+                assert_eq!(addr, "192.0.2.10:3128");
+                assert_eq!(*connect_addr, Some("192.0.2.10:3128".parse().unwrap()));
+                assert_eq!(username.as_deref(), Some("synthetic-user"));
+                assert_eq!(password.as_deref(), Some("synthetic-password"));
+            }
+            Upstream::Direct => panic!("expected proxy configuration"),
+        }
     }
 }

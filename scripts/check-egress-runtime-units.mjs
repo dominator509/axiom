@@ -30,6 +30,13 @@ requireLine(
 );
 requireLine(provisioner, 'ReadWritePaths=/run/axiom/egress /run/netns', 'provisioner');
 requireLine(provisioner, 'RestrictAddressFamilies=AF_UNIX AF_NETLINK', 'provisioner');
+requireLine(provisioner, 'Environment=AXIOM_EGRESS_RUNTIME_MODE=systemd', 'provisioner');
+requireLine(
+  provisioner,
+  'Environment=AXIOM_EGRESS_SIDECAR_BIN=/usr/local/lib/axiom/egress-plane',
+  'provisioner',
+);
+requireLine(provisioner, 'KillMode=control-group', 'provisioner');
 reject(provisioner, /(?:--privileged|CapabilityBoundingSet=~|CAP_SYS_ADMIN\s+CAP_NET_RAW)/, 'provisioner');
 
 const plane = unit('axiom-egress-plane.service');
@@ -38,7 +45,17 @@ requireLine(plane, 'NoNewPrivileges=yes', 'plane');
 requireLine(plane, 'CapabilityBoundingSet=', 'plane');
 requireLine(plane, 'AmbientCapabilities=', 'plane');
 requireLine(plane, 'Environment=EGRESS_PROVISIONER_SOCKET=/run/axiom/egress/provisioner.sock', 'plane');
+requireLine(plane, 'EnvironmentFile=/etc/axiom/egress-provisioner-client.env', 'plane');
 reject(plane, /(?:CAP_NET_ADMIN|CAP_SYS_ADMIN|--privileged|User=root)/, 'plane');
+
+const sidecar = unit('axiom-egress-sidecar@.service');
+requireLine(sidecar, 'DynamicUser=yes', 'sidecar');
+requireLine(sidecar, 'NetworkNamespacePath=/run/netns/egress_%i', 'sidecar');
+requireLine(sidecar, 'EnvironmentFile=/run/axiom/egress/sidecar-%i.env', 'sidecar');
+requireLine(sidecar, 'ExecStart=/usr/local/lib/axiom/egress-plane --sidecar', 'sidecar');
+requireLine(sidecar, 'CapabilityBoundingSet=', 'sidecar');
+requireLine(sidecar, 'AmbientCapabilities=', 'sidecar');
+reject(sidecar, /(?:CAP_NET_ADMIN|CAP_SYS_ADMIN|AXIOM_EGRESS_LEASE_KEY|egress-provisioner\.env)/, 'sidecar');
 
 const runner = unit('axiom-egress-runner@.service');
 requireLine(runner, 'User=axiom-egress-runner', 'runner');
@@ -55,6 +72,12 @@ reject(runner, /(?:CAP_NET_ADMIN|CAP_SYS_ADMIN|--privileged|User=root)/, 'runner
 
 console.log(JSON.stringify({
   status: 'ok',
-  checked: ['local-uds', 'narrow-provisioner-capabilities', 'capability-free-plane', 'model-netns-runner'],
+  checked: [
+    'local-uds',
+    'narrow-provisioner-capabilities',
+    'capability-free-plane',
+    'secret-free-sidecar-unit',
+    'model-netns-runner',
+  ],
   deploymentAcceptance: false,
 }));
