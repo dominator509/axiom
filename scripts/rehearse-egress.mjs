@@ -85,6 +85,9 @@ try {
     mkdirSync(dest, { recursive: true });
     cpSync(join(root, 'crates', crate, 'Cargo.toml'), join(dest, 'Cargo.toml'));
     cpSync(join(root, 'crates', crate, 'src'), join(dest, 'src'), { recursive: true });
+    if (crate === 'egress-provisioner') {
+      cpSync(join(root, 'crates', crate, 'examples'), join(dest, 'examples'), { recursive: true });
+    }
   }
   cpSync(join(root, 'crates', 'egress-plane', 'tests'), join(context, 'crates', 'egress-plane', 'tests'), { recursive: true });
   cpSync(join(root, 'crates', 'egress-provisioner', 'tests'), join(context, 'crates', 'egress-provisioner', 'tests'), { recursive: true });

@@ -6,7 +6,7 @@ use egress_provisioner::{
     PROTOCOL,
 };
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -51,16 +51,11 @@ fn wait_for_socket(socket: &Path, child: &mut Child) {
 
 fn call(socket: &Path, child: &mut Child, request: &Request) -> Response {
     wait_for_socket(socket, child);
+    let client_bin = std::env::var_os("AXIOM_EGRESS_SOCKET_CLIENT_BIN")
+        .expect("isolated rehearsal must build the unprivileged socket client");
     let output = Command::new("setpriv")
         .args(["--reuid=65534", "--regid=0", "--clear-groups", "--"])
-        .arg(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "unprivileged_socket_client_helper",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env("AXIOM_EGRESS_SOCKET_HELPER", "1")
+        .arg(client_bin)
         .env("AXIOM_EGRESS_SOCKET_PATH", socket)
         .env(
             "AXIOM_EGRESS_SOCKET_REQUEST",
@@ -84,29 +79,9 @@ fn call(socket: &Path, child: &mut Child, request: &Request) -> Response {
     response.unwrap_or_else(|error| panic!("provisioner rejected signed socket request: {error}"))
 }
 
-#[test]
-fn unprivileged_socket_client_helper() {
-    if std::env::var_os("AXIOM_EGRESS_SOCKET_HELPER").is_none() {
-        return;
-    }
-    let socket = std::env::var_os("AXIOM_EGRESS_SOCKET_PATH").expect("socket path must be set");
-    let request = std::env::var("AXIOM_EGRESS_SOCKET_REQUEST").expect("request must be set");
-    let mut stream =
-        UnixStream::connect(socket).expect("control socket must be accessible to its group");
-    stream.write_all(format!("{request}\n").as_bytes()).unwrap();
-    stream.flush().unwrap();
-    let mut line = String::new();
-    BufReader::new(stream).read_line(&mut line).unwrap();
-    println!("AXIOM_SOCKET_RESPONSE={}", line.trim());
-}
-
-fn assert_root_peer_rejected(socket: &Path, child: &mut Child, request: &Request) {
+fn assert_root_peer_rejected(socket: &Path, child: &mut Child) {
     wait_for_socket(socket, child);
-    let mut stream = UnixStream::connect(socket).unwrap();
-    stream
-        .write_all(format!("{}\n", serde_json::to_string(request).unwrap()).as_bytes())
-        .unwrap();
-    stream.flush().unwrap();
+    let stream = UnixStream::connect(socket).unwrap();
     let mut response = String::new();
     stream.read_to_string(&mut response).unwrap();
     assert!(
@@ -146,11 +121,7 @@ fn signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace() {
         .unwrap();
 
     let result = (|| {
-        assert_root_peer_rejected(
-            &socket,
-            &mut child,
-            &request(Action::Create, &model_id, "root_peer_create_0001"),
-        );
+        assert_root_peer_rejected(&socket, &mut child);
         assert_eq!(
             call(
                 &socket,
