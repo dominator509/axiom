@@ -153,8 +153,8 @@
       "requirement": "| LBI-02 | Fail-closed egress | egress-off publish is blocked at netns; no default route or host-route fallback exists in the worker namespace | integration |",
       "requirementSha256": "31260dfbb2dccb338bc52f22d8ad8c70fb8734d33525ceb9774a84ccb71d5e21",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with target-host policy handoff, tunnel/DNS/route faults, kill-switch timing, restarts and correlated observability; verify external provider delivery separately.",
+      "status": "passed",
+      "nextStep": "Complete the remaining lane-5 host-policy handoff, tunnel/DNS/proxy fault injection, five-second suspension, restart and correlated observability checks; validate external provider delivery separately.",
       "evidence": [
         {
           "criterion": "LBI-02",
@@ -209,6 +209,23 @@
           "skips": [],
           "images": [
             "sha256:e0745ee79403de245cd54cdcc350dbd5963338c67f6c967dd40891f73e643f83"
+          ]
+        },
+        {
+          "criterion": "LBI-02",
+          "sha": "3b8f0b54c2c3ae805aa56ae9c63e70ebc2cf8db5",
+          "command": "node scripts/rehearse-egress.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest with Node 22.23.3; isolated Linux BuildKit fixture on network=none, without privileged mode, host mounts, published ports, or credentials. The same source also passed a local Windows Docker Desktop repeat.",
+          "scope": "16 of 16 required fail-closed acceptance checks passed. Rust reported 84 passed, 0 failed, 0 ignored, 0 measured, and 0 filtered tests across 10 suites. Coverage includes no direct/host-route fallback, HTTPS/TLS and proxy refusal behavior, approved proxy/tunnel chains, kill-switch/drain behavior, and signed namespace lifecycle. Source manifest SHA-256 b90d8d87302bd6693c966f20437005a933d1dd4ac2883082ee1dfc388dc656ee. Builder, container, generated image, and temporary source context cleanup were verified.",
+          "limitations": "Isolated network-namespace fixtures only. This does not prove target-host systemd/policy handoff, external provider delivery, deployment restarts, global five-second suspension, or production observability.",
+          "observedAt": "2026-10-09T07:56:33Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37901528901",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37901528901/job/113724975089",
+          "logSha256": "dea9cc2786dcf753e860e170cb68cdad8d28ce2fac51cf312c0d98107aa3b898",
+          "counts": { "passed": 16, "failed": 0, "skipped": 0, "total": 16, "unit": "assertions" },
+          "skips": [],
+          "images": [
+            "sha256:ee5d7238372e809482e011815cb78883492759ba73fccd54a29f6b3c470ff9f0"
           ]
         }
       ],
