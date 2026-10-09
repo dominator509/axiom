@@ -1,25 +1,29 @@
 # Release readiness: evidence register and execution order
 
-Current main baseline for this reconciliation (2026-10-09): `e851dfa9b4b82d7b324c51ff1aeab56539950453`, after PR #138. Its post-merge CI run is [37947530214](https://github.com/dominator509/axiom/actions/runs/37947530214). Earlier implementation baselines and their receipts remain historical below.
+Current main baseline for this reconciliation (2026-10-09): `d517fba635d6f1d1df7205f13fddac7542cb79af`, after PR #139. Its post-merge CI run is [37953507043](https://github.com/dominator509/axiom/actions/runs/37953507043). Earlier implementation baselines and their receipts remain historical below.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
 baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
 22 accepted, and 32 open; the register is structurally valid but is not release
-approval. `rtk node scripts/check-release-evidence.mjs --release
-e851dfa9b4b82d7b324c51ff1aeab56539950453` fails closed at `LBI-01: stale evidence
-SHA`. The RLS rehearsal recorded below ran on the immediately preceding main
-SHA before PR #137; it must be repeated against this current baseline. Accepted
-rows retain their actual tested SHAs and must be repeated at the final release
-SHA. A post-run external register cannot redefine acceptance criteria, and this
-document does not authorize release.
+approval. At this baseline, `rtk node scripts/check-release-evidence.mjs --release
+d517fba635d6f1d1df7205f13fddac7542cb79af` fails closed at `LBI-01: stale evidence
+SHA`. The latest recorded RLS rehearsal below is on an earlier main SHA; it must
+be repeated against the final release SHA. Accepted rows retain their actual
+tested SHAs and must be repeated at the final release SHA. A post-run external
+register cannot redefine acceptance criteria, and this document does not
+authorize release.
 
-## Current main after PR #138
+PR #139 records the owner's permanent removal of a fixed 30-day availability
+observation period. The ≥99.5% target remains; acceptance reports the actual
+sample window, denominator, and provider availability separately.
 
-PR #138 is on main at exact SHA `e851dfa9b4b82d7b324c51ff1aeab56539950453`.
-Post-merge [CI run 37947530214](https://github.com/dominator509/axiom/actions/runs/37947530214)
-is attached to this SHA. The exact-SHA release gate fails closed at LBI-01; a
-green CI run does not constitute release acceptance.
+## Current main after PR #139
+
+PR #139 is on main at exact SHA `d517fba635d6f1d1df7205f13fddac7542cb79af`.
+Post-merge [CI run 37953507043](https://github.com/dominator509/axiom/actions/runs/37953507043)
+is attached to this SHA. The exact-SHA release gate currently fails closed at
+LBI-01; a green CI run does not constitute release acceptance.
 
 ## Previous main baseline before PR #136 (2026-10-09)
 
