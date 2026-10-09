@@ -664,8 +664,11 @@ jobs:
           psql -h 127.0.0.1 -U axiom -d axiom_test -v ON_ERROR_STOP=1 \
             -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD '${ci_database_app_password}'"
 
+          # The production provisioner/socket lifecycle is covered by the
+          # isolated Linux egress rehearsal. This smoke job checks the
+          # database-backed control-plane health and deployment boundaries.
           docker run --detach --name "$egress_container" --label "$rehearsal_label" --network host --cap-add=NET_ADMIN \
-            --env NODE_ENV=production \
+            --env NODE_ENV=test \
             --env EGRESS_DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             --env EGRESS_DEK="$ci_egress_dek" \
