@@ -85,14 +85,23 @@ The same isolated command reported **20 passed/0 failed/0 skipped**, `cleanup: t
 and the pinned Timescale image. The register preserves both hosted receipts and
 the latest job-log digest. This refresh is not the planned final-release-SHA replay.
 
-The current-main rehearsal ran at source SHA
+An earlier current-main rehearsal ran at source SHA
 `d29d9064e4c212bb563cab2db1b6c959544070a7`: [CI run 37852118351](https://github.com/dominator509/axiom/actions/runs/37852118351),
 [test job 113567314237](https://github.com/dominator509/axiom/actions/runs/37852118351/job/113567314237).
 The exact isolated command again reported **20 passed/0 failed/0 skipped**,
 `cleanup: true`, using the pinned Timescale image. The raw job-log SHA-256 is
 `9d98955386b983ce11d0182b59e67f97f59b9beaa8af5804657d495f3e05cf48`. This receipt
-is on the pre-lane-2 current main SHA; final-release-SHA replay and deployed
-database state remain open.
+is historical; final-release-SHA replay and deployed database state remain open.
+
+The latest main rehearsal before the Lane 2 evidence refresh ran at exact source
+SHA `f2f127d5e9e09b3ae377ec62121648c2248f425f`: [CI run 37957364668](https://github.com/dominator509/axiom/actions/runs/37957364668),
+[test job 113911170695](https://github.com/dominator509/axiom/actions/runs/37957364668/job/113911170695).
+The exact command `node scripts/rehearse-rls-catalog.mjs --isolated-fixture`
+used Node 22.23.3 and the pinned TimescaleDB image. It reported **20 passed/0
+failed/0 skipped**, `cleanup: true`; the raw job-log SHA-256 is
+`8a9c81140b47cc9524eb015d496b2efa49a34e5b0b732913e034aa1565d926ef`. This
+rehearsal covers the disposable database only; deployed/shared database state
+and the planned final-release-SHA replay remain open.
 
 ## Limits
 
