@@ -1,18 +1,26 @@
 # Release readiness: evidence register and execution order
 
-Current main baseline for this reconciliation (2026-10-09): `04cb46dc4383d2ccfb9fae98a4ef4fedb62a6079`, after PR #136. Its post-merge CI run is [37926757972](https://github.com/dominator509/axiom/actions/runs/37926757972), with 11 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines and their receipts remain historical below.
+Current main baseline for this reconciliation (2026-10-09): `01470312532aa8360796c1ce7739f4b7d56bda8b`, after PR #137. Its post-merge CI run is [37931927993](https://github.com/dominator509/axiom/actions/runs/37931927993), with 11 successful jobs, 0 failed, and 0 cancelled. Earlier implementation baselines and their receipts remain historical below.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
 baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
 22 accepted, and 32 open; the register is structurally valid but is not release
 approval. `rtk node scripts/check-release-evidence.mjs --release
-04cb46dc4383d2ccfb9fae98a4ef4fedb62a6079` fails closed at `LBI-02: stale evidence
-SHA`. LBI-01, NONFUNCTIONAL-2, and SECURITY-2 now have exact-main RLS receipts;
-the next stale receipt keeps release acceptance open. Accepted rows retain their
-actual tested SHAs and must be repeated at the final release SHA. A post-run
-external register cannot redefine acceptance criteria, and this document does
-not authorize release.
+01470312532aa8360796c1ce7739f4b7d56bda8b` fails closed at `LBI-01: stale evidence
+SHA`. The RLS rehearsal recorded below ran on the immediately preceding main
+SHA before PR #137; it must be repeated against this current baseline. Accepted
+rows retain their actual tested SHAs and must be repeated at the final release
+SHA. A post-run external register cannot redefine acceptance criteria, and this
+document does not authorize release.
+
+## Current main receipt after PR #137
+
+PR #137 is on main at exact SHA `01470312532aa8360796c1ce7739f4b7d56bda8b`.
+Post-merge [CI run 37931927993](https://github.com/dominator509/axiom/actions/runs/37931927993)
+completed with 11 successful jobs, 0 failed, and 0 cancelled. This is the latest
+verified main baseline; the exact-SHA release gate remains blocked at LBI-01, so
+the successful CI run is not release acceptance.
 
 ## Previous main baseline before PR #136 (2026-10-09)
 
@@ -36,9 +44,9 @@ The stale receipt must be refreshed with the full acceptance matrix at the final
 release SHA. The exact-SHA failure does not invalidate the successful CI run or
 the historical behavior receipts; it prevents claiming release acceptance now.
 
-## Current main receipt after PR #136 (2026-10-09)
+## Previous main receipt after PR #136 (2026-10-09)
 
-PR #136 is on main at exact SHA `04cb46dc4383d2ccfb9fae98a4ef4fedb62a6079`.
+PR #136 was on main at exact SHA `04cb46dc4383d2ccfb9fae98a4ef4fedb62a6079`.
 Post-merge [CI run 37926757972](https://github.com/dominator509/axiom/actions/runs/37926757972)
 completed with 11 successful jobs, 0 failed, and 0 cancelled. Its `ci(test)` job
 ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` in an owned,
