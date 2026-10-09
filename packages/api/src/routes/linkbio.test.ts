@@ -415,6 +415,7 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
       [
         { providerId: 'linktree-provider', ts: today, target: '/profile', source: 'instagram / social', visits: 40, uniqueVisitors: 30, clicks: 5, conversions: 3 },
         { providerId: 'linktree-provider', ts: today, target: '/profile', source: 'fanlynks', visits: 100, uniqueVisitors: 0, clicks: 12, conversions: 0 },
+        { providerId: 'linktree-provider', ts: today, target: '/empty', source: 'provider-reported-zero', visits: 0, uniqueVisitors: 0, clicks: 0, conversions: 0 },
       ],
     ];
     const response = await appWithOrg(ORG_ID).request('/models/' + MODEL_ID + '/linkbio/analytics');
@@ -435,17 +436,21 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
         uniqueVisitorsAvailable: true, conversionsAvailable: true,
       }),
       expect.objectContaining({
-        source: 'fanlynks', visits: 100, activeUsers: 0, analyticsClicks: 12, conversions: 0,
+        source: 'fanlynks', visits: 100, activeUsers: null, analyticsClicks: 12, conversions: null,
         uniqueVisitorsAvailable: false, conversionsAvailable: false,
+      }),
+      expect.objectContaining({
+        source: 'provider-reported-zero', visits: 0, activeUsers: 0, analyticsClicks: 0, conversions: 0,
+        uniqueVisitorsAvailable: true, conversionsAvailable: true,
       }),
     ]));
     expect(body.data.topTargets).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'instagram / social', target: '/profile', visits: 40, analyticsClicks: 5 }),
-      expect.objectContaining({ source: 'fanlynks', target: '/profile', visits: 100, analyticsClicks: 12, conversionsAvailable: false }),
+      expect.objectContaining({ source: 'fanlynks', target: '/profile', visits: 100, activeUsers: null, analyticsClicks: 12, conversions: null, conversionsAvailable: false }),
     ]));
     expect(body.data.daily).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'instagram / social', visits: 40, activeUsers: 30 }),
-      expect.objectContaining({ source: 'fanlynks', visits: 100, activeUsers: 0, uniqueVisitorsAvailable: false }),
+      expect.objectContaining({ source: 'fanlynks', visits: 100, activeUsers: null, uniqueVisitorsAvailable: false }),
     ]));
   });
 });

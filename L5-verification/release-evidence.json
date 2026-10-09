@@ -1314,9 +1314,27 @@
       "requirement": "- [ ] **Self-improving viral loop** turns performance into exemplars that measurably bias later generations; bandit explores + exploits.",
       "requirementSha256": "151f164764893e91f4901335c296dcdb01ece536fea87fc3e3ce7d8c6cac815b",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance at the final release SHA; synthetic outcomes do not establish live-provider metric accuracy or external publishing.",
+      "evidence": [
+        {
+          "criterion": "FUNCTIONAL-7",
+          "sha": "416ebbbccc162de19f68457ef64d41442a03695d",
+          "command": "pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, pnpm 9.14.0; synthetic records in the disposable PostgreSQL service pinned to timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a; no provider credentials or external provider calls.",
+          "scope": "The rollback-only PostgreSQL integration test records two provider-metric snapshots, runs the real worker labeler, and verifies that the later retrieval and S2 prompt replace the prior exemplar and change bandit selection; negative assertions ensure the old exemplar is absent and compare posterior probabilities. The fixture rolls back and closes its pool; GitHub tears down the disposable PostgreSQL service after the job.",
+          "limitations": "This validates internal database-backed retrieval, prompt assembly, and bandit selection with synthetic performance snapshots. It does not prove live-provider metric accuracy, external dispatch/readback, production outcomes, or external model inference.",
+          "observedAt": "2026-10-08T23:12:33Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37857314684",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37857314684/job/113584500994",
+          "logSha256": "8e06aff753c287123384bf1f87ec73869393e69cf71e025a597f4a902c02b3e0",
+          "counts": { "passed": 11, "failed": 0, "skipped": 0, "total": 11, "unit": "tests" },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Record a performance outcome, then prove stored evidence changes exemplar retrieval and bandit selection in a later generation.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
