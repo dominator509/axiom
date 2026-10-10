@@ -1,18 +1,20 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline (2026-10-10): `6b8b7090d0b779236beb5dbc40fefc9840a34f67`, after PR #157. Exact-main [CI run 38088704403](https://github.com/dominator509/axiom/actions/runs/38088704403) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
+Latest verified application baseline (2026-10-10): `af62fb691c4b15217b482049a19a2e2a1082ac1e`, after PR #159. Exact-main [CI run 38094415434](https://github.com/dominator509/axiom/actions/runs/38094415434) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
 historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
 `rtk node scripts/check-release-evidence.mjs --check` reported 54 criteria,
 22 accepted, and 32 open; the register
-was structurally valid but not release approval. At that baseline, the release
-gate remained blocked by stale receipts for other passed criteria and by open
-criteria. The latest RLS rehearsal below ran on that baseline; the full RLS
-matrix must still be repeated against the final release SHA. Accepted rows
-retain their actual tested SHAs. A post-run external register cannot redefine
-acceptance criteria, and this document does not authorize release.
+was structurally valid but not release approval. At that historical baseline,
+the release gate remained blocked by stale receipts for other passed criteria
+and by open criteria. The RLS rehearsal was refreshed on main
+`af62fb691c4b15217b482049a19a2e2a1082ac1e` and is recorded below and in the
+release register. Repeat the complete RLS matrix on the final release SHA after
+the remaining lanes. Accepted rows retain their actual tested SHAs. A post-run
+external register cannot redefine acceptance criteria, and this document does
+not authorize release.
 
 PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
@@ -87,6 +89,28 @@ Post-merge [CI run 37957364668](https://github.com/dominator509/axiom/actions/ru
 completed with 11/11 jobs passed, 0 failed, and 0 cancelled. Its `ci (test)`
 job ran the isolated RLS rehearsal; the three related register rows now include
 that exact-SHA receipt. A green CI run does not constitute release acceptance.
+
+## Lane 2 RLS refresh on current main (2026-10-10)
+
+After PR #159, exact main SHA `af62fb691c4b15217b482049a19a2e2a1082ac1e` passed
+12/12 jobs with 0 failures in [CI run 38094415434](https://github.com/dominator509/axiom/actions/runs/38094415434).
+Its [`ci (test)` job](https://github.com/dominator509/axiom/actions/runs/38094415434/job/114337241974)
+ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` on Node 22.23.3
+against a network-disabled disposable PostgreSQL 16 fixture using
+`timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a`.
+All 20 assertions passed, with 0 failed, 0 skipped, and cleanup verified. They
+checked every schema-derived tenant table against the effective forced-RLS
+catalog and application role, nine rollback-only RLS/role fault controls and
+catalog restoration, eight tenant/user locale-preference isolation cases, and
+behavioral rollback. The official raw-job-log hash command,
+`node scripts/check-release-evidence.mjs --receipt-log-sha 114337241974`, returned
+`445743de574ffcf9b4432cbff8726adeb7d4a585482943f24ff6ea9f4068d2ab`.
+
+The exact-SHA receipt is now recorded for LBI-01, NONFUNCTIONAL-2, and SECURITY-2.
+This is isolated database evidence; it does not inspect a deployed/shared or
+production database and does not prove exhaustive behavioral CRUD for every
+tenant table. Repeat on the final release SHA after remaining lane changes.
+Register-wide exact-SHA verification is still open: `rtk node scripts/check-release-evidence.mjs --verify-receipts af62fb691c4b15217b482049a19a2e2a1082ac1e` fails closed at `LBI-02: stale evidence SHA`. That is an older, unrelated receipt; this RLS refresh does not claim every other passed row was verified.
 
 ## Previous main baseline before PR #136 (2026-10-09)
 
