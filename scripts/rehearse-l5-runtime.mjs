@@ -159,7 +159,7 @@ try {
     const result = docker(['exec', runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
     const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
-    assert.equal(report.total, 55, 'All fifty-five runtime cases must execute');
+    assert.equal(report.total, 57, 'All fifty-seven runtime cases must execute');
     assert.equal(report.node, receipt.node, 'Runtime container must match the pinned Node release');
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;

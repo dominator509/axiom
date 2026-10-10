@@ -12,11 +12,12 @@ import { incidentsRouter } from './incidents.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, role: 'operator' | 'chatter' = 'operator') {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
+    c.set('role', role);
     await next();
   });
   app.route('/', incidentsRouter);
@@ -27,6 +28,50 @@ beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
   mockState.updates = [];
+});
+
+describe('POST /incidents/:jobId/reconcile — publish outcome', () => {
+  const request = (app: Hono<AppBindings>, body: unknown) => app.request('/incidents/j-unknown/reconcile', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  it('requires an explicit operator confirmation and rejects unsupported outcome fields', async () => {
+    const res = await request(appWithOrg(ORG_ID), { outcome: 'published', confirmed: false });
+    expect(res.status).toBe(400);
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('is limited to owner, manager, and operator roles', async () => {
+    const res = await request(appWithOrg(ORG_ID, 'chatter'), { outcome: 'published', confirmed: true });
+    expect(res.status).toBe(403);
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('only accepts an unknown publish job and fails closed when its target is missing', async () => {
+    mockState.results = [[{
+      id: 'j-unknown', kind: 'publish.target', payload: { targetId: '22222222-2222-4222-8222-222222222222' },
+      state: 'dead', lastError: 'external-side-effect-unknown: provider response lost',
+    }], []];
+    const res = await request(appWithOrg(ORG_ID), { outcome: 'not_published', confirmed: true });
+    expect(res.status).toBe(404);
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('does not resolve a publish without exactly one pending dispatch marker', async () => {
+    mockState.results = [
+      [{
+        id: 'j-unknown', kind: 'publish.target', payload: { targetId: '22222222-2222-4222-8222-222222222222' },
+        state: 'dead', lastError: 'external-side-effect-unknown: provider response lost',
+      }],
+      [{ id: '22222222-2222-4222-8222-222222222222', state: 'pending', remoteId: null, platform: 'instagram' }],
+      [],
+    ];
+    const res = await request(appWithOrg(ORG_ID), { outcome: 'not_published', confirmed: true });
+    expect(res.status).toBe(409);
+    expect(mockState.updates).toHaveLength(0);
+  });
 });
 
 afterEach(() => {

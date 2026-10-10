@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import ReplayButton from '@/components/ReplayButton';
 import DiscardButton from '@/components/DiscardButton';
+import PublishOutcomeReconciliation from '@/components/PublishOutcomeReconciliation';
 import ResolveCrashButton from '@/components/ResolveCrashButton';
 import { CATALOGS, LocaleCatalog, formatDate, formatNumber, normalizeLocale } from '@axiom/core';
 import Link from 'next/link';
@@ -112,7 +113,9 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
                 <td>{formatUtc(j.createdAt)}</td>
                 <td>
                   {String(j.lastError ?? '').startsWith('external-side-effect-unknown:')
-                    ? <span>{t('incidents.reconcileBeforeReplay')}</span>
+                    ? String(j.kind) === 'publish.target' && canEdit
+                      ? <PublishOutcomeReconciliation jobId={String(j.id)} />
+                      : <span>{t('incidents.reconcileBeforeReplay')}</span>
                     : canEdit && ['dead', 'failed'].includes(String(j.state))
                       ? <div className="action-row"><ReplayButton jobId={String(j.id)} /><DiscardButton jobId={String(j.id)} /></div>
                       : null}
