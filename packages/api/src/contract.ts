@@ -101,7 +101,7 @@ export async function onError(err: Error, c: Context): Promise<Response> {
   const details = describeCrash(err);
   const service = process.env.AXIOM_SERVICE_NAME ?? 'api';
   const error = sanitizeTelemetryValue(details.message);
-  const logged = captureTelemetryLog('Unhandled API error', {
+  const logged = captureTelemetryLog(`Unhandled API error: ${details.message}`, {
     service,
     correlationId,
   }, { error, status });
