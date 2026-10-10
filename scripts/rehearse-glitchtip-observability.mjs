@@ -279,7 +279,7 @@ async function main() {
   const structuredLog = logs.find((log) => String(log?.body ?? '').includes(`${MARKER}_structured`));
   check('console error visible through GlitchTip logs API', Boolean(consoleLog));
   check('structured logger record visible through GlitchTip logs API', Boolean(structuredLog));
-  check('structured log carries an active trace and span', typeof structuredLog?.traceID === 'string' && structuredLog.traceID.length >= 16 && typeof structuredLog.spanID === 'string');
+  check('structured log carries an active trace and span', typeof structuredLog?.traceId === 'string' && structuredLog.traceId.length >= 16 && typeof structuredLog.spanId === 'string');
   check('structured log exposes service and correlation identifiers', structuredLog?.service === 'observability-rehearsal' && JSON.stringify(structuredLog).includes(MARKER));
   const serialized = JSON.stringify(structuredLog);
   check('structured log excludes synthetic token and identity', !serialized.includes(FIXTURE_TOKEN) && !serialized.includes(FIXTURE_EMAIL));
