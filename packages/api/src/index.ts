@@ -964,6 +964,7 @@ app.use('/api/v1/bundles', idempotency());
 // dashboard retry action with the same durable key/replay contract.
 app.use('/api/v1/incidents/:jobId/replay', idempotency());
 app.use('/api/v1/incidents/:jobId/discard', idempotency());
+app.use('/api/v1/incidents/:jobId/reconcile', idempotency());
 app.use('/api/v1/incidents/report', idempotency());
 app.use('/api/v1/audit/verify', idempotency());
 app.use('/api/v1/killswitch/enable', idempotency());

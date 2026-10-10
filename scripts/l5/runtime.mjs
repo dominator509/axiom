@@ -17,6 +17,7 @@ import apiApp, { createRelayApp } from './dist/index.js';
 import { encryptOAuthCredentials, decryptOAuthCredentials } from './dist/routes/oauth-connection.js';
 import { auditRouter } from './dist/routes/audit.js';
 import { bundlesRouter } from './dist/routes/bundles.js';
+import { incidentsRouter } from './dist/routes/incidents.js';
 import { writeAudit, verifyAuditChain, tosApprovalFailure } from './dist/routes/helpers.js';
 
 assert.match(process.env.AXIOM_L5_FIXTURE ?? '', /^[a-f0-9-]{36}$/);
@@ -73,6 +74,36 @@ async function tenant() {
   await admin.query('INSERT INTO model_profile(id,org_id,display_name,handle) VALUES($1,$2,$3,$4)', [model, org, 'Synthetic talent', model]);
   await scoped(org, tx => tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true }));
   return { org, model };
+}
+async function unknownPublishReconciliationFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), target = randomUUID(), job = randomUUID();
+  const idemKey = randomBytes(32);
+  const now = new Date();
+  await scoped(org, async tx => {
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'approved', captions: { discord: 'Synthetic recovery reconciliation.' }, hashtags: [] });
+    await tx.insert(schema.postTarget).values({ id: target, orgId: org, bundleId: bundle,
+      platform: 'discord', state: 'pending', idemKey });
+    await tx.insert(schema.job).values({ id: job, orgId: org, queue: 'publish', kind: 'publish.target',
+      state: 'dead', payload: { targetId: target }, attempts: 1, maxAttempts: 1,
+      lastError: 'external-side-effect-unknown: synthetic provider response lost' });
+    await tx.insert(schema.prePostRun).values({ orgId: org, modelId: model, targetId: target,
+      script: 'publish.dispatch', status: 'pending', input: { platform: 'discord', idempotencyKey: idemKey.toString('hex') },
+      startedAt: now });
+  });
+  return { org, model, bundle, target, job };
+}
+function publishReconciliationApp(fixture) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    c.set('orgId', fixture.org);
+    c.set('userId', 'l5-recovery-operator');
+    c.set('role', 'operator');
+    await next();
+  });
+  app.route('/', incidentsRouter);
+  return app;
 }
 async function credentialOperatorCookie(org) {
   const email = `l5-${randomUUID()}@fixture.invalid`;
@@ -204,6 +235,7 @@ async function waitForContentBundleLockWaiters(expected) {
   const deadline = Date.now() + 10_000;
   let observed = 0;
   while (Date.now() < deadline) {
+    await admin.query('SELECT pg_stat_clear_snapshot()');
     const result = await admin.query(`
       SELECT count(*)::int AS count
       FROM pg_stat_activity
@@ -1124,6 +1156,85 @@ for (const kind of Object.keys(defaultExecutors)) {
       }
       await provider.close();
     }
+  });
+  await check('publish recovery: recorded provider publication completes the target without redispatch', async () => {
+    const fixture = await unknownPublishReconciliationFixture();
+    const app = publishReconciliationApp(fixture);
+    const blockedReplay = await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' });
+    assert.equal(blockedReplay.status, 409, 'Unknown outcome must block replay before provider readback');
+
+    const response = await app.request(`/incidents/${fixture.job}/reconcile`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ outcome: 'published', confirmed: true, remoteId: 'l5-provider-post-1' }),
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200, responseText);
+    assert.deepEqual(JSON.parse(responseText).data, {
+      jobId: fixture.job, targetId: fixture.target, outcome: 'published', state: 'done',
+      replayRequired: false, dispatchStarted: false,
+    });
+
+    const records = await scoped(fixture.org, async tx => ({
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job)))[0],
+      markers: await tx.select().from(schema.prePostRun).where(eq(schema.prePostRun.targetId, fixture.target)),
+      audit: await tx.select().from(schema.auditLog).where(and(
+        eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.target, fixture.job),
+        eq(schema.auditLog.action, 'incident.publish.reconcile'),
+      )),
+    }));
+    assert.equal(records.target.state, 'published');
+    assert.equal(records.target.remoteId, 'l5-provider-post-1');
+    assert.equal(records.job.state, 'done');
+    assert.equal(records.markers.length, 1);
+    assert.equal(records.markers[0].status, 'success');
+    assert.equal(records.markers[0].output.reconciledByOperator, true);
+    assert.equal(records.audit.length, 1, 'Operator reconciliation must be auditable');
+    assert.equal((await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' })).status, 409,
+      'A reconciled published job remains ineligible for replay');
+  });
+  await check('publish recovery: confirmed absence leaves the job stopped until separate replay', async () => {
+    const fixture = await unknownPublishReconciliationFixture();
+    const app = publishReconciliationApp(fixture);
+    const response = await app.request(`/incidents/${fixture.job}/reconcile`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ outcome: 'not_published', confirmed: true }),
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 200, responseText);
+    assert.deepEqual(JSON.parse(responseText).data, {
+      jobId: fixture.job, targetId: fixture.target, outcome: 'not_published', state: 'dead',
+      replayRequired: true, dispatchStarted: false,
+    });
+
+    let records = await scoped(fixture.org, async tx => ({
+      target: (await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, fixture.target)))[0],
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job)))[0],
+      markers: await tx.select().from(schema.prePostRun).where(eq(schema.prePostRun.targetId, fixture.target)),
+      jobs: await tx.execute(sql`SELECT id FROM job WHERE org_id=${fixture.org} AND kind='publish.target' AND payload->>'targetId'=${fixture.target}`),
+      audit: await tx.select().from(schema.auditLog).where(and(
+        eq(schema.auditLog.orgId, fixture.org), eq(schema.auditLog.target, fixture.job),
+        eq(schema.auditLog.action, 'incident.publish.reconcile'),
+      )),
+    }));
+    assert.equal(records.target.state, 'pending');
+    assert.equal(records.target.remoteId, null);
+    assert.equal(records.job.state, 'dead', 'Reconciliation itself must not make work claimable');
+    assert.ok(records.job.lastError.startsWith('provider-reconciled-not-published:'));
+    assert.equal(records.markers.length, 1);
+    assert.equal(records.markers[0].status, 'reconciled-not-published');
+    assert.equal(records.markers[0].output.reconciledByOperator, true);
+    assert.equal(records.jobs.rows.length, 1, 'Reconciliation must not enqueue another publish job');
+    assert.equal(records.audit.length, 1, 'Operator reconciliation must be auditable');
+
+    const replay = await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' });
+    assert.equal(replay.status, 200, await replay.text());
+    records = await scoped(fixture.org, async tx => ({
+      job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job)))[0],
+      jobs: await tx.execute(sql`SELECT id FROM job WHERE org_id=${fixture.org} AND kind='publish.target' AND payload->>'targetId'=${fixture.target}`),
+    }));
+    assert.equal(records.job.state, 'ready', 'Only the separate replay action may make work claimable');
+    assert.equal(records.jobs.rows.length, 1, 'Explicit replay reuses the existing job');
   });
   await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
     const fixture = await relayDispatchFixture();
