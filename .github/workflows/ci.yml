@@ -540,7 +540,7 @@ jobs:
       - name: Build deployment images
         if: matrix.task == 'container'
         run: |
-          docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
+          docker build --label "org.opencontainers.image.revision=$GITHUB_SHA" --file infra/Dockerfile.hono --tag axiom-hono:ci .
           docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .
           docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
@@ -565,6 +565,7 @@ jobs:
         if: matrix.task == 'container'
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          ROLLBACK_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
 
@@ -578,6 +579,10 @@ jobs:
           hono_container="${container_prefix}-hono"
           dashboard_container="${container_prefix}-dashboard"
           worker_container="${container_prefix}-worker"
+          rollback_context=""
+          rollback_image=""
+          rollback_checks_passed=0
+          rollback_started=0
           db_stopped=0
 
           if [[ ! "${POSTGRES_CONTAINER_ID:-}" =~ ^[a-f0-9]{64}$ ]]; then
@@ -589,6 +594,11 @@ jobs:
             rehearsal_status=$?
             trap - EXIT
             cleanup_status=0
+            if (( rollback_started )) && (( rehearsal_status != 0 )); then
+              rollback_skipped=$((11 - rollback_checks_passed - 1))
+              printf 'deployment rollback checks: passed=%s failed=1 skipped=%s total=11\n' \
+                "$rollback_checks_passed" "$rollback_skipped"
+            fi
             if (( db_stopped )); then
               if ! docker start "$POSTGRES_CONTAINER_ID" >/dev/null 2>&1; then
                 echo "deployment rehearsal cleanup: failed to restart its PostgreSQL service"
@@ -611,6 +621,32 @@ jobs:
                 cleanup_status=1
               fi
             done
+            if [[ -n "$rollback_image" ]] && docker image inspect "$rollback_image" >/dev/null 2>&1; then
+              if ! docker image rm "$rollback_image" >/dev/null 2>&1; then
+                echo "deployment rehearsal cleanup: could not remove rollback image ${rollback_image}"
+                cleanup_status=1
+              fi
+            fi
+            if [[ -n "$rollback_context" ]]; then
+              case "$rollback_context" in
+                "${RUNNER_TEMP}/axiom-rollback-${rehearsal_id}."*)
+                  if [[ -d "$rollback_context" ]]; then
+                    if ! rm -rf -- "$rollback_context"; then
+                      echo "deployment rehearsal cleanup: could not remove rollback source context"
+                      cleanup_status=1
+                    fi
+                  fi
+                  if [[ -e "$rollback_context" ]]; then
+                    echo "deployment rehearsal cleanup: rollback source context remains"
+                    cleanup_status=1
+                  fi
+                  ;;
+                *)
+                  echo "deployment rehearsal cleanup: refusing to remove an unowned rollback context"
+                  cleanup_status=1
+                  ;;
+              esac
+            fi
             if [[ "$(docker inspect --format '{{.State.Running}}' "$POSTGRES_CONTAINER_ID" 2>/dev/null || true)" != "true" ]]; then
               echo "deployment rehearsal cleanup: this job's PostgreSQL service is not running"
               cleanup_status=1
@@ -647,6 +683,24 @@ jobs:
             echo "$container: healthcheck timeout"
             docker logs "$container"
             return 1
+          }
+
+          start_hono() {
+            local image="$1"
+            docker run --detach --name "$hono_container" --label "$rehearsal_label" --network host \
+              --env NODE_ENV=production \
+              --env API_HOST=0.0.0.0 \
+              --env DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
+              --env BETTER_AUTH_SECRET="$ci_auth_value" \
+              --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
+              --env RELAY_SECRET="$ci_relay_value" \
+              --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
+              --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
+              "$image"
+          }
+
+          record_rollback_pass() {
+            rollback_checks_passed=$((rollback_checks_passed + 1))
           }
 
           ci_auth_value="$(openssl rand -hex 32)"
@@ -689,16 +743,7 @@ jobs:
             --env AXIOM_SCRAPER_ADDR=0.0.0.0:8102 \
             --env AXIOM_SCRAPER_AUTH_TOKEN="$ci_scraper_value" \
             axiom-scraper:ci
-          docker run --detach --name "$hono_container" --label "$rehearsal_label" --network host \
-            --env NODE_ENV=production \
-            --env API_HOST=0.0.0.0 \
-            --env DATABASE_URL="postgresql://axiom_app:${ci_database_app_password}@127.0.0.1:5432/axiom_test" \
-            --env BETTER_AUTH_SECRET="$ci_auth_value" \
-            --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
-            --env RELAY_SECRET="$ci_relay_value" \
-            --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
-            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
-            axiom-hono:ci
+          start_hono axiom-hono:ci
           docker run --detach --name "$dashboard_container" --label "$rehearsal_label" --network host \
             --env NODE_ENV=production \
             --env PORT=3000 \
@@ -849,3 +894,77 @@ jobs:
             exit 1
           fi
           echo "${vision_container}: scanner process recovered; model readiness remains unavailable without the external artifact and inference remains protected"
+
+          rollback_started=1
+          rollback_sha="${ROLLBACK_SHA:-}"
+          candidate_sha="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' axiom-hono:ci)"
+          checkout_sha="$(git rev-parse HEAD)"
+          if [[ ! "$rollback_sha" =~ ^[a-f0-9]{40}$ || "$rollback_sha" == "$candidate_sha" ]]; then
+            echo "deployment rollback: expected a distinct full base commit SHA"
+            exit 1
+          fi
+          record_rollback_pass
+          if [[ "$candidate_sha" != "$checkout_sha" ]]; then
+            echo "deployment rollback: candidate image revision does not match the checked-out source"
+            exit 1
+          fi
+          record_rollback_pass
+          rollback_context="$(mktemp -d "${RUNNER_TEMP}/axiom-rollback-${rehearsal_id}.XXXXXX")"
+          rollback_image="axiom-hono:rollback-${rehearsal_id}"
+          git fetch --no-tags --depth=1 origin "$rollback_sha"
+          git archive "$rollback_sha" | tar -x -C "$rollback_context"
+          docker build --label "org.opencontainers.image.revision=$rollback_sha" \
+            --file "$rollback_context/infra/Dockerfile.hono" --tag "$rollback_image" "$rollback_context"
+          rollback_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$rollback_image")"
+          candidate_image_id="$(docker image inspect --format '{{.Id}}' axiom-hono:ci)"
+          rollback_image_id="$(docker image inspect --format '{{.Id}}' "$rollback_image")"
+          if [[ "$rollback_revision" != "$rollback_sha" ]]; then
+            echo "deployment rollback: base image revision label does not match the base commit"
+            exit 1
+          fi
+          record_rollback_pass
+          if [[ "$rollback_image_id" == "$candidate_image_id" ]]; then
+            echo "deployment rollback: candidate and base images must have distinct immutable identities"
+            exit 1
+          fi
+          record_rollback_pass
+          printf 'deployment rollback images: candidate=%s %s base=%s %s\n' \
+            "$candidate_sha" "$candidate_image_id" "$rollback_sha" "$rollback_image_id"
+
+          docker stop --time 10 "$hono_container" >/dev/null
+          docker rm "$hono_container" >/dev/null
+          start_hono "$rollback_image" >/dev/null
+          wait_for_health "$hono_container"
+          record_rollback_pass
+          curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3001/api/v1/ready >/dev/null
+          record_rollback_pass
+          if [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/v1/models)" != "401" ]]; then
+            echo "deployment rollback: base image did not preserve the unauthenticated API boundary"
+            exit 1
+          fi
+          record_rollback_pass
+          if [[ "$(docker inspect --format '{{.Image}}' "$hono_container")" != "$rollback_image_id" ]]; then
+            echo "deployment rollback: running service is not the immutable base image"
+            exit 1
+          fi
+          record_rollback_pass
+          echo "deployment rollback: base image became healthy, ready, and retained the authentication boundary"
+
+          docker stop --time 10 "$hono_container" >/dev/null
+          docker rm "$hono_container" >/dev/null
+          start_hono axiom-hono:ci >/dev/null
+          wait_for_health "$hono_container"
+          record_rollback_pass
+          if [[ "$(docker inspect --format '{{.Image}}' "$hono_container")" != "$candidate_image_id" ]]; then
+            echo "deployment rollback: candidate image was not restored"
+            exit 1
+          fi
+          record_rollback_pass
+          curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3001/api/v1/ready >/dev/null
+          record_rollback_pass
+          if (( rollback_checks_passed != 11 )); then
+            echo "deployment rollback: expected 11 acceptance checks"
+            exit 1
+          fi
+          echo "deployment rollback checks: passed=$rollback_checks_passed failed=0 skipped=0 total=11"
+          echo "deployment rollback: candidate image restored and ready; rehearsal cleanup is run-scoped"
