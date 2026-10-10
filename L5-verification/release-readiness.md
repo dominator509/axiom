@@ -1,11 +1,12 @@
 # Release readiness: evidence register and execution order
 
-Current main checkpoint for the Lane 3 CI matrix and provider review (2026-10-10): `69c97cb814e93410af53219d634537b436a395d1`, after PR #150. Exact-main [CI run 38061276176](https://github.com/dominator509/axiom/actions/runs/38061276176) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. The register reports 54 criteria, 25 accepted, and 29 open; it is structurally valid and is not release approval. The matrix receipt is tied to this SHA; all accepted rows still require final-release-SHA verification.
+Current main evidence checkpoint (2026-10-10): `d3bce5a6fc5a3bc95f540f4b743ec3835cfc46c4`, after PR #153. Exact-main [CI run 38074517461](https://github.com/dominator509/axiom/actions/runs/38074517461) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 25 accepted, 26 unverified, and 3 blocked (29 open total). The register is valid but is not release approval; all acceptance rows still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
-`ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
-baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
-22 accepted, and 32 open at this historical 2026-10-09 checkpoint; the register
+`ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
+historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
+`rtk node scripts/check-release-evidence.mjs --check` reported 54 criteria,
+22 accepted, and 32 open; the register
 was structurally valid but not release approval. At that baseline, the release
 gate remained blocked by stale receipts for other passed criteria and by open
 criteria. The latest RLS rehearsal below ran on that baseline; the full RLS
