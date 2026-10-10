@@ -992,9 +992,58 @@
       "requirement": "| A4 | Auto crash/bug reporting + logging | injected fault auto-captured in GlitchTip; structured logs + traces present |",
       "requirementSha256": "c954093b654933d14499e1f323215ac242cedcb773960dfe5081da513ac4e85d",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance at the final release SHA; this fixture does not prove production GlitchTip dashboards or target-host failure modes.",
+      "evidence": [
+        {
+          "criterion": "A4",
+          "sha": "65a6d7fd197a6b47d3128a58c37afe2fe23efc50",
+          "command": "pnpm install --frozen-lockfile; pnpm --filter @axiom/api... build; node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture",
+          "environment": "GitHub Actions disposable PostgreSQL and GlitchTip services; Node 22.23.3; built API and workspace dependencies; generated fixture account/project/DSN; no external service or provider credentials.",
+          "scope": "A controlled request failure runs through the production API correlation, telemetry-span, and error-handler code. The RFC-7807 response is safe; the API exception and structured error log are read back from GlitchTip with service/correlation context and active trace/parent-span IDs; synthetic token/email markers are absent; the unique organization is deleted.",
+          "limitations": "This proves the production API error path to GlitchTip in an isolated CI fixture. It does not prove production GlitchTip deployment, target-host tunnel/DNS/route/proxy faults, global suspension timing, or owner observability dashboards.",
+          "observedAt": "2026-10-10T13:20:52Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38055228297",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38055228297/job/114222199374",
+          "logSha256": "6040e21797cd152e5432a4c3a3708a8eb2b590c2cd0fd216b3c408695a5b9e7a",
+          "counts": {
+            "passed": 15,
+            "failed": 0,
+            "skipped": 0,
+            "total": 15,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "glitchtip/glitchtip:6.2.6@sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "A4",
+          "sha": "28666b64f7928dec0b7ab9b8f7e340a6edd3b0a5",
+          "command": "pnpm install --frozen-lockfile; pnpm --filter @axiom/api... build; node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture",
+          "environment": "GitHub Actions disposable PostgreSQL and GlitchTip services; Node 22.23.3; built API and workspace dependencies; generated fixture account/project/DSN; no external service or provider credentials.",
+          "scope": "A controlled request failure runs through the production API correlation, telemetry-span, and error-handler code. The RFC-7807 response is safe; the API exception and structured error log are read back from GlitchTip with service/correlation context and active trace/parent-span IDs; synthetic token/email markers are absent; the unique organization is deleted.",
+          "limitations": "This proves the production API error path to GlitchTip in an isolated CI fixture. It does not prove production GlitchTip deployment, target-host tunnel/DNS/route/proxy faults, global suspension timing, or owner observability dashboards.",
+          "observedAt": "2026-10-10T13:44:55Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38056783681",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38056783681/job/114226793636",
+          "logSha256": "84b81599dfde68183e4749505b98fe69d243ab2d4ec16112672abddbf2f06503",
+          "counts": {
+            "passed": 15,
+            "failed": 0,
+            "skipped": 0,
+            "total": 15,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "glitchtip/glitchtip:6.2.6@sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "injected fault auto-captured in GlitchTip; structured logs + traces present",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
