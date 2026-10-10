@@ -34,8 +34,11 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node --check scripts/rehearse-glitchtip-observability.mjs` and `node --check scripts/rehearse-glitchtip-fault-child.mjs` — validate the isolated GlitchTip rehearsal harness JavaScript syntax without starting services
+- `git diff --check` — reject whitespace errors in the pending patch
 - `sh scripts/fetch-vision-model.sh` — fetch and checksum the pinned public ONNX artifact into ignored local storage; no inference or accuracy claim.
 - `node scripts/rehearse-l5-runtime.mjs --isolated-fixture` — build committed API/media/vision images, exercise real worker/audit/ToS boundaries twice in owned network-disabled PostgreSQL fixtures, and verify cleanup; requires the pinned model and a clean committed checkout. No existing databases, host mounts, published ports, provider credentials or customer media.
+- `node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture` — verify isolated GlitchTip issue grouping, correlated structured logs/traces, privacy scrubbing, and cleanup against a loopback GlitchTip service; requires the CI-built API/workspace and a clean checkout with `TESTED_SHA`, `GLITCHTIP_URL`, and fixture services. No external provider credentials or owner services.
 - `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` — build the committed schema, migrate a fresh network-disabled PostgreSQL container, verify effective RLS and role privileges, inject rollback-only faults and exercise tenant locale writes; never reads `.env` or an existing database URL. Requires clean committed source and pinned Node. Receipts and private logs: `var/rls-rehearsal/`.
 - `node scripts/check-release-evidence.mjs --check` — verify complete L5 acceptance coverage and receipt structure; open rows remain open and this is not release approval.
 - `node scripts/check-release-evidence.mjs --receipt-log-sha <job-id>` — print the SHA-256 of raw GitHub Actions job-log bytes for receipt assembly; this does not validate the job or accept a criterion.

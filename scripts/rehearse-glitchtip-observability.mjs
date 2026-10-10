@@ -1,15 +1,15 @@
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const EXPECTED_CHECKS = 15;
 const RUN_ID = randomUUID();
 const MARKER = `AXIOM_OBSERVABILITY_${RUN_ID}`;
 const FIXTURE_TOKEN = `fixture-sensitive-${RUN_ID}`;
 const FIXTURE_EMAIL = `canary-${RUN_ID}@example.test`;
-const API_CORRELATION_ID = `API-${RUN_ID}`;
+const API_CORRELATION_IDS = [1, 2].map((index) => `API-${RUN_ID}-${index}`);
 const CHECKOUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RECEIPT_DIRECTORY = path.join(CHECKOUT, 'var', 'observability-rehearsal', RUN_ID);
 const BASE_URL = new URL(process.env.GLITCHTIP_URL ?? 'http://127.0.0.1:8000');
@@ -171,10 +171,14 @@ async function waitForIssue() {
   const route = `/api/0/projects/${encodeURIComponent(organizationSlug)}/${encodeURIComponent(projectSlug)}/issues/`;
   while (Date.now() < deadline) {
     const issues = await apiRequest(route);
-    if (Array.isArray(issues) && issues.some((issue) => String(issue?.title ?? '').includes(MARKER))) return;
+    const matchingIssues = Array.isArray(issues)
+      ? issues.filter((issue) => String(issue?.title ?? '').includes(MARKER))
+      : [];
+    const occurrenceCount = matchingIssues.reduce((total, issue) => total + Number(issue?.count ?? 0), 0);
+    if (occurrenceCount >= API_CORRELATION_IDS.length) return matchingIssues;
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
-  throw new Error('Injected exception was not readable in the isolated GlitchTip project');
+  throw new Error('Both injected exceptions were not readable in the isolated GlitchTip project');
 }
 
 async function waitForLog() {
@@ -185,52 +189,58 @@ async function waitForLog() {
     const logs = await apiRequest(route);
     if (Array.isArray(logs)) {
       const matches = logs.filter((log) => JSON.stringify(log).includes(MARKER));
-      if (matches.length > 0) return matches;
+      const correlationsFound = API_CORRELATION_IDS.every((correlationId) =>
+        matches.some((log) => JSON.stringify(log).includes(correlationId)),
+      );
+      if (correlationsFound) return matches;
     }
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
-  throw new Error('Injected structured log was not readable in the isolated GlitchTip project');
+  throw new Error('Both injected structured logs were not readable in the isolated GlitchTip project');
 }
 
 async function sendFault(dsn) {
   fixtureDsn = dsn;
-  const telemetry = await import('../packages/observability/dist/index.js');
-  process.env.SENTRY_DSN = dsn;
-  process.env.SENTRY_TRACES_SAMPLE_RATE = '1';
-  process.env.AXIOM_ENVIRONMENT = 'isolated-observability-rehearsal';
-  process.env.AXIOM_RELEASE = TESTED_SHA;
-  process.env.AXIOM_SERVICE_NAME = 'api';
-  await import('../packages/api/dist/telemetry-bootstrap.js');
-  const initialized = telemetry.initializeTelemetry('api', process.env);
-  check('API telemetry bootstrap initialized from generated fixture DSN', initialized);
-
-  const apiRequire = createRequire(path.join(CHECKOUT, 'packages', 'api', 'package.json'));
-  const { Hono } = await import(pathToFileURL(apiRequire.resolve('hono')).href);
-  const { correlationId, onError, telemetrySpan } = await import('../packages/api/dist/contract.js');
-  const app = new Hono();
-  app.use('*', correlationId);
-  app.use('*', telemetrySpan);
-  app.onError(onError);
-  app.get('/_rehearsal/fault', () => {
-    throw new Error(`${MARKER} access_token=${FIXTURE_TOKEN} email=${FIXTURE_EMAIL}`);
+  const childScript = path.join(CHECKOUT, 'scripts', 'rehearse-glitchtip-fault-child.mjs');
+  const results = API_CORRELATION_IDS.map((correlationId) => {
+    const child = spawnSync(process.execPath, [childScript, '--isolated-fixture'], {
+      encoding: 'utf8',
+      timeout: 20_000,
+      env: {
+        PATH: process.env.PATH,
+        GLITCHTIP_URL: BASE_URL.origin,
+        TESTED_SHA,
+        SENTRY_DSN: dsn,
+        SENTRY_TRACES_SAMPLE_RATE: '1',
+        AXIOM_ENVIRONMENT: 'isolated-observability-rehearsal',
+        AXIOM_RELEASE: TESTED_SHA,
+        AXIOM_SERVICE_NAME: 'api',
+        AXIOM_OBSERVABILITY_MARKER: MARKER,
+        AXIOM_OBSERVABILITY_FIXTURE_TOKEN: FIXTURE_TOKEN,
+        AXIOM_OBSERVABILITY_FIXTURE_EMAIL: FIXTURE_EMAIL,
+        AXIOM_OBSERVABILITY_CORRELATION_ID: correlationId,
+      },
+    });
+    if (child.error || child.status !== 0) return null;
+    try {
+      const lines = child.stdout.trim().split(/\r?\n/);
+      return JSON.parse(lines.at(-1));
+    } catch {
+      return null;
+    }
   });
-
-  const response = await app.request('http://127.0.0.1/_rehearsal/fault', {
-    headers: { 'X-Correlation-ID': API_CORRELATION_ID },
-  });
-  const body = await response.json();
   check(
-    'production API error handler returns a safe correlated RFC-7807 response',
-    response.status === 500
-      && response.headers.get('X-Correlation-ID') === API_CORRELATION_ID
-      && body?.correlation_id === API_CORRELATION_ID
-      && !JSON.stringify(body).includes(MARKER)
-      && !JSON.stringify(body).includes(FIXTURE_TOKEN)
-      && !JSON.stringify(body).includes(FIXTURE_EMAIL),
+    'API telemetry bootstrap initialized for both isolated fixture clients',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.initialized === true),
   );
-
-  const flushed = await telemetry.flushTelemetry(8_000);
-  check('API error handler flushed exception, structured log, and trace envelopes', flushed);
+  check(
+    'production API error handler returns safe correlated RFC-7807 responses for both requests',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.safeResponse === true),
+  );
+  check(
+    'both isolated API clients flushed exception, structured log, and trace envelopes',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.flushed === true),
+  );
 }
 
 async function cleanupFixture() {
@@ -254,8 +264,8 @@ async function writeReceipt() {
     criterion: 'A4',
     testedSha: TESTED_SHA,
     environment: 'GitHub Actions disposable PostgreSQL and GlitchTip services; Node 22.23.3; built API and workspace dependencies; generated fixture account/project/DSN; no external service or provider credentials.',
-    scope: 'A controlled request failure runs through the production API correlation, telemetry-span, and error-handler code. The RFC-7807 response is safe; the API exception and structured error log are read back from GlitchTip with service/correlation context and active trace/parent-span IDs; synthetic token/email markers are absent; the unique organization is deleted.',
-    limitations: 'This proves the production API error path to GlitchTip in an isolated CI fixture. It does not prove production GlitchTip deployment, target-host tunnel/DNS/route/proxy faults, global suspension timing, or owner observability dashboards.',
+    scope: 'Two isolated API clients each send the same controlled request failure with a distinct request ID through the production API correlation, telemetry-span, and error-handler code. One event per client avoids client-side duplicate suppression so GlitchTip issue-list readback can verify server grouping into one incident with two occurrences; both structured logs retain service, correlation, and active trace/parent-span context; synthetic token/email markers are absent; the unique organization is deleted.',
+    limitations: 'This proves isolated GlitchTip incident grouping, issue-list API visibility, and structured log/trace readback. It does not prove frontend dashboard rendering, production GlitchTip deployment, target-host tunnel/DNS/route/proxy faults, or global suspension timing.',
     runUrl,
     images: [process.env.GLITCHTIP_IMAGE, process.env.POSTGRES_IMAGE].filter(Boolean),
     readBackLogSha256: ingestedLogSha256,
@@ -278,27 +288,42 @@ async function main() {
   const { dsn, projectId } = await createProject();
   check('project DSN is scoped to created project', Boolean(projectId) && new URL(dsn).pathname.endsWith(`/${projectId}`));
   await sendFault(dsn);
-  await waitForIssue();
-  check('injected exception visible in GlitchTip issue list', true);
+  const matchingIssues = await waitForIssue();
+  check(
+    'two identical injected exceptions are deduplicated to one GlitchTip issue-list entry with two occurrences',
+    matchingIssues.length === 1 && Number(matchingIssues[0]?.count) === API_CORRELATION_IDS.length,
+  );
   const logs = await waitForLog();
   const structuredLog = logs.find((log) => JSON.stringify(log).includes(MARKER));
-  check('production API structured error log visible through GlitchTip logs API', Boolean(structuredLog));
+  check('production API structured error logs visible through GlitchTip logs API', Boolean(structuredLog));
   // GlitchTip exposes the trace as traceID and flattens Sentry's log attributes into data.
-  const traceId = structuredLog?.traceID;
-  const parentSpanId = structuredLog?.data?.['sentry.trace.parent_span_id'];
-  check(
-    'structured log carries an active trace and parent span',
-    typeof traceId === 'string'
-      && traceId.length >= 16
-      && typeof parentSpanId === 'string'
-      && /^[a-f0-9]{16}$/i.test(parentSpanId),
+  const correlatedLogs = API_CORRELATION_IDS.map((correlationId) =>
+    logs.find((log) => JSON.stringify(log).includes(correlationId)),
   );
   check(
-    'structured log exposes API service and request correlation identifiers',
-    structuredLog?.service === 'api' && JSON.stringify(structuredLog).includes(API_CORRELATION_ID),
+    'each structured log carries an active trace and parent span',
+    correlatedLogs.length === API_CORRELATION_IDS.length
+      && correlatedLogs.every((log) => {
+        const traceId = log?.traceID;
+        const parentSpanId = log?.data?.['sentry.trace.parent_span_id'];
+        return typeof traceId === 'string'
+          && traceId.length >= 16
+          && typeof parentSpanId === 'string'
+          && /^[a-f0-9]{16}$/i.test(parentSpanId);
+      }),
   );
-  const serialized = JSON.stringify(structuredLog);
-  check('structured log excludes synthetic token and identity', !serialized.includes(FIXTURE_TOKEN) && !serialized.includes(FIXTURE_EMAIL));
+  check(
+    'structured logs expose API service and both request correlation identifiers',
+    correlatedLogs.length === API_CORRELATION_IDS.length
+      && correlatedLogs.every((log, index) =>
+        log?.service === 'api' && JSON.stringify(log).includes(API_CORRELATION_IDS[index]),
+      ),
+  );
+  const serialized = JSON.stringify(logs);
+  check(
+    'structured logs exclude synthetic tokens and identities from both requests',
+    !serialized.includes(FIXTURE_TOKEN) && !serialized.includes(FIXTURE_EMAIL),
+  );
   ingestedLogSha256 = createHash('sha256').update(serialized).digest('hex');
 }
 
