@@ -1159,10 +1159,10 @@ for (const kind of Object.keys(defaultExecutors)) {
   await check('publish recovery: recorded provider publication completes the target without redispatch', async () => {
     const fixture = await unknownPublishReconciliationFixture();
     const app = publishReconciliationApp(fixture);
-    const blockedReplay = await app.request(`/${fixture.job}/replay`, { method: 'POST' });
+    const blockedReplay = await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' });
     assert.equal(blockedReplay.status, 409, 'Unknown outcome must block replay before provider readback');
 
-    const response = await app.request(`/${fixture.job}/reconcile`, {
+    const response = await app.request(`/incidents/${fixture.job}/reconcile`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ outcome: 'published', confirmed: true, remoteId: 'l5-provider-post-1' }),
     });
@@ -1189,13 +1189,13 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(records.markers[0].status, 'success');
     assert.equal(records.markers[0].output.reconciledByOperator, true);
     assert.equal(records.audit.length, 1, 'Operator reconciliation must be auditable');
-    assert.equal((await app.request(`/${fixture.job}/replay`, { method: 'POST' })).status, 409,
+    assert.equal((await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' })).status, 409,
       'A reconciled published job remains ineligible for replay');
   });
   await check('publish recovery: confirmed absence leaves the job stopped until separate replay', async () => {
     const fixture = await unknownPublishReconciliationFixture();
     const app = publishReconciliationApp(fixture);
-    const response = await app.request(`/${fixture.job}/reconcile`, {
+    const response = await app.request(`/incidents/${fixture.job}/reconcile`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ outcome: 'not_published', confirmed: true }),
     });
@@ -1226,7 +1226,7 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(records.jobs.rows.length, 1, 'Reconciliation must not enqueue another publish job');
     assert.equal(records.audit.length, 1, 'Operator reconciliation must be auditable');
 
-    const replay = await app.request(`/${fixture.job}/replay`, { method: 'POST' });
+    const replay = await app.request(`/incidents/${fixture.job}/replay`, { method: 'POST' });
     assert.equal(replay.status, 200, await replay.text());
     records = await scoped(fixture.org, async tx => ({
       job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job)))[0],
