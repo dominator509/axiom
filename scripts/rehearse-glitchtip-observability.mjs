@@ -1,8 +1,8 @@
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const EXPECTED_CHECKS = 15;
 const RUN_ID = randomUUID();
@@ -201,49 +201,46 @@ async function waitForLog() {
 
 async function sendFault(dsn) {
   fixtureDsn = dsn;
-  const telemetry = await import('../packages/observability/dist/index.js');
-  process.env.SENTRY_DSN = dsn;
-  process.env.SENTRY_TRACES_SAMPLE_RATE = '1';
-  process.env.AXIOM_ENVIRONMENT = 'isolated-observability-rehearsal';
-  process.env.AXIOM_RELEASE = TESTED_SHA;
-  process.env.AXIOM_SERVICE_NAME = 'api';
-  await import('../packages/api/dist/telemetry-bootstrap.js');
-  const initialized = telemetry.initializeTelemetry('api', process.env);
-  check('API telemetry bootstrap initialized from generated fixture DSN', initialized);
-
-  const apiRequire = createRequire(path.join(CHECKOUT, 'packages', 'api', 'package.json'));
-  const { Hono } = await import(pathToFileURL(apiRequire.resolve('hono')).href);
-  const { correlationId, onError, telemetrySpan } = await import('../packages/api/dist/contract.js');
-  const app = new Hono();
-  app.use('*', correlationId);
-  app.use('*', telemetrySpan);
-  app.onError(onError);
-  app.get('/_rehearsal/fault', () => {
-    throw new Error(`${MARKER} access_token=${FIXTURE_TOKEN} email=${FIXTURE_EMAIL}`);
-  });
-
-  const responses = [];
-  for (const correlationId of API_CORRELATION_IDS) {
-    const response = await app.request('http://127.0.0.1/_rehearsal/fault', {
-      headers: { 'X-Correlation-ID': correlationId },
+  const childScript = path.join(CHECKOUT, 'scripts', 'rehearse-glitchtip-fault-child.mjs');
+  const results = API_CORRELATION_IDS.map((correlationId) => {
+    const child = spawnSync(process.execPath, [childScript, '--isolated-fixture'], {
+      encoding: 'utf8',
+      timeout: 20_000,
+      env: {
+        PATH: process.env.PATH,
+        GLITCHTIP_URL: BASE_URL.origin,
+        TESTED_SHA,
+        SENTRY_DSN: dsn,
+        SENTRY_TRACES_SAMPLE_RATE: '1',
+        AXIOM_ENVIRONMENT: 'isolated-observability-rehearsal',
+        AXIOM_RELEASE: TESTED_SHA,
+        AXIOM_SERVICE_NAME: 'api',
+        AXIOM_OBSERVABILITY_MARKER: MARKER,
+        AXIOM_OBSERVABILITY_FIXTURE_TOKEN: FIXTURE_TOKEN,
+        AXIOM_OBSERVABILITY_FIXTURE_EMAIL: FIXTURE_EMAIL,
+        AXIOM_OBSERVABILITY_CORRELATION_ID: correlationId,
+      },
     });
-    responses.push({ response, body: await response.json(), correlationId });
-  }
+    if (child.error || child.status !== 0) return null;
+    try {
+      const lines = child.stdout.trim().split(/\r?\n/);
+      return JSON.parse(lines.at(-1));
+    } catch {
+      return null;
+    }
+  });
   check(
-    'production API error handler returns safe correlated RFC-7807 responses for both repeated requests',
-    responses.length === API_CORRELATION_IDS.length
-      && responses.every(({ response, body, correlationId }) =>
-        response.status === 500
-          && response.headers.get('X-Correlation-ID') === correlationId
-          && body?.correlation_id === correlationId
-          && !JSON.stringify(body).includes(MARKER)
-          && !JSON.stringify(body).includes(FIXTURE_TOKEN)
-          && !JSON.stringify(body).includes(FIXTURE_EMAIL),
-      ),
+    'API telemetry bootstrap initialized for both isolated fixture clients',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.initialized === true),
   );
-
-  const flushed = await telemetry.flushTelemetry(8_000);
-  check('API error handler flushed exception, structured log, and trace envelopes', flushed);
+  check(
+    'production API error handler returns safe correlated RFC-7807 responses for both requests',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.safeResponse === true),
+  );
+  check(
+    'both isolated API clients flushed exception, structured log, and trace envelopes',
+    results.length === API_CORRELATION_IDS.length && results.every((result) => result?.flushed === true),
+  );
 }
 
 async function cleanupFixture() {
@@ -267,7 +264,7 @@ async function writeReceipt() {
     criterion: 'A4',
     testedSha: TESTED_SHA,
     environment: 'GitHub Actions disposable PostgreSQL and GlitchTip services; Node 22.23.3; built API and workspace dependencies; generated fixture account/project/DSN; no external service or provider credentials.',
-    scope: 'Two identical controlled request failures run through the production API correlation, telemetry-span, and error-handler code with distinct request IDs. GlitchTip issue-list readback shows one grouped incident with two occurrences; both structured logs retain service, correlation, and active trace/parent-span context; synthetic token/email markers are absent; the unique organization is deleted.',
+    scope: 'Two isolated API clients each send the same controlled request failure with a distinct request ID through the production API correlation, telemetry-span, and error-handler code. One event per client avoids client-side duplicate suppression so GlitchTip issue-list readback can verify server grouping into one incident with two occurrences; both structured logs retain service, correlation, and active trace/parent-span context; synthetic token/email markers are absent; the unique organization is deleted.',
     limitations: 'This proves isolated GlitchTip incident grouping, issue-list API visibility, and structured log/trace readback. It does not prove frontend dashboard rendering, production GlitchTip deployment, target-host tunnel/DNS/route/proxy faults, or global suspension timing.',
     runUrl,
     images: [process.env.GLITCHTIP_IMAGE, process.env.POSTGRES_IMAGE].filter(Boolean),
