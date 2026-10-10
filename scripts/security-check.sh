@@ -29,8 +29,19 @@ SECRET_PATTERNS='(SECRET|API_KEY|PASSWORD|PRIVATE_KEY|TOKEN|CREDENTIALS)[[:space
 
 # Only run if git is available and there are tracked files
 if command -v git &>/dev/null && git rev-parse --git-dir &>/dev/null; then
+  # Environment files should never be committed, even when they currently
+  # contain only placeholders. Keep the conventional template allowed.
+  ENV_FILES=$(git ls-files --cached --full-name | awk -F/ '$NF == ".env" || ($NF ~ /^\.env\./ && $NF != ".env.example")')
+  if [ -n "$ENV_FILES" ]; then
+    echo "  [FAIL] Environment files must not be tracked (filenames only):"
+    echo "$ENV_FILES" | while IFS= read -r line; do
+      echo "    $line"
+    done
+    EXIT_CODE=1
+  fi
+
   # Report filenames only: a scanner must not leak a credential into CI logs.
-  MATCHES=$(git grep -IlE "$SECRET_PATTERNS" -- ':!.env' ':!.env.*' ':!*.test.*' ':!*test*' 2>/dev/null || true)
+  MATCHES=$(git grep -IlE "$SECRET_PATTERNS" -- ':!*.test.*' ':!*test*' 2>/dev/null || true)
   if [ -n "$MATCHES" ]; then
     echo "  [FAIL] Potential secrets detected in tracked files:"
     echo "$MATCHES" | while IFS= read -r line; do
