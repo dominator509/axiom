@@ -235,6 +235,7 @@ async function waitForContentBundleLockWaiters(expected) {
   const deadline = Date.now() + 10_000;
   let observed = 0;
   while (Date.now() < deadline) {
+    await admin.query('SELECT pg_stat_clear_snapshot()');
     const result = await admin.query(`
       SELECT count(*)::int AS count
       FROM pg_stat_activity
