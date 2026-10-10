@@ -885,9 +885,37 @@
       "requirement": "| A1 | Link-in-bio optional/composable | runs with 0 providers; Native, Fanlynks, and Beacons.ai work individually and simultaneously; disabling one leaves the others working; Native always works; Linktree is excluded; Beacon CRM is not a link-in-bio provider |",
       "requirementSha256": "06b41ede05f612efe985b22a67a39bdedbf8a4957a0fd1b88fbf58fd31606c0d",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance on the final release SHA; live external-provider sync remains a separate acceptance.",
+      "evidence": [
+        {
+          "criterion": "A1",
+          "sha": "26e92bf066e438ad0e70c7a9b54223e37b8e110a",
+          "command": "node scripts/rehearse-browser.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest; immutable API, dashboard, egress, and Chromium Docker images plus disposable PostgreSQL and synthetic two-tenant fixtures.",
+          "scope": "Two fresh-database repetitions of default-brand and configured-brand journeys. All four 39-check journeys passed (156 passed), including starting with zero providers; configuring Native, Fanlynks, and Beacons.ai; verifying composition and exclusive primary selection; rejecting Linktree writes; and disabling one provider while preserving the others and Native. Separate negative-brand and missing-cookie controls produced their expected rejection outcomes. Docker resources were removed and cleanupVerified=true.",
+          "limitations": "Synthetic UI/API configuration and composition acceptance only. No real Fanlynks or Beacons.ai credentials, external API synchronization, production service, or shared database was used. Beacon CRM remains a separate connector.",
+          "observedAt": "2026-10-10T09:08:25Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38039168297",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38039168297/job/114175800163",
+          "logSha256": "b24d7dad80cf0f624f40d06da59184fb9b8e3ce48c75d993f882ec5e308cd819",
+          "counts": {
+            "passed": 156,
+            "failed": 0,
+            "skipped": 0,
+            "total": 156,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:1ae77059e3a170909e19297019f245488756ee8346a8424b0932d2cc9010c88d",
+            "sha256:5d417b9521c46c9ca948620e57c2d3e20be11395e02807a4ff84dbb40ed1b808",
+            "sha256:33b3d2bb9ff9bbd14f21a1f92293ce29d86ec387fc7def570173f08861543578",
+            "sha256:433bb8947d35a573354bfa20b4d4347de824c1c6da7b892c36650e497503ae40",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "runs with 0 providers; Native, Fanlynks, and Beacons.ai work individually and simultaneously; disabling one leaves the others working; Native always works; Linktree is excluded; Beacon CRM is not a link-in-bio provider",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
