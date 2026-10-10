@@ -5,6 +5,7 @@
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
+import { captureTelemetryException, sanitizeTelemetryValue } from '@axiom/observability';
 import { backoffDelayMs } from './backoff.js';
 import {
   claimNextJob,
@@ -146,7 +147,12 @@ function startJobLeaseHeartbeat(job: JobRow, workerId: string, leaseState: Lease
       if (!leaseState.lost) {
         leaseState.lost = err instanceof JobLeaseLostError ? err : new JobLeaseLostError(job.id);
       }
-      console.error('[worker] job lease renewal failed:', (err as Error).message ?? String(err));
+      captureTelemetryException(err, {
+        service: process.env.AXIOM_SERVICE_NAME ?? 'worker',
+        correlationId: job.id,
+        jobId: job.id,
+      });
+      console.error('[worker] job lease renewal failed:', sanitizeTelemetryValue((err as Error).message ?? String(err)));
     });
   }, JOB_LEASE_HEARTBEAT_MS);
   return () => clearInterval(timer);
@@ -244,6 +250,13 @@ export async function processJob(
     // state without risking a conflicting retry or dead-letter transition.
     if (err instanceof JobLeaseLostError || leaseState.lost) {
       throw leaseState.lost ?? err;
+    }
+    if (!(err instanceof ParkJobError)) {
+      captureTelemetryException(err, {
+        service: process.env.AXIOM_SERVICE_NAME ?? 'worker',
+        correlationId: job.id,
+        jobId: job.id,
+      });
     }
 
     // Once provider I/O has started, a later failure has an unknown external
@@ -397,11 +410,15 @@ export async function runWorker(opts: WorkerOptions = {}): Promise<void> {
       if (stats.claimed === 0) {
         await sleep(pollIntervalMs);
       } else if (stats.lastError) {
-        console.error(`[worker] ${stats.lastError}`);
+        console.error('[worker] job failed:', sanitizeTelemetryValue(stats.lastError));
       }
       if (stats.claimed > 0) await sleep(settleMs);
     } catch (err) {
-      console.error('[worker] tick error:', (err as Error).message);
+      captureTelemetryException(err, {
+        service: process.env.AXIOM_SERVICE_NAME ?? 'worker',
+        correlationId: workerId,
+      });
+      console.error('[worker] tick error:', sanitizeTelemetryValue((err as Error).message ?? String(err)));
       await sleep(pollIntervalMs);
     }
   }

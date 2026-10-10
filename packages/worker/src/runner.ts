@@ -2,6 +2,8 @@
 // Starts the queue worker loop. Env: WORKER_ID, WORKER_POLL_INTERVAL_MS,
 // WORKER_MAX_ATTEMPTS. Requires DATABASE_URL (via @axiom/db).
 
+import './telemetry-bootstrap.js';
+import { captureTelemetryException, flushTelemetry, sanitizeTelemetryValue } from '@axiom/observability';
 import { registerConnectors } from './connectors.js';
 import {
   installRuntimeFailureHandlers,
@@ -51,7 +53,9 @@ const maxAttempts = process.env.WORKER_MAX_ATTEMPTS
   ? parseInt(process.env.WORKER_MAX_ATTEMPTS, 10)
   : undefined;
 
-runWorker({ workerId, pollIntervalMs, maxAttempts, mediaScope, egressScope, egressConfinementRequired }).catch((err) => {
-  console.error('[worker] fatal:', err);
+runWorker({ workerId, pollIntervalMs, maxAttempts, mediaScope, egressScope, egressConfinementRequired }).catch(async (err) => {
+  captureTelemetryException(err, { service: process.env.AXIOM_SERVICE_NAME ?? 'worker', correlationId: workerId });
+  console.error('[worker] fatal:', sanitizeTelemetryValue((err as Error).message ?? String(err)));
+  await flushTelemetry();
   process.exit(1);
 });

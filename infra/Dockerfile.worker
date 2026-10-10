@@ -21,6 +21,7 @@ COPY packages/core/package.json ./packages/core/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/connectors/package.json ./packages/connectors/package.json
 COPY packages/relay/package.json ./packages/relay/package.json
+COPY packages/observability/package.json ./packages/observability/package.json
 COPY packages/llm-gateway/package.json ./packages/llm-gateway/package.json
 COPY packages/fanvue-mcp/package.json ./packages/fanvue-mcp/package.json
 COPY packages/mcp-server/package.json ./packages/mcp-server/package.json
@@ -49,7 +50,8 @@ COPY packages ./packages
 # dependency order explicit here: a clean Docker layer has no prior `dist`
 # artifacts, and TypeScript project references need each declaration bundle
 # available before the next package starts compiling.
-RUN cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+RUN cd packages/observability && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/db && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/fanvue-mcp && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/connectors && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
@@ -84,4 +86,4 @@ ENV WORKER_POLL_INTERVAL_MS=1000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD kill -0 1
 
-CMD ["node", "dist/runner.js"]
+CMD ["node", "--import", "./dist/telemetry-bootstrap.js", "dist/runner.js"]
