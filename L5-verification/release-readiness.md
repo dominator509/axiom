@@ -1,22 +1,39 @@
 # Release readiness: evidence register and execution order
 
-Main baseline for this Lane 2 RLS receipt refresh (2026-10-09): `f2f127d5e9e09b3ae377ec62121648c2248f425f`, after PR #140. Post-merge [CI run 37957364668](https://github.com/dominator509/axiom/actions/runs/37957364668) completed with 11 jobs passed, 0 failed, and 0 cancelled. Earlier implementation baselines and their receipts remain historical below.
+Current main checkpoint for the Lane 3 CI matrix and provider review (2026-10-10): `69c97cb814e93410af53219d634537b436a395d1`, after PR #150. Exact-main [CI run 38061276176](https://github.com/dominator509/axiom/actions/runs/38061276176) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. The register reports 54 criteria, 25 accepted, and 29 open; it is structurally valid and is not release approval. The matrix receipt is tied to this SHA; all accepted rows still require final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At this
 baseline, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
-22 accepted, and 32 open; the register is structurally valid but is not release
-approval. At this baseline, `rtk node scripts/check-release-evidence.mjs --release
-f2f127d5e9e09b3ae377ec62121648c2248f425f` remains blocked by stale receipts for
-other passed criteria and by 32 open criteria. The latest RLS rehearsal below
-ran on this baseline; the full RLS matrix must still be repeated against the
-final release SHA. Accepted rows retain their actual tested SHAs. A post-run
-external register cannot redefine acceptance criteria, and this document does
-not authorize release.
+22 accepted, and 32 open at this historical 2026-10-09 checkpoint; the register
+was structurally valid but not release approval. At that baseline, the release
+gate remained blocked by stale receipts for other passed criteria and by open
+criteria. The latest RLS rehearsal below ran on that baseline; the full RLS
+matrix must still be repeated against the final release SHA. Accepted rows
+retain their actual tested SHAs. A post-run external register cannot redefine
+acceptance criteria, and this document does not authorize release.
 
 PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
+
+## Current external blockers
+
+- **Beacon CRM records API (A7 and FUNCTIONAL-12):** the account-specific
+  authentication and record endpoints are generated from each Beacon database
+  and require an authorized account login. Obtain those docs and the approved
+  dedicated test-account field map before implementing record sync. See the
+  [Beacon API guide](https://guide.beaconcrm.org/en/articles/5720215-beacon-s-api).
+- **Beacons.ai creator link management (FUNCTIONAL-3):** the current source
+  keeps this adapter unavailable. Beacons' creator help documents adding links
+  through its page editor, while its separate Brands API page has no endpoint
+  reference yet ([Links Block help](https://help.beacons.ai/en/articles/4696577),
+  [Brands API help](https://help.beacons.ai/en/articles/11826369)). From those
+  public docs, a creator-account link-management API contract is not established;
+  this is an evidence-based inference, not proof that no private API exists.
+  Unblock with official creator API documentation and a dedicated test account.
+  Linktree remains excluded by the owner's decision; Beacon CRM remains a
+  separate records connector.
 
 ## Lane 2 RLS baseline before this evidence refresh
 
@@ -274,7 +291,7 @@ the owner's standing authorization. Recheck main CI after each merge.
 
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
-   crosswalk is validated. Current status is 22 accepted and 32 open. Repeat all
+   crosswalk is validated. Current status is 25 accepted and 29 open. Repeat all
    accepted rows at the final release SHA and complete exact-SHA hosted readback.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.

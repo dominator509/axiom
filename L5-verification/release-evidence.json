@@ -1444,9 +1444,31 @@
       "requirement": "All of §1–§4 run in CI. Phase advancement (`L4`) requires the relevant subset green; release requires the full matrix green.",
       "requirementSha256": "7577a2f793dabe302940ed0ec6604156b3c58d5849242c26fdb58e9db6466c78",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat the full CI matrix at the final release SHA and verify its hosted receipts; this current-main receipt is not release approval.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-CI",
+          "sha": "69c97cb814e93410af53219d634537b436a395d1",
+          "command": "GitHub Actions CI workflow from .github/workflows/ci.yml; readback: rtk proxy gh run view 38061276176 --json headSha,status,conclusion,jobs,url --jq '{headSha,status,conclusion,url,counts:(.jobs|group_by(.conclusion)|map({conclusion:.[0].conclusion,count:length})),jobs:[.jobs[]|{name,status,conclusion,url}]}'",
+          "environment": "GitHub Actions ubuntu-latest; Node 22.23.3 and pnpm 9.14.0 where configured; isolated PostgreSQL, Docker, browser, worker, model, and observability fixtures; no live provider credentials or owner services.",
+          "scope": "Exact-main run 38061276176 on this SHA: all 12 jobs completed successfully: browser, egress-rehearsal, l5-runtime, recovery-dr, observability, egress-worker-runtime, ci (container), ci (build), ci (security), ci (test), ci (typecheck), and ci (lint). No CI acceptance job failed, was canceled, or was skipped. The linked ci (test) job ran the workspace suite; criterion-specific assertions remain recorded by their own acceptance rows.",
+          "limitations": "This is workflow-matrix evidence only. It does not prove owner deployment or live-provider acceptance, and it must be rerun against the final release SHA. Job counts are not unit-test counts.",
+          "observedAt": "2026-10-10T15:17:36.000Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38061276176",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38061276176/job/114239869827",
+          "logSha256": "df76f9eecc8b99455a96b8c022371c45167724a6a0fe01e32d4b11c8f1827c3d",
+          "counts": {
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0,
+            "total": 12,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": []
+        }
+      ],
       "verification": {
         "test": "Execute the criterion-specific acceptance assertion stated here: All of §1–§4 run in CI. Phase advancement (`L4`) requires the relevant subset green; release requires the full matrix green.",
         "environment": "Owned isolated Docker, PostgreSQL, and model fixtures on a network-disabled runner; synthetic data only and no live provider credentials.",
@@ -1522,8 +1544,8 @@
       "requirement": "- [ ] **Link-in-bio** works with zero providers and with Native, Fanlynks, and Beacons.ai independently or simultaneously; each enabled adapter synchronizes links, reports available normalized analytics without fabricating missing metrics, and revokes/disables cleanly. Linktree is excluded by owner decision; Beacon CRM is a separate records API.",
       "requirementSha256": "7bf5937ab35cb129e30f803132a12c18e2c820b2692ff3b0f1cb00b5c3c6faf9",
       "lane": 3,
-      "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "status": "blocked",
+      "nextStep": "Obtain official Beacons.ai creator-account API documentation and dedicated test-account access for link CRUD, analytics readback, primary selection, revocation, and teardown. Public docs do not establish these creator endpoints; keep the adapter unavailable until verified. Linktree remains excluded; Beacon CRM is a separate records connector.",
       "evidence": [],
       "verification": {
         "test": "Exercise zero providers and each supported link-in-bio provider (Native, Fanlynks, Beacons.ai) alone and together; verify synchronization, available analytics, primary selection, disable, and teardown. Linktree is excluded; Beacon CRM is not a link-in-bio provider.",
