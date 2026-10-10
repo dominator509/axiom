@@ -1,6 +1,6 @@
 // Executed only inside the owned disposable runner. No external target option.
 import { chromium, request, expect } from '@playwright/test';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -393,11 +393,13 @@ COMMIT;
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
   let syntheticConsentId = null;
-  await check('consent vault saves an expired synthetic DNG and proves encrypted-document readback', async () => {
+  await check('consent vault round-trips a 25 MiB expired synthetic DNG and blocks its publishing', async () => {
     await page.goto(`/models/${ownModel}/consent`);
     await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
     const form = page.locator('form[aria-label="Add consent metadata"]');
-    const dng = Buffer.alloc(300 * 1024, 0x5a);
+    const dng = Buffer.alloc(25 * 1024 * 1024, 0x5a);
+    const subjectRef = `synthetic-consent-${randomUUID()}`;
+    expect(dng.length).toBe(25 * 1024 * 1024);
     dng.write('II', 0, 'ascii');
     dng.writeUInt16LE(42, 2);
     dng.writeUInt32LE(8, 4);
@@ -409,7 +411,7 @@ COMMIT;
     dng.writeUInt32LE(0, 22);
     await form.locator('input[name="platform"]').fill('instagram');
     await form.locator('select[name="docKind"]').selectOption('id_verify');
-    await form.locator('input[name="subjectRef"]').fill('synthetic-consent-subject');
+    await form.locator('input[name="subjectRef"]').fill(subjectRef);
     await form.locator('input[name="document"]').setInputFiles({
       name: 'synthetic-driver-license.dng', mimeType: 'application/octet-stream', buffer: dng,
     });
@@ -419,12 +421,9 @@ COMMIT;
       && response.request().method() === 'POST');
     await form.getByRole('button', { name: 'Save consent record' }).click();
     const saved = await upload;
-    const savedBody = await saved.json();
-    expect(saved.status(), JSON.stringify(savedBody)).toBe(201);
-    syntheticConsentId = savedBody.data.id;
-    expect(savedBody.data).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    expect(saved.status()).toBe(201);
     await expect(form.getByRole('status')).toContainText('Consent record saved with an encrypted document');
-    const expiredCard = page.locator('article.card').filter({ hasText: 'synthetic-consent-subject' });
+    const expiredCard = page.locator('article.card').filter({ hasText: subjectRef });
     await expect(expiredCard).toContainText('expired');
 
     const list = await page.evaluate(async path => {
@@ -432,23 +431,32 @@ COMMIT;
       return { status: response.status, body: await response.json() };
     }, `/api/v1/models/${ownModel}/consent-records`);
     expect(list.status).toBe(200);
-    const record = list.body.data.find(entry => entry.id === syntheticConsentId);
+    const record = list.body.data.find(entry => entry.subjectRef === subjectRef);
+    expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    syntheticConsentId = record.id;
     expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length, expiresAt: '2020-12-31T23:59:59.999Z' });
     expect(Object.keys(record)).not.toContain('documentCiphertext');
     expect(record.sha256).toMatch(/^[a-f0-9]{64}$/);
 
     const downloaded = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
+      const bytes = await response.arrayBuffer();
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
       return {
         status: response.status,
         contentType: response.headers.get('content-type'),
         cacheControl: response.headers.get('cache-control'),
-        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+        byteLength: bytes.byteLength,
+        sha256: Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join(''),
       };
     }, `/api/v1/models/${ownModel}/consent-records/${syntheticConsentId}/document`);
-    expect(downloaded).toMatchObject({ status: 200, contentType: 'image/tiff' });
+    expect(downloaded).toMatchObject({
+      status: 200,
+      contentType: 'image/tiff',
+      byteLength: dng.length,
+      sha256: createHash('sha256').update(dng).digest('hex'),
+    });
     expect(downloaded.cacheControl).toContain('no-store');
-    expect(downloaded.bytes).toEqual(Array.from(dng));
     const publishStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
     expect(publishStatus.status).toBe(200);
     expect(publishStatus.data.data.ok).toBe(false);
