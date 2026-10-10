@@ -1,6 +1,6 @@
 // Executed only inside the owned disposable runner. No external target option.
 import { chromium, request, expect } from '@playwright/test';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -393,11 +393,12 @@ COMMIT;
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
   let syntheticConsentId = null;
-  await check('consent vault saves an expired synthetic DNG and proves encrypted-document readback', async () => {
+  await check('consent vault round-trips a 25 MiB expired synthetic DNG and blocks its publishing', async () => {
     await page.goto(`/models/${ownModel}/consent`);
     await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
     const form = page.locator('form[aria-label="Add consent metadata"]');
-    const dng = Buffer.alloc(300 * 1024, 0x5a);
+    const dng = Buffer.alloc(25 * 1024 * 1024, 0x5a);
+    expect(dng.length).toBe(25 * 1024 * 1024);
     dng.write('II', 0, 'ascii');
     dng.writeUInt16LE(42, 2);
     dng.writeUInt32LE(8, 4);
@@ -439,16 +440,23 @@ COMMIT;
 
     const downloaded = await page.evaluate(async path => {
       const response = await fetch(path, { cache: 'no-store' });
+      const bytes = await response.arrayBuffer();
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
       return {
         status: response.status,
         contentType: response.headers.get('content-type'),
         cacheControl: response.headers.get('cache-control'),
-        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+        byteLength: bytes.byteLength,
+        sha256: Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join(''),
       };
     }, `/api/v1/models/${ownModel}/consent-records/${syntheticConsentId}/document`);
-    expect(downloaded).toMatchObject({ status: 200, contentType: 'image/tiff' });
+    expect(downloaded).toMatchObject({
+      status: 200,
+      contentType: 'image/tiff',
+      byteLength: dng.length,
+      sha256: createHash('sha256').update(dng).digest('hex'),
+    });
     expect(downloaded.cacheControl).toContain('no-store');
-    expect(downloaded.bytes).toEqual(Array.from(dng));
     const publishStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
     expect(publishStatus.status).toBe(200);
     expect(publishStatus.data.data.ok).toBe(false);
