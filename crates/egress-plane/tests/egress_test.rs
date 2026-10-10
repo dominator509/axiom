@@ -5,6 +5,8 @@ use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 #[cfg(target_os = "linux")]
+use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(target_os = "linux")]
 use tokio::sync::Mutex as AsyncMutex;
 
 // ---------------------------------------------------------------------------
@@ -147,6 +149,40 @@ async fn start_echo_server() -> u16 {
     port
 }
 
+/// Echo endpoint with a request counter for detecting host-route fallback.
+#[cfg(target_os = "linux")]
+async fn start_counting_echo_server() -> (u16, Arc<AtomicUsize>) {
+    let hits = Arc::new(AtomicUsize::new(0));
+    let handler_hits = hits.clone();
+    let app = axum::Router::new().route(
+        "/ip",
+        axum::routing::get(
+            move |axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
+                std::net::SocketAddr,
+            >| {
+                let hits = handler_hits.clone();
+                async move {
+                    hits.fetch_add(1, Ordering::SeqCst);
+                    axum::Json(serde_json::json!({ "ip": peer.ip().to_string() }))
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:0")
+        .await
+        .expect("counting echo bind");
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .expect("counting echo serve");
+    });
+    (port, hits)
+}
+
 /// Spawn the real egress-plane binary as a host-side "upstream proxy"
 /// (direct upstream). Represents the model's approved external egress proxy.
 /// Returns (port, child).
@@ -194,6 +230,7 @@ fn cleanup_leftovers() {
         "egress_it_wg_m1",
         "egress_it_direct_m1",
         "egress_it_failover_m1",
+        "egress_it_route_fault_m1",
         "egress_it_ks_blocked",
         "egress_it_failclosed_https",
     ] {
@@ -1292,6 +1329,100 @@ async fn test_socks5_proxy_mode_full_chain() {
 
     let _ = upstream_child.kill();
     let _ = upstream_child.wait();
+}
+
+// ---------------------------------------------------------------------------
+// REAL integration: route loss must fail closed without host-route fallback
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+#[ignore = "requires root and Linux network namespace privileges"]
+async fn test_route_loss_fails_closed_without_host_fallback() {
+    let _guard = netns_lock().lock().await;
+    cleanup_leftovers();
+    let (echo_port, echo_hits) = start_counting_echo_server().await;
+    let (upstream_port, mut upstream_child) = spawn_host_upstream_proxy();
+    let base_url =
+        start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 40).await;
+    let client = reqwest::Client::new();
+
+    let bind = client
+        .post(format!("{base_url}/egress/bind"))
+        .json(&bind_json(
+            "it_route_fault_m1",
+            "socks5",
+            serde_json::json!({
+                "proxy_addr": format!("10.240.40.1:{upstream_port}"),
+                "expected_egress_ip": "127.0.0.1"
+            }),
+        ))
+        .send()
+        .await
+        .expect("bind route-fault model");
+    let bind_status = bind.status();
+    let bound: serde_json::Value = bind.json().await.expect("bind json");
+    assert_eq!(bind_status, 200, "bind failed: {bound}");
+    assert_eq!(bound["healthy"], true, "positive route control: {bound}");
+    assert!(
+        echo_hits.load(Ordering::SeqCst) > 0,
+        "positive echo control was not observed"
+    );
+
+    let route = egress_plane::netns::execute_in_netns(
+        "egress_it_route_fault_m1",
+        &["ip", "route", "del", "10.240.40.0/30"],
+    );
+    assert!(route.is_ok(), "could not inject connected-route loss: {route:?}");
+    let route_lookup = egress_plane::netns::execute_in_netns(
+        "egress_it_route_fault_m1",
+        &["ip", "route", "get", "10.240.40.1"],
+    );
+    assert!(
+        route_lookup
+            .as_ref()
+            .map(|route| route.contains("blackhole") || route.contains("unreachable"))
+            .unwrap_or(true),
+        "route lookup escaped the null default after fault: {route_lookup:?}"
+    );
+
+    let hits_before_failed_probe = echo_hits.load(Ordering::SeqCst);
+    let health: serde_json::Value = client
+        .post(format!("{base_url}/egress/health-check/model"))
+        .json(&serde_json::json!({ "model_id": "it_route_fault_m1" }))
+        .send()
+        .await
+        .expect("health request")
+        .json()
+        .await
+        .expect("health json");
+    assert_eq!(
+        health["status"], "unhealthy",
+        "route fault must fail closed: {health}"
+    );
+    assert_eq!(
+        echo_hits.load(Ordering::SeqCst),
+        hits_before_failed_probe,
+        "failed route probe reached the host echo through a fallback path"
+    );
+    assert!(!ns_curl(
+        "egress_it_route_fault_m1",
+        &format!("http://10.240.40.1:{upstream_port}/ip")
+    )
+    .status
+    .success(),
+        "model namespace reached the approved proxy after route loss"
+    );
+
+    let unbind = client
+        .post(format!("{base_url}/egress/unbind"))
+        .json(&serde_json::json!({ "model_id": "it_route_fault_m1" }))
+        .send()
+        .await
+        .expect("unbind");
+    assert_eq!(unbind.status(), 200);
+    assert!(upstream_child.kill().is_ok());
+    assert!(upstream_child.wait().is_ok());
 }
 
 // ---------------------------------------------------------------------------
