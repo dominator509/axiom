@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Current main evidence checkpoint (2026-10-10): `d3bce5a6fc5a3bc95f540f4b743ec3835cfc46c4`, after PR #153. Exact-main [CI run 38074517461](https://github.com/dominator509/axiom/actions/runs/38074517461) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 25 accepted, 26 unverified, and 3 blocked (29 open total). The register is valid but is not release approval; all acceptance rows still require exact-final-release-SHA verification.
+Current main evidence checkpoint (2026-10-10): `166cd7b9f701c1310678996b5ee78e4da33fb42c`, after PR #155. Exact-main [CI run 38081517709](https://github.com/dominator509/axiom/actions/runs/38081517709) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 25 accepted, 26 unverified, and 3 blocked (29 open total). The register is valid but is not release approval; all acceptance rows still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -35,6 +35,31 @@ sample window, denominator, and provider availability separately.
   Unblock with official creator API documentation and a dedicated test account.
   Linktree remains excluded by the owner's decision; Beacon CRM remains a
   separate records connector.
+
+## Lane 4 API test baseline (2026-10-10)
+
+The prior claim of two pre-existing API test failures is **not reproduced on
+current main and remains unverified**: no commit-bound CI receipt with the two
+failing test names/output was found. PR #53 head SHA
+`7f42ea36dd19e2c071721272320e9a11ce4cf9e7` had [CI run
+36973015092](https://github.com/dominator509/axiom/actions/runs/36973015092)
+finish with 4 jobs passed, 1 failed, 2 cancelled, and 0 skipped; `ci(security)`
+failed while `ci(test)` and `ci(container)` were cancelled. At that SHA, the
+JavaScript/TypeScript step ran only `pnpm test`; its [partial test
+log](https://github.com/dominator509/axiom/actions/runs/36973015092/job/110730805888)
+contains package output but no failed-test summary or names for two API
+failures, so it cannot establish the claim.
+
+On exact current-main SHA `166cd7b9f701c1310678996b5ee78e4da33fb42c`, the
+`ci (test)` job in [run 38081517709](https://github.com/dominator509/axiom/actions/runs/38081517709)
+ran `pnpm --filter @axiom/api test` on Node 22.23.3 and pnpm 9.14.0:
+**97 test files, 1,409 passed, 0 failed, 0 skipped**. The [test job
+log](https://github.com/dominator509/axiom/actions/runs/38081517709/job/114299229857)
+SHA-256 is `b10c369bd6de6c480ab289406cd6b88adbfe57f714efe0086dc55ac4a447299b`.
+The local API command was not run because this workstation uses Node 24.14.1
+while the repository requires Node 22.x. No API assertions were changed or
+relaxed; the baseline claim is closed as not reproduced, not as a diagnosed
+failure.
 
 ## Lane 2 RLS baseline before this evidence refresh
 
