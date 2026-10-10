@@ -138,7 +138,7 @@ export function sanitizeTelemetrySpan<T extends object>(span: T): T {
       }
       return safeLink;
     });
-  } else if (original.links !== undefined) {
+  } else {
     delete safe.links;
   }
   return safe as T;

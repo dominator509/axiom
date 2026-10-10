@@ -162,4 +162,15 @@ describe('server telemetry privacy boundary', () => {
     expect(JSON.stringify(safe)).not.toContain('span@example.test');
     expect(JSON.stringify(safe)).not.toContain('private-link-key');
   });
+
+  it('omits undefined span links instead of replacing them with a non-array marker', () => {
+    const safe = sanitizeTelemetrySpan({
+      trace_id: 'trace-1234567890abcdef',
+      span_id: 'span-1234567890',
+      name: 'provider call',
+      links: undefined,
+    });
+
+    expect(safe).not.toHaveProperty('links');
+  });
 });
