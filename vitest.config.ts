@@ -91,6 +91,7 @@ export default defineConfig({
       '@axiom/db': path.resolve(__dirname, 'packages/db/src'),
       '@axiom/auth': path.resolve(__dirname, 'packages/auth/src'),
       '@axiom/api': path.resolve(__dirname, 'packages/api/src'),
+      '@axiom/observability': path.resolve(__dirname, 'packages/observability/src'),
     },
   },
 });
