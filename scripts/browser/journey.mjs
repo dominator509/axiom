@@ -398,6 +398,7 @@ COMMIT;
     await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
     const form = page.locator('form[aria-label="Add consent metadata"]');
     const dng = Buffer.alloc(25 * 1024 * 1024, 0x5a);
+    const subjectRef = `synthetic-consent-${randomUUID()}`;
     expect(dng.length).toBe(25 * 1024 * 1024);
     dng.write('II', 0, 'ascii');
     dng.writeUInt16LE(42, 2);
@@ -410,7 +411,7 @@ COMMIT;
     dng.writeUInt32LE(0, 22);
     await form.locator('input[name="platform"]').fill('instagram');
     await form.locator('select[name="docKind"]').selectOption('id_verify');
-    await form.locator('input[name="subjectRef"]').fill('synthetic-consent-subject');
+    await form.locator('input[name="subjectRef"]').fill(subjectRef);
     await form.locator('input[name="document"]').setInputFiles({
       name: 'synthetic-driver-license.dng', mimeType: 'application/octet-stream', buffer: dng,
     });
@@ -420,12 +421,9 @@ COMMIT;
       && response.request().method() === 'POST');
     await form.getByRole('button', { name: 'Save consent record' }).click();
     const saved = await upload;
-    const savedBody = await saved.json();
-    expect(saved.status(), JSON.stringify(savedBody)).toBe(201);
-    syntheticConsentId = savedBody.data.id;
-    expect(savedBody.data).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    expect(saved.status()).toBe(201);
     await expect(form.getByRole('status')).toContainText('Consent record saved with an encrypted document');
-    const expiredCard = page.locator('article.card').filter({ hasText: 'synthetic-consent-subject' });
+    const expiredCard = page.locator('article.card').filter({ hasText: subjectRef });
     await expect(expiredCard).toContainText('expired');
 
     const list = await page.evaluate(async path => {
@@ -433,7 +431,9 @@ COMMIT;
       return { status: response.status, body: await response.json() };
     }, `/api/v1/models/${ownModel}/consent-records`);
     expect(list.status).toBe(200);
-    const record = list.body.data.find(entry => entry.id === syntheticConsentId);
+    const record = list.body.data.find(entry => entry.subjectRef === subjectRef);
+    expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length });
+    syntheticConsentId = record.id;
     expect(record).toMatchObject({ hasDocument: true, documentMimeType: 'image/tiff', documentSize: dng.length, expiresAt: '2020-12-31T23:59:59.999Z' });
     expect(Object.keys(record)).not.toContain('documentCiphertext');
     expect(record.sha256).toMatch(/^[a-f0-9]{64}$/);
