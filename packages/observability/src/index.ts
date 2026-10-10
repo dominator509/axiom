@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import type { Event, Log } from '@sentry/node';
+import { isIP } from 'node:net';
 
 export interface TelemetryContext {
   service: string;
@@ -82,9 +83,26 @@ function sanitizeText(value: string): string {
 }
 
 function sanitizeLogText(value: string): string {
-  return sanitizeText(value).replace(
+  const withoutEmails = sanitizeText(value).replace(
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
     '[REDACTED]',
+  );
+  const withoutIpAddresses = withoutEmails
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, (address) => (
+      isIP(address) === 4 ? '[REDACTED]' : address
+    ))
+    .replace(
+      /(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![0-9A-Fa-f:])/g,
+      (address) => (isIP(address) === 6 ? '[REDACTED]' : address),
+    );
+
+  return withoutIpAddresses.replace(
+    /(?<![\p{L}\p{N}])\+?(?:\d[\d(). -]{5,}\d)(?![\p{L}\p{N}])/gu,
+    (candidate) => {
+      const digits = candidate.replace(/\D/g, '').length;
+      const localPhone = /^\d{3}[ .-]\d{4}$/.test(candidate);
+      return (digits >= 10 && digits <= 15) || localPhone ? '[REDACTED]' : candidate;
+    },
   );
 }
 

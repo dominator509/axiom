@@ -136,6 +136,18 @@ describe('server telemetry privacy boundary', () => {
     expect(safe.message.__sentry_template_values__).toEqual(['Bearer [REDACTED]']);
   });
 
+  it('redacts IP and phone values embedded in free-text log messages', () => {
+    const safe = sanitizeTelemetryLog({
+      level: 'error',
+      message: 'request from 198.51.100.20 (2001:db8::1), call +1-415-555-0123 or 555-0100; release 2026-10-10',
+      attributes: {},
+    });
+
+    expect(String(safe.message)).toBe(
+      'request from [REDACTED] ([REDACTED]), call [REDACTED] or [REDACTED]; release 2026-10-10',
+    );
+  });
+
   it('runs work unchanged when telemetry is not configured', async () => {
     const result = await withTelemetrySpan({ name: 'test operation', op: 'test' }, async () => 42);
     expect(result).toBe(42);
