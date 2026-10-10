@@ -31,7 +31,7 @@
           },
           "skips": [],
           "images": [
-          "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         },
         {
@@ -91,7 +91,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729/job/113100918915",
           "logSha256": "1401886a3631a88aa413be17a470379a6f6ce9dcc849217c606c2835c8a1dcc4",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -108,7 +114,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37852118351",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37852118351/job/113567314237",
           "logSha256": "9d98955386b983ce11d0182b59e67f97f59b9beaa8af5804657d495f3e05cf48",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -125,7 +137,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
           "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -165,7 +183,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972/job/113807429785",
           "logSha256": "4649288ac91fa55d7ad17f7113667f993bcde2b1cfd37aade11c413a05b114de",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -182,7 +206,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668/job/113911170695",
           "logSha256": "8a9c81140b47cc9524eb015d496b2efa49a34e5b0b732913e034aa1565d926ef",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -224,7 +254,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909/job/113631896986",
           "logSha256": "1db5356d6351893d953143ce083854a8de54f74df4ac440ff29624c2df2cce20",
-          "counts": { "passed": 110, "failed": 0, "skipped": 0, "total": 110, "unit": "checks" },
+          "counts": {
+            "passed": 110,
+            "failed": 0,
+            "skipped": 0,
+            "total": 110,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:98e0ddb0a733107362ee87032f214ec5ef7f11c965eb8257bd6ab52197e4718c",
@@ -245,7 +281,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37871968909/job/113631896691",
           "logSha256": "1bf1d938bd9f2ffffb3cbd12c0a2ea91ddbff7846513b5317d74e355c3de0532",
-          "counts": { "passed": 17, "failed": 0, "skipped": 0, "total": 17, "unit": "assertions" },
+          "counts": {
+            "passed": 17,
+            "failed": 0,
+            "skipped": 0,
+            "total": 17,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "sha256:8f01c2a76548f0c530ba97ef8619fc0758e0c3aa3e032d0c3309994b019be194"
@@ -262,7 +304,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37878019919",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37878019919/job/113650958679",
           "logSha256": "5a5968b3ae24477496d1a1cc3d084b848f00dc68d6059d139d8caee7cb77a2d7",
-          "counts": { "passed": 22, "failed": 0, "skipped": 0, "total": 22, "unit": "assertions" },
+          "counts": {
+            "passed": 22,
+            "failed": 0,
+            "skipped": 0,
+            "total": 22,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "sha256:e0745ee79403de245cd54cdcc350dbd5963338c67f6c967dd40891f73e643f83"
@@ -279,7 +327,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37901528901",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37901528901/job/113724975089",
           "logSha256": "dea9cc2786dcf753e860e170cb68cdad8d28ce2fac51cf312c0d98107aa3b898",
-          "counts": { "passed": 16, "failed": 0, "skipped": 0, "total": 16, "unit": "assertions" },
+          "counts": {
+            "passed": 16,
+            "failed": 0,
+            "skipped": 0,
+            "total": 16,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "sha256:ee5d7238372e809482e011815cb78883492759ba73fccd54a29f6b3c470ff9f0"
@@ -323,7 +377,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37563868575",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37563868575/job/112607045675",
           "logSha256": "ef649d9de924c3dd595d4202f72e43098fe768cac4603c508d02201230807c53",
-          "counts": { "passed": 50, "failed": 0, "skipped": 0, "total": 50, "unit": "checks" },
+          "counts": {
+            "passed": 50,
+            "failed": 0,
+            "skipped": 0,
+            "total": 50,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:fef9e4eb706e5405f1b167453e61378a8bcecfda6704b02b7db7e681f1ced4f7",
@@ -343,7 +403,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
@@ -415,7 +481,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
@@ -540,7 +612,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
@@ -612,7 +690,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
@@ -1081,7 +1165,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37845929231",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37845929231/job/113546673845",
           "logSha256": "73d1e0722ae36b9bfb4a10a5c65a32d40c3facfc6d35cf622a157fbecab173ed",
-          "counts": { "passed": 11, "failed": 0, "skipped": 0, "total": 11, "unit": "tests" },
+          "counts": {
+            "passed": 11,
+            "failed": 0,
+            "skipped": 0,
+            "total": 11,
+            "unit": "tests"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1467,6 +1557,27 @@
           },
           "skips": [],
           "images": []
+        },
+        {
+          "criterion": "MATRIX-CI",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "GitHub Actions .github/workflows/ci.yml; readback: rtk proxy gh run view 38084582816 --json headSha,status,conclusion,url",
+          "environment": "GitHub Actions ubuntu-latest; Node 22.23.3 and pnpm 9.14.0; isolated PostgreSQL, Docker, browser, worker, model, and observability fixtures; no live provider credentials or owner services.",
+          "scope": "Exact-main run 38084582816 on this SHA completed with 12/12 jobs successful: browser, egress-rehearsal, l5-runtime, recovery-dr, observability, egress-worker-runtime, ci (container), ci (build), ci (security), ci (test), ci (typecheck), and ci (lint). No job failed, was canceled, or was skipped. Acceptance-specific assertion counts remain recorded in their own criteria.",
+          "limitations": "Workflow success does not establish owner-host deployment, live-provider delivery, or final-release-SHA acceptance.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308330858",
+          "logSha256": "245d1c8b1d800be203037b5c497ec0073c3e6de03070c46ed191308e7836a66a",
+          "counts": {
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0,
+            "total": 12,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": []
         }
       ],
       "verification": {
@@ -1623,9 +1734,63 @@
       "requirement": "- [ ] **Auto crash/bug reporting** captures injected faults; structured logs + traces + dashboards live.",
       "requirementSha256": "3a1dd83d57201b0e790fe42245aaaefbeaed942c93b92736b24a4cca489e0e84",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat correlated fault, log, trace, and incident visibility acceptance at the final release SHA; production paging remains separate.",
+      "evidence": [
+        {
+          "criterion": "FUNCTIONAL-6",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos",
+          "environment": "GitHub Actions Ubuntu; isolated labeled Docker deployment with generated credentials and disposable volumes; synthetic incident and tenant data only.",
+          "scope": "Crash-report dashboard smoke passed 11/11 assertions: synthetic report persisted, incident correlation and fingerprint deduplication/count readback worked, and the owner incident page rendered. Cleanup was verified. Seven application image IDs: sha256:0982b52d6290d76030b5e7850fef3bad81c4160654fcf1e24c6cb9b3fb0cba7e, sha256:465ef24cdde298b84f4af5864a6f5affa74bcce0e627535ebc11ca8e888240be, sha256:4acbff1686ffdd3171b3ca7b6109be1d1f7eb2f041853d14c90ff4e13654bec4, sha256:28b61f0346f172bc23d5c832c719f45213c6de4137a52eeb7a0dfedbcc67c590, sha256:f2807e1cf5c7ca4ddccdc3d5942d8da2882aec41585abc0c64cfbc86963dbda5, sha256:980546e127c149cdaa322bed993f86e5b46a339cf5e36922a8e8e9dd7e05501b, sha256:86d40ecd909ef5e9b1f2a9f251c719e615869f9e6594d9d86429eabe073e0f55.",
+          "limitations": "Synthetic isolated CI incident flow; does not prove production paging or a deployed external dashboard.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308331005",
+          "logSha256": "d2daf9bd7735ee476f40a3a25b6541a3712b40db11bbfa2f4e9d5e56f9f76ac6",
+          "counts": {
+            "passed": 11,
+            "failed": 0,
+            "skipped": 0,
+            "total": 11,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:0982b52d6290d76030b5e7850fef3bad81c4160654fcf1e24c6cb9b3fb0cba7e",
+            "sha256:465ef24cdde298b84f4af5864a6f5affa74bcce0e627535ebc11ca8e888240be",
+            "sha256:4acbff1686ffdd3171b3ca7b6109be1d1f7eb2f041853d14c90ff4e13654bec4",
+            "sha256:28b61f0346f172bc23d5c832c719f45213c6de4137a52eeb7a0dfedbcc67c590",
+            "sha256:f2807e1cf5c7ca4ddccdc3d5942d8da2882aec41585abc0c64cfbc86963dbda5",
+            "sha256:980546e127c149cdaa322bed993f86e5b46a339cf5e36922a8e8e9dd7e05501b",
+            "sha256:86d40ecd909ef5e9b1f2a9f251c719e615869f9e6594d9d86429eabe073e0f55"
+          ]
+        },
+        {
+          "criterion": "FUNCTIONAL-6",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture",
+          "environment": "GitHub Actions Ubuntu; isolated GlitchTip and disposable TimescaleDB services with synthetic organization and fault data.",
+          "scope": "Observability rehearsal passed 15/15 assertions: two isolated API clients generated a grouped incident with two occurrences; structured log and trace correlation were verified; synthetic token/email markers were absent; the synthetic organization was deleted. Images: glitchtip/glitchtip:6.2.6@sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be and timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a.",
+          "limitations": "This fixture verifies structured telemetry and incident grouping; dashboard rendering is evidenced separately by the 11/11 container smoke above.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308330889",
+          "logSha256": "690bb0a80da5892f12a1a93b08abe97134dcf321138932d3471843d6f8118c20",
+          "counts": {
+            "passed": 15,
+            "failed": 0,
+            "skipped": 0,
+            "total": 15,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "glitchtip/glitchtip:6.2.6@sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Inject service faults and verify correlated incident capture, deduplication, structured logs, traces, and dashboard visibility.",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
@@ -1663,7 +1828,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37857314684",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37857314684/job/113584500994",
           "logSha256": "8e06aff753c287123384bf1f87ec73869393e69cf71e025a597f4a902c02b3e0",
-          "counts": { "passed": 11, "failed": 0, "skipped": 0, "total": 11, "unit": "tests" },
+          "counts": {
+            "passed": 11,
+            "failed": 0,
+            "skipped": 0,
+            "total": 11,
+            "unit": "tests"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1903,7 +2074,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729/job/113100918915",
           "logSha256": "1401886a3631a88aa413be17a470379a6f6ce9dcc849217c606c2835c8a1dcc4",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1920,7 +2097,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
           "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1937,7 +2120,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972/job/113807429785",
           "logSha256": "4649288ac91fa55d7ad17f7113667f993bcde2b1cfd37aade11c413a05b114de",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1954,7 +2143,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668/job/113911170695",
           "logSha256": "8a9c81140b47cc9524eb015d496b2efa49a34e5b0b732913e034aa1565d926ef",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -1982,9 +2177,63 @@
       "requirement": "- [ ] Egress **fail-closed** proven; kill-switch halts publishing within five seconds (LBI-02, LBI-11).",
       "requirementSha256": "87809e8fc49feef54359063aa58ff1e405539bff0a3f413d3f954487a55b5e66",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat the egress and kill-switch acceptance at the final release SHA; target-host acceptance remains separate.",
+      "evidence": [
+        {
+          "criterion": "NONFUNCTIONAL-3",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "node scripts/rehearse-egress.mjs --isolated-fixture",
+          "environment": "GitHub Actions Ubuntu; disposable network-disabled Docker fixture with synthetic data; no host mounts, published ports, provider credentials, or owner services.",
+          "scope": "All 17 required egress assertions passed, 0 failed, 0 skipped. The Rust suite reported 85 passed, 0 failed, 0 ignored, 0 filtered across 10 suites. Coverage included WireGuard tunnel loss, blocked DNS/UDP bypass, proxy/upstream failure, and route loss without host fallback; created fixture resources were cleaned. Runtime image ID sha256:4b22cbcd6b73ac3af2a8d3277b71cef295a54967662fec71394ea9fbed8876d6; build manifest sha256:88c8e8171d63a473a22dd7aeaa3dbe206321e611886aa46f38e7ee8be983df61.",
+          "limitations": "This proves the isolated CI fixture on this SHA; it does not prove owner-host policy handoff or production network behavior.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308330818",
+          "logSha256": "3b13ff22f3741ce38d0999fe4d67052e3daab8c51ab0e5cef357c314492b031e",
+          "counts": {
+            "passed": 17,
+            "failed": 0,
+            "skipped": 0,
+            "total": 17,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:4b22cbcd6b73ac3af2a8d3277b71cef295a54967662fec71394ea9fbed8876d6"
+          ]
+        },
+        {
+          "criterion": "NONFUNCTIONAL-3",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos",
+          "environment": "GitHub Actions Ubuntu; isolated labeled Docker deployment with generated credentials and disposable volumes; synthetic tenant only.",
+          "scope": "The LBI-11 global suspension assertion passed 1/1 in 1,673 ms against the 5,000 ms limit. Eight services passed health checks; deployment rollback checks passed 11/11 with 0 failures and 0 skips; cleanup was verified. Seven application image IDs: sha256:0982b52d6290d76030b5e7850fef3bad81c4160654fcf1e24c6cb9b3fb0cba7e, sha256:465ef24cdde298b84f4af5864a6f5affa74bcce0e627535ebc11ca8e888240be, sha256:4acbff1686ffdd3171b3ca7b6109be1d1f7eb2f041853d14c90ff4e13654bec4, sha256:28b61f0346f172bc23d5c832c719f45213c6de4137a52eeb7a0dfedbcc67c590, sha256:f2807e1cf5c7ca4ddccdc3d5942d8da2882aec41585abc0c64cfbc86963dbda5, sha256:980546e127c149cdaa322bed993f86e5b46a339cf5e36922a8e8e9dd7e05501b, sha256:86d40ecd909ef5e9b1f2a9f251c719e615869f9e6594d9d86429eabe073e0f55; Timescale image timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a.",
+          "limitations": "Isolated CI deployment evidence only; no owner infrastructure, production traffic, or live-provider dispatch.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308331005",
+          "logSha256": "d2daf9bd7735ee476f40a3a25b6541a3712b40db11bbfa2f4e9d5e56f9f76ac6",
+          "counts": {
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "total": 1,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:0982b52d6290d76030b5e7850fef3bad81c4160654fcf1e24c6cb9b3fb0cba7e",
+            "sha256:465ef24cdde298b84f4af5864a6f5affa74bcce0e627535ebc11ca8e888240be",
+            "sha256:4acbff1686ffdd3171b3ca7b6109be1d1f7eb2f041853d14c90ff4e13654bec4",
+            "sha256:28b61f0346f172bc23d5c832c719f45213c6de4137a52eeb7a0dfedbcc67c590",
+            "sha256:f2807e1cf5c7ca4ddccdc3d5942d8da2882aec41585abc0c64cfbc86963dbda5",
+            "sha256:980546e127c149cdaa322bed993f86e5b46a339cf5e36922a8e8e9dd7e05501b",
+            "sha256:86d40ecd909ef5e9b1f2a9f251c719e615869f9e6594d9d86429eabe073e0f55",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Inject tunnel, DNS, route, and proxy faults; prove default-deny, no host fallback, and global suspension within five seconds.",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
@@ -2022,7 +2271,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",
@@ -2198,7 +2453,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37712343729/job/113100918915",
           "logSha256": "1401886a3631a88aa413be17a470379a6f6ce9dcc849217c606c2835c8a1dcc4",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -2215,7 +2476,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37881432644/job/113661774413",
           "logSha256": "27ff1cb62d0d69d5e6033cc026534e8a25aab819369721341a9e98a122a74755",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -2232,7 +2499,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37926757972/job/113807429785",
           "logSha256": "4649288ac91fa55d7ad17f7113667f993bcde2b1cfd37aade11c413a05b114de",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -2249,7 +2522,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37957364668/job/113911170695",
           "logSha256": "8a9c81140b47cc9524eb015d496b2efa49a34e5b0b732913e034aa1565d926ef",
-          "counts": { "passed": 20, "failed": 0, "skipped": 0, "total": 20, "unit": "assertions" },
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
           "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
@@ -2277,9 +2556,33 @@
       "requirement": "- [ ] Egress default-deny; only whitelisted hosts reachable when enabled (LBI-02).",
       "requirementSha256": "ee33ced95f6162142def18dd1204f6506bcf937ad0e9ad6cd1e809ed14bd1b3b",
       "lane": 5,
-      "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat on the final release SHA; verify target-host policy handoff separately.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-3",
+          "sha": "3401c1e6a7522b219a634f365b582e37d2548207",
+          "command": "node scripts/rehearse-egress.mjs --isolated-fixture",
+          "environment": "GitHub Actions Ubuntu; disposable network-disabled Docker fixture with synthetic data; no host mounts, published ports, provider credentials, or owner services.",
+          "scope": "All 17 required egress assertions passed, 0 failed, 0 skipped. The Rust suite reported 85 passed, 0 failed, 0 ignored, 0 filtered across 10 suites. Coverage included WireGuard tunnel loss, blocked DNS/UDP bypass, proxy/upstream failure, and route loss without host fallback; created fixture resources were cleaned. Runtime image ID sha256:4b22cbcd6b73ac3af2a8d3277b71cef295a54967662fec71394ea9fbed8876d6; build manifest sha256:88c8e8171d63a473a22dd7aeaa3dbe206321e611886aa46f38e7ee8be983df61.",
+          "limitations": "This proves the isolated CI fixture on this SHA; it does not prove owner-host policy handoff or production network behavior.",
+          "observedAt": "2026-10-10T21:16:58Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38084582816/job/114308330818",
+          "logSha256": "3b13ff22f3741ce38d0999fe4d67052e3daab8c51ab0e5cef357c314492b031e",
+          "counts": {
+            "passed": 17,
+            "failed": 0,
+            "skipped": 0,
+            "total": 17,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:4b22cbcd6b73ac3af2a8d3277b71cef295a54967662fec71394ea9fbed8876d6"
+          ]
+        }
+      ],
       "verification": {
         "test": "Disable tunnel, DNS, proxy, and route components in turn and prove unapproved destinations and host-route fallback remain unreachable.",
         "environment": "Owned isolated Docker deployment with unique labels, generated credentials, disposable volumes, and injected faults; no owner services.",
@@ -2369,7 +2672,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37830118381",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37830118381/job/113492980037",
           "logSha256": "72d541c1b1439db89627235e420af352f8b3b393ad90ac1284b7b9afbbfe5730",
-          "counts": { "passed": 108, "failed": 0, "skipped": 0, "total": 108, "unit": "checks" },
+          "counts": {
+            "passed": 108,
+            "failed": 0,
+            "skipped": 0,
+            "total": 108,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:ccbdf63a224a1af561e88c616def939c3e0e28028b88bad975c13d7cfc8df4b5",
@@ -2416,7 +2725,13 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37716172629/job/113113010420",
           "logSha256": "deba759ab68680b9ef58878cc8c742ff0136cf15de16108ed1040cd01fc37ae5",
-          "counts": { "passed": 98, "failed": 0, "skipped": 0, "total": 98, "unit": "checks" },
+          "counts": {
+            "passed": 98,
+            "failed": 0,
+            "skipped": 0,
+            "total": 98,
+            "unit": "checks"
+          },
           "skips": [],
           "images": [
             "sha256:e9ed60dbd11f4f0fba63eaf8bdc370259bf5a6296543ca615dfb25b818cfbcce",

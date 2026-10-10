@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Current main evidence checkpoint (2026-10-10): `166cd7b9f701c1310678996b5ee78e4da33fb42c`, after PR #155. Exact-main [CI run 38081517709](https://github.com/dominator509/axiom/actions/runs/38081517709) completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 25 accepted, 26 unverified, and 3 blocked (29 open total). The register is valid but is not release approval; all acceptance rows still require exact-final-release-SHA verification.
+Current main evidence checkpoint (2026-10-10): 3401c1e6a7522b219a634f365b582e37d2548207, after PR #156. Exact-main CI run 38084582816 completed with 12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. The release-evidence check reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -17,6 +17,12 @@ acceptance criteria, and this document does not authorize release.
 PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
+
+## Isolated Lane 5 evidence (2026-10-10)
+
+The exact-main CI run above now supplies hosted receipts for three criteria. SECURITY-3 passed 17/17 required egress assertions (0 failed, 0 skipped), with 85 Rust tests passing. NONFUNCTIONAL-3 passed the same egress rehearsal and the LBI-11 global suspension assertion at 1,673 ms against the five-second limit; the isolated deployment also passed 8/8 service health checks and 11/11 rollback checks. FUNCTIONAL-6 passed 11/11 crash-report/dashboard assertions and 15/15 GlitchTip correlation, log, trace, privacy-marker, and cleanup assertions. Each receipt includes its exact job URL, raw-log SHA-256, counts, and immutable fixture image identities in the register. All data and services were synthetic and isolated.
+
+FUNCTIONAL-1 remains unverified. The seven-image CI deployment demonstrates service health, persistence, restart, and rollback in Docker, but does not yet establish the requirement's Hetzner/Coolify single-box deployment with Cloudflare R2. The next acceptance is a dedicated isolated deployment proving R2-compatible object write/read/restart and the target deployment boundaries. External-provider delivery, performance and cost measurement, recovery drills, native-mobile consent journeys, and owner sign-off also remain open.
 
 ## Current external blockers
 
