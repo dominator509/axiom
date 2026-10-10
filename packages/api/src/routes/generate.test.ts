@@ -7,7 +7,11 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ modelProfile: {}, contentBundle: {}, providerCacheControl: {} }));
+const recordCacheObservation = vi.hoisted(() => vi.fn());
+vi.mock('@axiom/db', () => ({
+  ...mockDbFactory({ modelProfile: {}, contentBundle: {}, providerCacheControl: {} }),
+  recordProviderCacheObservation: recordCacheObservation,
+}));
 const mediaQueue = vi.hoisted(() => vi.fn(async () => ({ id: 'queued-job' })));
 vi.mock('@axiom/worker', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()), enqueueJob: mediaQueue,
@@ -19,7 +23,14 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
   return {
     ...actual,
     LLMGateway: class {
-      async chat(_messages: unknown, options: { userId?: string }) {
+      async chat(_messages: unknown, options: {
+        userId?: string;
+        providerCacheObserver?: (observation: {
+          provider: string;
+          usage: { promptTokens: number; cachedPromptTokens: number; cacheCreationPromptTokens: number };
+          observedAt: Date;
+        }) => Promise<void> | void;
+      }) {
         if (chatFailure) throw new Error(chatFailure);
         capturedOptions = options;
         capturedMessages = _messages;
@@ -47,7 +58,15 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
 });
 
 let capturedSegments: Record<string, string> | null = null;
-let capturedOptions: { userId?: string; cacheControls?: unknown } | null = null;
+let capturedOptions: {
+  userId?: string;
+  cacheControls?: unknown;
+  providerCacheObserver?: (observation: {
+    provider: string;
+    usage: { promptTokens: number; cachedPromptTokens: number; cacheCreationPromptTokens: number };
+    observedAt: Date;
+  }) => Promise<void> | void;
+} | null = null;
 let capturedMessages: unknown = null;
 let allMessages: unknown[] = [];
 let revisionReply: string | null = null;
@@ -83,6 +102,7 @@ beforeEach(() => {
   capturedSegments = null;
   revisionReply = null;
   chatFailure = null;
+  recordCacheObservation.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -145,6 +165,19 @@ describe('POST /models/:id/generate', () => {
     });
     expect(response.status).toBe(201);
     expect(capturedOptions?.cacheControls).toEqual(expect.arrayContaining(controls));
+    expect(capturedOptions?.providerCacheObserver).toBeTypeOf('function');
+    await capturedOptions!.providerCacheObserver!({
+      provider: 'openai',
+      usage: { promptTokens: 100, cachedPromptTokens: 98, cacheCreationPromptTokens: 0 },
+      observedAt: new Date('2026-10-09T12:00:00.000Z'),
+    });
+    expect(recordCacheObservation).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      provider: 'openai',
+      usage: { promptTokens: 100, cachedPromptTokens: 98, cacheCreationPromptTokens: 0 },
+      observedAt: new Date('2026-10-09T12:00:00.000Z'),
+    });
   });
   it('persists the exact photoshoot controls alongside the generated bundle', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];

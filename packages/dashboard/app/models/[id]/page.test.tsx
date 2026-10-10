@@ -6,7 +6,7 @@ import { api, getSession } from '@/lib/api';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { models: {
   get: vi.fn(), network: vi.fn(), calendar: vi.fn(), fans: vi.fn(),
-}, cacheControls: { get: vi.fn() }, uiLocale: { get: vi.fn() } } }));
+}, cacheControls: { get: vi.fn() }, cacheTelemetry: { get: vi.fn() }, uiLocale: { get: vi.fn() } } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -19,6 +19,11 @@ beforeEach(() => {
   vi.mocked(api.models.calendar).mockResolvedValue({ data: [] } as Awaited<ReturnType<typeof api.models.calendar>>);
   vi.mocked(api.models.fans).mockResolvedValue({ data: [] } as Awaited<ReturnType<typeof api.models.fans>>);
   vi.mocked(api.cacheControls.get).mockResolvedValue({ data: { modelId: 'talent', controls: [] } } as Awaited<ReturnType<typeof api.cacheControls.get>>);
+  vi.mocked(api.cacheTelemetry.get).mockResolvedValue({ data: {
+    modelId: 'talent', source: 'provider-reported', status: 'unavailable',
+    observedResponses: 0, unobservedResponses: 0, promptTokens: 0, cachedPromptTokens: 0,
+    cacheCreationPromptTokens: 0, cacheHitRate: null, windowStart: null, windowEnd: null, providers: [],
+  } } as Awaited<ReturnType<typeof api.cacheTelemetry.get>>);
 });
 
 const render = async () => renderToStaticMarkup(await ModelOverviewPage({ params: Promise.resolve({ id: 'talent' }) }));

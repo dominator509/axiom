@@ -728,7 +728,7 @@
       "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
       "evidence": [],
       "verification": {
-        "test": "Measure summed provider-reported cached input tokens divided by summed total input tokens over repeat generations; every successful provider response in the cohort must report usable counters, and unknown responses block acceptance.",
+        "test": "Gateway observer tests verify provider counters are captured without retrying provider work when persistence fails; API and worker generation tests verify organization/model-scoped persistence; the model cache-telemetry endpoint returns null hit rate when any successful response lacks usable counters. Final acceptance measures summed provider-reported cached input tokens divided by summed total input tokens over repeat generations; unknown responses block acceptance.",
         "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
         "dependencies": [
           1,

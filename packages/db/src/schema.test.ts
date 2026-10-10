@@ -139,6 +139,8 @@ import {
   patreonWebhookEventRelations,
   providerCacheControl,
   providerCacheControlRelations,
+  providerCacheObservation,
+  providerCacheObservationRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -295,10 +297,12 @@ describe('schema index', () => {
     expect(patreonWebhookEventRelations).toBeDefined();
     expect(providerCacheControl).toBeDefined();
     expect(providerCacheControlRelations).toBeDefined();
+    expect(providerCacheObservation).toBeDefined();
+    expect(providerCacheObservationRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(74);
+    expect(allRelations).toHaveLength(75);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -375,9 +379,24 @@ describe('schema index', () => {
         'patreon_webhook_event',
         'linkbio_attribution_event',
         'provider_cache_control',
+        'provider_cache_observation',
         'watermark_policy',
       ].sort(),
     );
+  });
+
+  it('keeps provider cache observations daily, bounded, and model scoped', () => {
+    const cols = columnsOf(providerCacheObservation);
+    expect(cols.orgId.notNull).toBe(true);
+    expect(cols.modelId.notNull).toBe(true);
+    expect(cols.provider.notNull).toBe(true);
+    expect(cols.observedOn.notNull).toBe(true);
+    expect(cols.observedResponses.notNull).toBe(true);
+    expect(cols.unobservedResponses.notNull).toBe(true);
+    expect(cols.promptTokens.notNull).toBe(true);
+    expect(cols.cachedPromptTokens.notNull).toBe(true);
+    expect(cols.cacheCreationPromptTokens.notNull).toBe(true);
+    expect(cols.lastObservedAt.notNull).toBe(true);
   });
 
   it('allRelations entries can be built with helpers (no runtime errors)', () => {

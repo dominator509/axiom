@@ -40,6 +40,11 @@ export type {
   CourseAdherenceScore,
 } from './prompts.js';
 export type { TokenKillerOptions } from './gateway.js';
+export type {
+  ProviderCacheObservation,
+  ProviderCacheObserver,
+  ProviderCacheUsage,
+} from './provider-cache-telemetry.js';
 
 // Prefix cache
 export { PrefixCache, ResponseCache, cacheKey, alignBlocks } from './cache.js';

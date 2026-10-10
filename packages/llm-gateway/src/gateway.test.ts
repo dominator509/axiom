@@ -129,6 +129,59 @@ describe('LLMGateway user-funded chat', () => {
     );
   });
 
+  it('reports provider cache counters to the durable observer without allowing observer failure to retry paid work', async () => {
+    vi.spyOn(transport, 'chat').mockResolvedValue({
+      content: 'safe result',
+      model: 'test-model',
+      usage: {
+        promptTokens: 100,
+        completionTokens: 10,
+        providerCacheUsage: {
+          promptTokens: 100,
+          cachedPromptTokens: 98,
+          cacheCreationPromptTokens: 0,
+        },
+      },
+    });
+    const observer = vi.fn().mockRejectedValue(new Error('sensitive provider payload'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await gateway().chat(messages, {
+      provider: 'openai',
+      userId: 'user-1',
+      providerCacheObserver: observer,
+    });
+
+    expect(result.content).toBe('safe result');
+    expect(observer).toHaveBeenCalledTimes(1);
+    expect(observer.mock.calls[0]?.[0]).toMatchObject({
+      provider: 'openai',
+      usage: {
+        promptTokens: 100,
+        cachedPromptTokens: 98,
+        cacheCreationPromptTokens: 0,
+      },
+      observedAt: expect.any(Date),
+    });
+    expect(transport.chat).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('sensitive provider payload');
+  });
+
+  it('records successful provider responses with missing cache counters as unknown', async () => {
+    const observer = vi.fn().mockResolvedValue(undefined);
+    await gateway().chat(messages, {
+      provider: 'anthropic',
+      userId: 'user-1',
+      providerCacheObserver: observer,
+    });
+
+    expect(observer).toHaveBeenCalledWith(expect.objectContaining({
+      provider: 'anthropic',
+      usage: undefined,
+      observedAt: expect.any(Date),
+    }));
+  });
+
   it('does not retry a subscription generation', async () => {
     transport.failures.set('openai', new Error('subscription transport failed'));
     await expect(

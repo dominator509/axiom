@@ -33,6 +33,7 @@ import { appendBoundedProviderContent } from './bounded-provider-response.js';
 import {
   ProviderCacheTelemetry,
   normalizeProviderCacheUsage,
+  type ProviderCacheObserver,
   type ProviderCacheUsage,
 } from './provider-cache-telemetry.js';
 import {
@@ -75,6 +76,8 @@ export interface ChatOptions {
   egress?: boolean;
   /** Model-scoped provider cache controls loaded by the API layer. */
   cacheControls?: CacheControlSetting[];
+  /** Persist provider-reported cache counters without retaining prompt content. */
+  providerCacheObserver?: ProviderCacheObserver;
   /**
    * TOKENKILLER (L2.5 / LBI-09): assemble the request as S0–S3 segments,
    * align to 64-token blocks, and track local prefix-cache hits. When set, the
@@ -352,6 +355,28 @@ export class LLMGateway {
   private failureCount = 0;
   private subscriptionTransport: SubscriptionTransport;
   private providerCacheTelemetry = new ProviderCacheTelemetry();
+
+  private async recordProviderCacheUsage(
+    provider: string,
+    usage: ProviderCacheUsage | undefined,
+    observer: ProviderCacheObserver | undefined,
+  ): Promise<void> {
+    this.providerCacheTelemetry.record(provider, usage);
+    if (!observer) return;
+    try {
+      await observer({ provider, usage, observedAt: new Date() });
+    } catch (error) {
+      const candidate = error instanceof Error ? error.name : 'UnknownError';
+      const errorClass = /^[A-Za-z0-9_]{1,64}$/.test(candidate) ? candidate : 'Error';
+      const safeProvider = /^[a-z0-9_-]{1,64}$/.test(provider) ? provider : 'unknown';
+      // Do not include exception messages: they may contain request or credential data.
+      console.error(JSON.stringify({
+        event: 'provider_cache_observation_write_failed',
+        provider: safeProvider,
+        errorClass,
+      }));
+    }
+  }
 
   constructor(
     providerOverrides?: Partial<ProviderConfig>[],
@@ -675,7 +700,11 @@ export class LLMGateway {
         });
 
         this.requestCount++;
-        this.providerCacheTelemetry.record(provider.name, providerCacheUsage);
+        await this.recordProviderCacheUsage(
+          provider.name,
+          providerCacheUsage,
+          options.providerCacheObserver,
+        );
 
         return {
           id: uuid(),
@@ -727,6 +756,7 @@ export class LLMGateway {
       signal: options.signal!,
       egress: options.egress ?? false,
       cacheControls: options.cacheControls ?? [],
+      providerCacheObserver: options.providerCacheObserver,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -894,6 +924,7 @@ export class LLMGateway {
       signal: options.signal!,
       egress: options.egress ?? false,
       cacheControls: options.cacheControls ?? [],
+      providerCacheObserver: options.providerCacheObserver,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -910,14 +941,18 @@ export class LLMGateway {
     const recordRequest = () => {
       this.requestCount++;
     };
-    const recordProviderCacheUsage = (
+    const recordProviderCacheUsage = async (
       providerName: string,
       usage: ProviderCacheUsage | undefined,
-    ) => {
+    ): Promise<void> => {
       // Include successful streams in the same cohort as non-stream calls.
       // Missing provider counters remain unobserved rather than being treated
       // as zero or silently dropped from the denominator.
-      this.providerCacheTelemetry.record(providerName, usage);
+      await this.recordProviderCacheUsage(
+        providerName,
+        usage,
+        options.providerCacheObserver,
+      );
     };
     const recordFailure = () => {
       this.failureCount++;
@@ -1000,7 +1035,7 @@ export class LLMGateway {
             yield chunk;
           }
 
-          recordProviderCacheUsage(provider.name, providerCacheUsage);
+          await recordProviderCacheUsage(provider.name, providerCacheUsage);
 
           // Cache the full response
           const streamCacheKey = responseCacheKey(
