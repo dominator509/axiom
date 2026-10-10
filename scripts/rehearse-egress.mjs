@@ -39,6 +39,7 @@ const requiredTests = [
   'test_drain_during_probe_cannot_resurrect_binding',
   'test_org_kill_switch_drains_only_target_and_requires_explicit_release',
   'test_continuous_monitor_detects_failure_without_operator_probe',
+  'test_route_loss_fails_closed_without_host_fallback',
   'test_net_admin_alone_cannot_provision_namespaces',
   'signed_lifecycle_creates_inspects_and_releases_a_closed_namespace',
   'signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace',
