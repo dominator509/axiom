@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Event } from '@sentry/node';
-import { sanitizeTelemetryEvent, sanitizeTelemetryValue } from './index.js';
+import type { Event, Log } from '@sentry/node';
+import {
+  sanitizeTelemetryEvent,
+  sanitizeTelemetryLog,
+  sanitizeTelemetryValue,
+  withTelemetrySpan,
+} from './index.js';
 
 describe('server telemetry privacy boundary', () => {
   it('redacts credential-shaped fields, strings, and OAuth query values', () => {
@@ -78,5 +83,60 @@ describe('server telemetry privacy boundary', () => {
     const safe = sanitizeTelemetryValue({ deep, text: 'x'.repeat(5_000) }) as Record<string, unknown>;
     expect(JSON.stringify(safe)).toContain('[TRUNCATED]');
     expect((safe.text as string).length).toBe(4_000);
+  });
+
+  it('scrubs structured log parameters and removes identity attributes', () => {
+    const message = new String('provider request failed for person@example.test') as unknown as Log['message'];
+    message.__sentry_template_string__ = 'provider request %s failed';
+    message.__sentry_template_values__ = ['Bearer private-token'];
+    const log: Log = {
+      level: 'error',
+      message,
+      attributes: {
+        'sentry.service': 'api',
+        correlation_id: 'corr-123',
+        access_token: 'private-access-token',
+        'user.email': 'person@example.test',
+        user: { id: 'user-123', email: 'person@example.test' },
+        'sentry.user.id': 'sentry-user-123',
+        'sentry.user.email': 'sentry@example.test',
+        'user.full_name': 'Private Person',
+        'client.ip': '192.0.2.10',
+        ip: '192.0.2.11',
+        phone_number: '+1-555-0100',
+        'sentry.message.parameter.0': 'Bearer private-token',
+        details: { email: 'nested@example.test', callback: 'https://example.test/?code=oauth-code' },
+      },
+    };
+
+    const safe = sanitizeTelemetryLog(log);
+    const serialized = JSON.stringify(safe);
+    expect(serialized).not.toContain('private-token');
+    expect(serialized).not.toContain('private-access-token');
+    expect(serialized).not.toContain('person@example.test');
+    expect(serialized).not.toContain('sentry-user-123');
+    expect(serialized).not.toContain('sentry@example.test');
+    expect(serialized).not.toContain('Private Person');
+    expect(serialized).not.toContain('192.0.2.10');
+    expect(serialized).not.toContain('192.0.2.11');
+    expect(serialized).not.toContain('+1-555-0100');
+    expect(serialized).not.toContain('nested@example.test');
+    expect(serialized).not.toContain('oauth-code');
+    expect(serialized).toContain('Bearer [REDACTED]');
+    expect(String(safe.message)).toBe('provider request failed for [REDACTED]');
+    expect(safe.attributes).toEqual({
+      'sentry.service': 'api',
+      correlation_id: 'corr-123',
+      access_token: '[REDACTED]',
+      'sentry.message.parameter.0': 'Bearer [REDACTED]',
+      details: { callback: 'https://example.test/?code=[REDACTED]' },
+    });
+    expect(safe.message.__sentry_template_string__).toBe('provider request %s failed');
+    expect(safe.message.__sentry_template_values__).toEqual(['Bearer [REDACTED]']);
+  });
+
+  it('runs work unchanged when telemetry is not configured', async () => {
+    const result = await withTelemetrySpan({ name: 'test operation', op: 'test' }, async () => 42);
+    expect(result).toBe(42);
   });
 });

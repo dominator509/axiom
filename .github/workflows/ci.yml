@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Setup pinned Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -189,6 +190,173 @@ jobs:
             }
             console.log(JSON.stringify(receipt, null, 2));
           '
+  observability:
+    # Owns a disposable GlitchTip/PostgreSQL network. No repository secret,
+    # external endpoint, or persistent volume is used by this acceptance run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GLITCHTIP_URL: http://127.0.0.1:8000
+      GLITCHTIP_IMAGE: glitchtip/glitchtip:6.2.6@sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be
+      POSTGRES_IMAGE: timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: '9.14.0'
+      - name: Setup pinned Node.js v22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Verify development and CI environment contract
+        run: node scripts/check-ci-environment.mjs
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build observability package
+        run: pnpm --filter @axiom/observability build
+      - name: Start disposable GlitchTip and PostgreSQL services
+        shell: bash
+        run: |
+          set -euo pipefail
+          rehearsal_id="axiom-observability-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          network="$rehearsal_id"
+          postgres_container="${rehearsal_id}-postgres"
+          glitchtip_container="${rehearsal_id}-glitchtip"
+          postgres_password="$(openssl rand -hex 32)"
+          secret_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$postgres_password"
+          echo "::add-mask::$secret_key"
+
+          docker network create "$network" >/dev/null
+          docker run --detach \
+            --name "$postgres_container" \
+            --label "com.fanthynks.rehearsal=$rehearsal_id" \
+            --network "$network" \
+            --network-alias postgres \
+            --env POSTGRES_DB=glitchtip \
+            --env POSTGRES_USER=glitchtip \
+            --env "POSTGRES_PASSWORD=$postgres_password" \
+            "$POSTGRES_IMAGE" >/dev/null
+
+          postgres_ready=false
+          for _ in $(seq 1 60); do
+            if docker exec "$postgres_container" pg_isready -U glitchtip -d glitchtip >/dev/null 2>&1; then
+              postgres_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$postgres_ready" != true ]]; then
+            docker logs "$postgres_container"
+            echo "Disposable PostgreSQL did not become ready"
+            exit 1
+          fi
+
+          export DATABASE_URL="postgres://glitchtip:${postgres_password}@postgres:5432/glitchtip"
+          export SECRET_KEY="$secret_key"
+          docker run --detach \
+            --name "$glitchtip_container" \
+            --label "com.fanthynks.rehearsal=$rehearsal_id" \
+            --network "$network" \
+            --publish 127.0.0.1:8000:8000 \
+            --env DATABASE_URL \
+            --env SECRET_KEY \
+            --env GLITCHTIP_DOMAIN=http://127.0.0.1:8000 \
+            --env GLITCHTIP_EMBED_WORKER=true \
+            --env GLITCHTIP_ENABLE_LOGS=true \
+            --env ENABLE_ORGANIZATION_CREATION=true \
+            --env VALKEY_URL= \
+            --env EMAIL_URL=consolemail:// \
+            --env DEFAULT_FROM_EMAIL=observability@example.test \
+            "$GLITCHTIP_IMAGE" >/dev/null
+      - name: Rehearse real exception, structured log, trace, and privacy capture
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p var/observability-rehearsal
+          node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture 2>&1 \
+            | tee var/observability-rehearsal/test-output.log
+      - name: Preserve and verify source-bound observability receipt
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import { createHash } from "node:crypto";
+            import fs from "node:fs";
+            const root = "var/observability-rehearsal";
+            if (!fs.existsSync(root)) throw new Error("Observability receipt unavailable");
+            const entries = fs.readdirSync(root).filter(entry => fs.existsSync(`${root}/${entry}/receipt.json`));
+            if (entries.length !== 1) throw new Error(`Expected one observability receipt, found ${entries.length}`);
+            const receiptPath = `${root}/${entries[0]}/receipt.json`;
+            const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+            const rawOutputPath = `${root}/test-output.log`;
+            if (!fs.existsSync(rawOutputPath)) throw new Error("Observability harness output log unavailable");
+            const rawOutput = fs.readFileSync(rawOutputPath);
+            const rawOutputText = rawOutput.toString("utf8");
+            if (rawOutputText.includes("fixture-sensitive-") || rawOutputText.includes("@example.test")) {
+              throw new Error("Observability harness output contains fixture credential or identity data");
+            }
+            receipt.harnessOutputSha256 = createHash("sha256").update(rawOutput).digest("hex");
+            if (receipt.testedSha !== process.env.TESTED_SHA) throw new Error("Observability receipt SHA mismatch");
+            if (receipt.runUrl !== `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`) {
+              throw new Error("Observability receipt CI URL mismatch");
+            }
+            const counts = receipt.counts ?? {};
+            if (counts.total !== 15 || counts.passed !== 15 || counts.failed !== 0 || counts.skipped !== 0 || receipt.checks?.length !== 15) {
+              throw new Error(`Observability acceptance counts incomplete: ${JSON.stringify(counts)}`);
+            }
+            if (!/^[a-f0-9]{64}$/.test(receipt.readBackLogSha256 ?? "")) throw new Error("Read-back log SHA-256 missing");
+            if (!/^[a-f0-9]{64}$/.test(receipt.harnessOutputSha256)) throw new Error("Harness output SHA-256 missing");
+            if (receipt.cleanupVerified !== true || receipt.productionAcceptance !== false || receipt.failure) {
+              throw new Error("Observability cleanup, scope declaration, or run status failed");
+            }
+            if (!receipt.images?.includes(process.env.GLITCHTIP_IMAGE) || !receipt.images?.includes(process.env.POSTGRES_IMAGE)) {
+              throw new Error("Observability receipt is missing immutable image identities");
+            }
+            const serialized = JSON.stringify(receipt);
+            if (serialized.includes("fixture-sensitive-") || serialized.includes("@example.test")) {
+              throw new Error("Observability receipt contains fixture credential or identity data");
+            }
+            fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+            console.log(JSON.stringify(receipt, null, 2));
+          '
+      - name: Remove and verify only this run's observability services
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rehearsal_id="axiom-observability-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          postgres_container="${rehearsal_id}-postgres"
+          glitchtip_container="${rehearsal_id}-glitchtip"
+          network="$rehearsal_id"
+          removed_containers=0
+          removed_network=0
+          for container in "$glitchtip_container" "$postgres_container"; do
+            if docker inspect "$container" >/dev/null 2>&1; then
+              docker rm --force "$container" >/dev/null
+              removed_containers=$((removed_containers + 1))
+            fi
+            if docker inspect "$container" >/dev/null 2>&1; then
+              echo "Disposable service cleanup failed for a run-owned container"
+              exit 1
+            fi
+          done
+          if docker network inspect "$network" >/dev/null 2>&1; then
+            docker network rm "$network" >/dev/null
+            removed_network=1
+          fi
+          if docker network inspect "$network" >/dev/null 2>&1; then
+            echo "Disposable service cleanup failed for the run-owned network"
+            exit 1
+          fi
+          echo "Observability fixture cleanup: containers_removed=$removed_containers network_removed=$removed_network; run-owned resources absent"
   ci:
     runs-on: ubuntu-latest
     services:
