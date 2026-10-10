@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { validationDiagnostics } from '../validation-diagnostics.js';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { recordProviderCacheObservation, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { modelAccessCondition } from '../model-access.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
@@ -24,6 +24,7 @@ import {
   buildS3,
   assemblePrompt,
   type ModelProfile as PromptModelProfile,
+  type ProviderCacheObservation,
 } from '@axiom/llm-gateway';
 import { LLMGateway, characterLockSnapshot, buildMediaPrompt } from '@axiom/llm-gateway';
 import { evaluateTextToS, PLATFORM_RULES } from '@axiom/fanvue-mcp';
@@ -45,6 +46,14 @@ type PromptPlatform =
   | 'fanvue';
 
 const router = new Hono<AppBindings>();
+
+function persistCacheObservation(orgId: string, modelId: string) {
+  return (observation: ProviderCacheObservation) => recordProviderCacheObservation({
+    orgId,
+    modelId,
+    ...observation,
+  });
+}
 
 router.get('/models/:modelId/media-source-images', async (c) => {
   const orgId = requireOrg(c);
@@ -326,7 +335,12 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           ],
           // The subscription profile is selected from authenticated context,
           // never from request JSON or the audit-only 'system' fallback.
-          { model: body.model, userId: c.get('userId'), cacheControls },
+          {
+            model: body.model,
+            userId: c.get('userId'),
+            cacheControls,
+            providerCacheObserver: persistCacheObservation(orgId, modelId),
+          },
         );
         const caption = chat.content.trim();
         if (caption) {

@@ -5,7 +5,7 @@
 // same pipeline the API exposes synchronously at POST /models/:id/generate.
 
 import { and, eq } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { recordProviderCacheObservation, schema } from '@axiom/db';
 import {
   generatePhotoshootPrompts,
   buildS0,
@@ -19,6 +19,7 @@ import {
   defaultCacheControlSetting,
   type ModelProfile as PromptModelProfile,
   type CacheControlSetting,
+  type ProviderCacheObservation,
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
@@ -53,6 +54,14 @@ async function loadModelCacheControls(
       prefixAlignment: row.prefixAlignment,
       promptCacheKey: row.promptCacheKey,
     };
+  });
+}
+
+function persistCacheObservation(orgId: string, modelId: string) {
+  return (observation: ProviderCacheObservation) => recordProviderCacheObservation({
+    orgId,
+    modelId,
+    ...observation,
   });
 }
 
@@ -188,7 +197,12 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           { role: 'system', content: prompt },
           { role: 'user', content: payload.revision.instructions },
         ],
-        { model: payload.model, userId: payload.revision.userId, cacheControls },
+        {
+          model: payload.model,
+          userId: payload.revision.userId,
+          cacheControls,
+          providerCacheObserver: persistCacheObservation(job.org_id, modelId),
+        },
       );
       const caption = result.content.trim();
       if (!caption || caption.length > 32000)
@@ -261,7 +275,11 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           { role: 'system', content: prompt },
           { role: 'user', content: variants[0].prompt },
         ],
-        { model: payload.model, cacheControls: await loadModelCacheControls(tx, job.org_id, modelId) },
+        {
+          model: payload.model,
+          cacheControls: await loadModelCacheControls(tx, job.org_id, modelId),
+          providerCacheObserver: persistCacheObservation(job.org_id, modelId),
+        },
       );
       const enriched = chat.content.trim();
       if (!enriched || enriched.length > 32000) throw new Error('Invalid enriched caption');

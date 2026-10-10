@@ -102,6 +102,7 @@ const TS_TO_SQL: Record<string, string> = {
   patreonSyncState: 'patreon_sync_state',
   patreonWebhookEvent: 'patreon_webhook_event',
   providerCacheControl: 'provider_cache_control',
+  providerCacheObservation: 'provider_cache_observation',
   watermarkPolicy: 'watermark_policy',
 };
 
@@ -751,8 +752,8 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // the seven platform affiliate lookup indexes, link attribution, and four
     // Fanvue lifecycle/link-in-bio cost indexes in 0069, comment moderation
     // indexes in 0070, subscription attribution indexes in 0071, and
-    // normalized link-in-bio analytics indexes in 0075.
-    expect(indexStatements).toHaveLength(115);
+    // normalized link-in-bio analytics indexes in 0075 and cache telemetry in 0080.
+    expect(indexStatements).toHaveLength(116);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(
@@ -767,7 +768,19 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       'CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);',
     );
     expect(sql).toContain('idx_provider_cache_control_org_model');
+    expect(sql).toContain('idx_provider_cache_observation_org_model_day');
     expect(sql).toContain('idx_watermark_policy_org_model');
+  });
+
+  it('stores provider-reported cache observations under forced tenant and model isolation', () => {
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS provider_cache_observation');
+    expect(norm(sql)).toContain('UNIQUE (org_id, model_id, provider, observed_on)');
+    expect(norm(sql)).toContain('FOREIGN KEY (org_id, model_id) REFERENCES model_profile (org_id, id)');
+    expect(sql).toContain('ALTER TABLE provider_cache_observation ENABLE ROW LEVEL SECURITY;');
+    expect(sql).toContain('ALTER TABLE provider_cache_observation FORCE ROW LEVEL SECURITY;');
+    expect(sql).toContain('WITH CHECK (org_id = current_setting');
+    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON provider_cache_observation TO axiom_app;');
+    expect(sql).not.toContain('raw_provider_payload');
   });
 
   it('defines the model-scoped watermark policy table with forced RLS and bounded checks', () => {

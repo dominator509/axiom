@@ -7,7 +7,12 @@ const state = vi.hoisted(() => ({
   updates: [] as unknown[],
   locks: [] as string[],
   chat: vi.fn(),
+  recordCacheObservation: vi.fn(),
   enqueue: vi.fn(),
+}));
+vi.mock('@axiom/db', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  recordProviderCacheObservation: state.recordCacheObservation,
 }));
 vi.mock('@axiom/llm-gateway', async () => ({
   ...(await vi.importActual<typeof import('@axiom/llm-gateway')>('@axiom/llm-gateway')),
@@ -89,6 +94,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValueOnce({ content: 'Revised IG' })
     .mockResolvedValueOnce({ content: 'Revised Threads' });
+  state.recordCacheObservation.mockReset().mockResolvedValue(undefined);
   state.enqueue.mockReset().mockResolvedValue({ id: 'scan-1' });
 });
 
@@ -122,6 +128,33 @@ describe('content.generate caption revisions', () => {
         dedupeParts: ['tos.scan', bundle.id, 'revision-1'],
       }),
     );
+  });
+  it('persists only model-scoped provider cache counters outside the generation transaction', async () => {
+    state.chat.mockResolvedValue({ content: 'Revised caption' });
+
+    await execute();
+
+    expect(state.chat).toHaveBeenCalledTimes(2);
+    const observations = state.chat.mock.calls.map((call) => call[1]?.providerCacheObserver);
+    expect(observations).toEqual([expect.any(Function), expect.any(Function)]);
+    for (const observer of observations) {
+      await observer({
+        provider: 'openai',
+        usage: { promptTokens: 500, cachedPromptTokens: 490, cacheCreationPromptTokens: 0 },
+        observedAt: new Date('2026-10-09T12:00:00.000Z'),
+      });
+    }
+
+    expect(state.recordCacheObservation).toHaveBeenCalledTimes(2);
+    expect(state.recordCacheObservation).toHaveBeenCalledWith({
+      orgId: 'org-1',
+      modelId: bundle.modelId,
+      provider: 'openai',
+      usage: { promptTokens: 500, cachedPromptTokens: 490, cacheCreationPromptTokens: 0 },
+      observedAt: new Date('2026-10-09T12:00:00.000Z'),
+    });
+    expect(JSON.stringify(state.recordCacheObservation.mock.calls)).not.toContain('Revised caption');
+    expect(JSON.stringify(state.recordCacheObservation.mock.calls)).not.toContain('Original IG');
   });
   it('rolls back without partial content or a scan when a provider fails', async () => {
     state.chat

@@ -3,7 +3,11 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockDbFactory, mockState } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ providerCacheControl: {}, modelProfile: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({
+  providerCacheControl: {},
+  providerCacheObservation: {},
+  modelProfile: {},
+}));
 vi.mock('./helpers.js', async () => {
   const actual = await vi.importActual<typeof import('./helpers.js')>('./helpers.js');
   return { ...actual, writeAudit: vi.fn().mockResolvedValue(undefined) };
@@ -45,6 +49,55 @@ describe('F-33 provider cache controls API', () => {
       { provider: 'anthropic', enabled: false, prefixAlignment: false, promptCacheKey: null },
       { provider: 'openai', enabled: false, prefixAlignment: false, promptCacheKey: null },
     ]);
+  });
+
+  it('returns provider-reported aggregates and makes incomplete cache evidence unusable', async () => {
+    mockState.result = [
+      {
+        provider: 'anthropic', observedOn: '2026-10-08', observedResponses: 1,
+        unobservedResponses: 1, promptTokens: 200, cachedPromptTokens: 190,
+        cacheCreationPromptTokens: 0,
+      },
+      {
+        provider: 'openai', observedOn: '2026-10-09', observedResponses: 2,
+        unobservedResponses: 0, promptTokens: 1000, cachedPromptTokens: 990,
+        cacheCreationPromptTokens: 0,
+      },
+    ];
+    const response = await appWithContext('operator').request(`/models/${MODEL_ID}/cache-telemetry`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    const body = await response.json() as any;
+    expect(body.data).toMatchObject({
+      modelId: MODEL_ID,
+      source: 'provider-reported',
+      status: 'partial',
+      observedResponses: 3,
+      unobservedResponses: 1,
+      cacheHitRate: null,
+      windowStart: '2026-10-08',
+      windowEnd: '2026-10-09',
+    });
+    expect(body.data.providers).toEqual([
+      expect.objectContaining({
+        provider: 'anthropic', status: 'partial', cacheHitRate: null,
+        observedResponses: 1, unobservedResponses: 1,
+      }),
+      expect.objectContaining({
+        provider: 'openai', status: 'available', cacheHitRate: 0.99,
+        observedResponses: 2, unobservedResponses: 0,
+      }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain('messages');
+    expect(JSON.stringify(body)).not.toContain('apiKey');
+    expect(JSON.stringify(body)).not.toContain('raw_provider_payload');
+  });
+
+  it('does not expose telemetry to unauthenticated or unapproved roles', async () => {
+    const path = `/models/${MODEL_ID}/cache-telemetry`;
+    expect((await appWithContext('owner', null).request(path)).status).toBe(401);
+    expect((await appWithContext('viewer').request(path)).status).toBe(403);
+    expect((await appWithContext('owner').request('/models/not-a-uuid/cache-telemetry')).status).toBe(400);
   });
 
   it('rejects unknown providers, secret-shaped fields, and operator writes', async () => {

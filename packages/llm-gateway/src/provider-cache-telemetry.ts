@@ -8,6 +8,16 @@ export interface ProviderCacheUsage {
   cacheCreationPromptTokens: number;
 }
 
+export interface ProviderCacheObservation {
+  provider: string;
+  usage: ProviderCacheUsage | undefined;
+  observedAt: Date;
+}
+
+export type ProviderCacheObserver = (
+  observation: ProviderCacheObservation,
+) => void | Promise<void>;
+
 interface ProviderCacheUsageInput {
   /** Total prompt count; callers normalize provider-specific semantics first. */
   promptTokens: unknown;
@@ -74,7 +84,7 @@ function snapshotTotals(totals: ProviderCacheTotals) {
   };
 }
 
-/** Process-lifetime aggregate; it deliberately does not survive a restart. */
+/** Process-local diagnostic aggregate; it is not durable acceptance evidence. */
 export class ProviderCacheTelemetry {
   private readonly providers = new Map<string, ProviderCacheTotals>();
 

@@ -5,7 +5,7 @@ import ProfileEditor from '@/components/ProfileEditor';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import ProviderCacheControls from '@/components/ProviderCacheControls';
 import WatermarkPolicyControls from '@/components/WatermarkPolicyControls';
-import { absentCacheControl, CACHE_CONTROL_PROVIDER_ORDER } from '@/lib/cache-controls';
+import { absentCacheControl, CACHE_CONTROL_PROVIDER_ORDER, type ProviderCacheTelemetryView } from '@/lib/cache-controls';
 import { absentWatermarkPolicy } from '@/lib/watermark-policy';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
@@ -35,6 +35,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   let fanCount: number | null = null;
   let networkFailed = false;
   let cacheControls = CACHE_CONTROL_PROVIDER_ORDER.map(absentCacheControl);
+  let cacheTelemetry: ProviderCacheTelemetryView | null = null;
   let watermarkPolicy = absentWatermarkPolicy();
   try {
     model = (await api.models.get(id)).data;
@@ -62,6 +63,11 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
     if (Array.isArray(fetched) && fetched.length > 0) cacheControls = fetched;
   } catch {
     cacheControls = CACHE_CONTROL_PROVIDER_ORDER.map(absentCacheControl);
+  }
+  if (model && canViewCacheControls) try {
+    cacheTelemetry = (await api.cacheTelemetry.get(id)).data;
+  } catch {
+    cacheTelemetry = null;
   }
   if (model && canViewWatermark) try {
     const fetched = (await api.watermarkPolicy.get(id)).data?.policy;
@@ -149,7 +155,8 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn" prefetch={false}>{t('model.createContent')}</Link>}
         {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary" prefetch={false}>{t('model.reviewContent')}</Link>}
       </div>}
-      {canViewCacheControls && <ProviderCacheControls modelId={model.id} initialControls={cacheControls} canEdit={canEditCacheControls} />}
+      {canViewCacheControls && <ProviderCacheControls modelId={model.id} initialControls={cacheControls}
+        initialTelemetry={cacheTelemetry} canEdit={canEditCacheControls} />}
       {canViewWatermark && <WatermarkPolicyControls modelId={model.id} initialPolicy={watermarkPolicy} canEdit={canEditWatermark} />}
       {tools.length > 0 && <div className="card stack">
         <h3>{t('model.workspaceTools')}</h3>

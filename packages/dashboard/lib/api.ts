@@ -14,6 +14,7 @@ import {
 import { createIdempotencyKey } from './mutation';
 import { resolveApiOrigin } from './api-origin';
 import type { InboxObservation } from './inbox-types';
+import type { ProviderCacheTelemetryView } from './cache-controls';
 
 const API_BASE = resolveApiOrigin();
 export interface EarningsObservation {
@@ -743,6 +744,11 @@ export const api = {
   cacheControls: {
     get: (modelId: string) => apiFetch<{ data: { modelId: string; controls: CacheControlView[] } }>(
       `/api/v1/models/${encodeURIComponent(modelId)}/cache-controls`,
+    ),
+  },
+  cacheTelemetry: {
+    get: (modelId: string) => apiFetch<{ data: ProviderCacheTelemetryView }>(
+      `/api/v1/models/${encodeURIComponent(modelId)}/cache-telemetry`,
     ),
   },
   watermarkPolicy: {
