@@ -2337,7 +2337,7 @@
       "requirementSha256": "93a2e17e40caccfbc192ac778252db0043eb46fc2b90aa1b1edf40527988b324",
       "lane": 7,
       "status": "unverified",
-      "nextStep": "Run the hosted physical-PITR rehearsal, then complete the missing external R2 retention/KMS and application reconciliation evidence; repeat full RPO/RTO acceptance on the final release SHA.",
+      "nextStep": "Complete the external R2 retention/KMS and application reconciliation evidence; repeat full RPO/RTO acceptance on the final release SHA.",
       "evidence": [],
       "verification": {
         "test": "Run two fresh-cluster restores and measure WAL-derived RPO and elapsed RTO; verify objects/keys and reconcile uncertain work before test dispatch.",
