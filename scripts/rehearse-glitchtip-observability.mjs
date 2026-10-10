@@ -23,7 +23,6 @@ let cookies = new Map();
 let runUrl;
 let ingestedLogSha256;
 let fixtureDsn;
-let traceContextReadback;
 
 function check(name, condition) {
   const passed = Boolean(condition);
@@ -256,7 +255,6 @@ async function writeReceipt() {
     readBackLogSha256: ingestedLogSha256,
     counts: { passed, failed, skipped, total: EXPECTED_CHECKS, unit: 'acceptance checks' },
     checks,
-    traceContextReadback,
     cleanupVerified,
     productionAcceptance: false,
     failure: failure ? safeDiagnostic(failure) : null,
@@ -281,23 +279,9 @@ async function main() {
   const structuredLog = logs.find((log) => String(log?.body ?? '').includes(`${MARKER}_structured`));
   check('console error visible through GlitchTip logs API', Boolean(consoleLog));
   check('structured logger record visible through GlitchTip logs API', Boolean(structuredLog));
-  // GlitchTip exposes the trace as traceID and preserves Sentry's parent-span attribute under data.attributes.
+  // GlitchTip exposes the trace as traceID and flattens Sentry's log attributes into data.
   const traceId = structuredLog?.traceID;
-  const parentSpanId = structuredLog?.data?.attributes?.['sentry.trace.parent_span_id'];
-  const data = structuredLog?.data;
-  const attributes = data?.attributes;
-  traceContextReadback = {
-    topLevelTraceKeys: Object.keys(structuredLog ?? {}).filter((key) => /trace|span/i.test(key)).sort(),
-    traceIdPresent: typeof traceId === 'string',
-    traceIdLength: typeof traceId === 'string' ? traceId.length : 0,
-    dataKeys: data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).sort() : [],
-    attributeTraceKeys: attributes && typeof attributes === 'object' && !Array.isArray(attributes)
-      ? Object.keys(attributes).filter((key) => /trace|span/i.test(key)).sort()
-      : [],
-    parentSpanIdPresent: typeof parentSpanId === 'string',
-    parentSpanIdLength: typeof parentSpanId === 'string' ? parentSpanId.length : 0,
-    parentSpanIdIsHex: typeof parentSpanId === 'string' && /^[a-f0-9]+$/i.test(parentSpanId),
-  };
+  const parentSpanId = structuredLog?.data?.['sentry.trace.parent_span_id'];
   check(
     'structured log carries an active trace and parent span',
     typeof traceId === 'string'
