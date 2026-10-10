@@ -248,7 +248,7 @@ async function writeReceipt() {
     criterion: 'A4',
     testedSha: TESTED_SHA,
     environment: 'GitHub Actions disposable PostgreSQL and GlitchTip services; Node 22.23.3; generated fixture account/project/DSN; no external service or provider credentials.',
-    scope: 'Injected server exception, console error, and structured SDK error log are read back from GlitchTip; the structured log has service/correlation context and a trace/span ID; synthetic token/email markers are absent; the unique organization is deleted.',
+    scope: 'Injected server exception, console error, and structured SDK error log are read back from GlitchTip; the structured log has service/correlation context and active trace/parent-span IDs; synthetic token/email markers are absent; the unique organization is deleted.',
     limitations: 'This proves SDK-to-GlitchTip capture in an isolated fixture. It does not prove production GlitchTip deployment, host fault injection, global suspension timing, or owner observability dashboards.',
     runUrl,
     images: [process.env.GLITCHTIP_IMAGE, process.env.POSTGRES_IMAGE].filter(Boolean),
@@ -279,7 +279,16 @@ async function main() {
   const structuredLog = logs.find((log) => String(log?.body ?? '').includes(`${MARKER}_structured`));
   check('console error visible through GlitchTip logs API', Boolean(consoleLog));
   check('structured logger record visible through GlitchTip logs API', Boolean(structuredLog));
-  check('structured log carries an active trace and span', typeof structuredLog?.traceId === 'string' && structuredLog.traceId.length >= 16 && typeof structuredLog.spanId === 'string');
+  // GlitchTip exposes the trace as traceID and preserves Sentry's parent-span attribute under data.attributes.
+  const traceId = structuredLog?.traceID;
+  const parentSpanId = structuredLog?.data?.attributes?.['sentry.trace.parent_span_id'];
+  check(
+    'structured log carries an active trace and parent span',
+    typeof traceId === 'string'
+      && traceId.length >= 16
+      && typeof parentSpanId === 'string'
+      && /^[a-f0-9]{16}$/i.test(parentSpanId),
+  );
   check('structured log exposes service and correlation identifiers', structuredLog?.service === 'observability-rehearsal' && JSON.stringify(structuredLog).includes(MARKER));
   const serialized = JSON.stringify(structuredLog);
   check('structured log excludes synthetic token and identity', !serialized.includes(FIXTURE_TOKEN) && !serialized.includes(FIXTURE_EMAIL));
