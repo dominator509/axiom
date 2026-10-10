@@ -58,6 +58,7 @@ export default function PublishOutcomeReconciliation({ jobId }: { jobId: string 
 
   return (
     <section className="stack" aria-label={t('incidents.reconcileHeading')}>
+      <p>{t('incidents.reconcileBeforeReplay')}</p>
       <p>{t('incidents.reconcileDescription')}</p>
       <label>
         {t('incidents.reconcileRemoteId')}
