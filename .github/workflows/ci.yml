@@ -220,8 +220,8 @@ jobs:
         run: node scripts/check-ci-environment.mjs
       - name: Install frozen workspace dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build observability package
-        run: pnpm --filter @axiom/observability build
+      - name: Build API and its workspace dependencies
+        run: pnpm --filter @axiom/api... build
       - name: Start disposable GlitchTip and PostgreSQL services
         shell: bash
         run: |

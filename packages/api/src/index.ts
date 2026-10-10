@@ -97,7 +97,7 @@ import {
 } from '@axiom/relay';
 import { relayViralPersistence } from './relay-viral.js';
 import { relayIncidentPageHandler } from './relay-incidents.js';
-import { correlationId, onError, idempotency, rateLimit } from './contract.js';
+import { correlationId, onError, idempotency, rateLimit, telemetrySpan } from './contract.js';
 import {
   checkDatabase,
   db,
@@ -703,8 +703,10 @@ app.use(
 );
 app.use('*', logger());
 app.use('*', secureHeaders());
-// L3.0 contract: correlation_id on every request, then per-credential rate limits.
+// L3.0 contract: correlation_id and a low-cardinality server span precede
+// per-credential rate limits so errors retain request trace context.
 app.use('*', correlationId);
+app.use('*', telemetrySpan);
 // Browser-rendered workspaces fan out to several model-scoped REST resources.
 // Give an authenticated session enough burst headroom for a full dashboard
 // navigation while preserving the 60-request API-key and anonymous limits.

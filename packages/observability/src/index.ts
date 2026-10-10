@@ -322,8 +322,8 @@ export function captureTelemetryLog(
   message: string,
   context: TelemetryContext,
   attributes: Record<string, unknown> = {},
-): void {
-  if (!initialized || !Sentry.isInitialized()) return;
+): boolean {
+  if (!initialized || !Sentry.isInitialized()) return false;
   try {
     const safeAttributes = sanitizeLogValue({
       ...attributes,
@@ -332,8 +332,10 @@ export function captureTelemetryLog(
       ...(context.jobId ? { job_id: context.jobId } : {}),
     }) as Record<string, unknown>;
     Sentry.logger.error(sanitizeLogText(message), safeAttributes);
+    return true;
   } catch {
     // Telemetry must never change request, worker, or publishing behavior.
+    return false;
   }
 }
 

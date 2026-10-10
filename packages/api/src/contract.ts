@@ -13,7 +13,12 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { readBoundedResponseJson } from '@axiom/core';
 import { db } from '@axiom/db';
-import { captureTelemetryException, sanitizeTelemetryValue } from '@axiom/observability';
+import {
+  captureTelemetryException,
+  captureTelemetryLog,
+  sanitizeTelemetryValue,
+  withTelemetrySpan,
+} from '@axiom/observability';
 import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
 import {
   readBoundedBytes,
@@ -77,6 +82,13 @@ export async function correlationId(c: Context, next: Next): Promise<Response | 
   return await next();
 }
 
+/** Create a low-cardinality server span around each API request. */
+export async function telemetrySpan(_c: Context, next: Next): Promise<void> {
+  await withTelemetrySpan({ name: 'API request', op: 'http.server' }, async () => {
+    await next();
+  });
+}
+
 // ---------------------------------------------------------------------------
 // RFC-7807 error envelope (Hono onError)
 // ---------------------------------------------------------------------------
@@ -87,9 +99,15 @@ export async function onError(err: Error, c: Context): Promise<Response> {
   // Keep implementation details in server logs; public 5xx responses expose
   // only a stable message plus the correlation ID used to find that log.
   const details = describeCrash(err);
-  console.error('Unhandled API error', { correlationId, error: sanitizeTelemetryValue(details.message) });
+  const service = process.env.AXIOM_SERVICE_NAME ?? 'api';
+  const error = sanitizeTelemetryValue(details.message);
+  const logged = captureTelemetryLog(`Unhandled API error: ${details.message}`, {
+    service,
+    correlationId,
+  }, { error, status });
+  if (!logged) console.error('Unhandled API error', { correlationId, error });
   captureTelemetryException(err, {
-    service: process.env.AXIOM_SERVICE_NAME ?? 'api',
+    service,
     correlationId,
   });
   await captureUnhandledApiError(c.get('orgId') as string | undefined, err, correlationId);

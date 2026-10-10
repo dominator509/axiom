@@ -15,6 +15,8 @@ import {
   nextCursor,
   problem,
   problemResponse,
+  correlationId,
+  telemetrySpan,
   type CursorPage,
 } from './contract.js';
 
@@ -248,5 +250,22 @@ describe('RFC-7807 problem envelope (M-1)', () => {
     expect(body.error).toBeUndefined();
     expect(body.detail).toBe('x');
     expect(body.status).toBe(409);
+  });
+});
+
+describe('API request telemetry middleware', () => {
+  it('preserves request behavior and correlation IDs when telemetry is disabled', async () => {
+    const app = new Hono();
+    app.use('*', correlationId);
+    app.use('*', telemetrySpan);
+    app.get('/observed', (c) => c.json({ status: 'ok' }));
+
+    const response = await app.request('/observed', {
+      headers: { 'X-Correlation-ID': 'corr-observed' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('X-Correlation-ID')).toBe('corr-observed');
+    await expect(response.json()).resolves.toEqual({ status: 'ok' });
   });
 });
