@@ -22,6 +22,9 @@
     },
     {
       "path": "../llm-gateway"
+    },
+    {
+      "path": "../observability"
     }
   ]
 }

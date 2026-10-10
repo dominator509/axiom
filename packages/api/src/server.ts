@@ -1,3 +1,4 @@
+import './telemetry-bootstrap.js';
 import { serve } from '@hono/node-server';
 import { installRuntimeFailureHandlers, requireProductionDatabaseUrl } from '@axiom/core';
 import app, { initializeRuntime } from './index.js';
