@@ -1228,7 +1228,7 @@
       "requirementSha256": "0b6759749324a59799bb9320a9f881f4b85cd64ca07076f8e4d123b3fd2b372c",
       "lane": 4,
       "status": "blocked",
-      "nextStep": "Obtain the authorized account-specific Beacon developer documentation for authentication and record endpoints plus an approved test-account field map; keep record sync unavailable until those inputs exist.",
+      "nextStep": "For an eligible Standard, Premium, or Ultimate non-production account, obtain its login-protected authentication/record docs and an approved test-account field map; verify schema discovery and workflow effects, and keep record writes disabled until approved.",
       "evidence": [],
       "verification": {
         "test": "Verify safe configured/verified/unavailable/failed states and secret-free responses; after account documentation is available, verify schema discovery, approved mapped record sync and remote readback, rate-limit handling, audit/idempotency, revoke, and cleanup. Negative controls must reject guessed endpoints, missing field maps, unauthorized access, and unapproved writes or deletes.",
@@ -1984,7 +1984,7 @@
       "requirementSha256": "cf97b32b14a944395d39f2c8fb0c7d7bbe3e3927f523733bb7b09ac159c80421",
       "lane": 4,
       "status": "blocked",
-      "nextStep": "Obtain the authorized account-specific Beacon developer documentation for authentication and record endpoints plus an approved test-account field map; keep record sync unavailable until those inputs exist.",
+      "nextStep": "For an eligible Standard, Premium, or Ultimate non-production account, obtain its login-protected authentication/record docs and an approved test-account field map; verify schema discovery and workflow effects, and keep record writes disabled until approved.",
       "evidence": [],
       "verification": {
         "test": "Connect and verify a dedicated Beacon test account; test tenant authorization, encrypted credential handling, account schema discovery, approved field mapping, record sync and remote readback, rate limits and 429 handling, audit/idempotency, disconnect, and cleanup. Reject missing documentation/mappings, credential leakage, unauthorized roles, cross-tenant access, unapproved workflow-triggering mutations, and deletes.",

@@ -32,11 +32,18 @@ This is partial evidence, not closure of `NONFUNCTIONAL-6`: the drill did not us
 
 ## Current external blockers
 
-- **Beacon CRM records API (A7 and FUNCTIONAL-12):** the account-specific
-  authentication and record endpoints are generated from each Beacon database
-  and require an authorized account login. Obtain those docs and the approved
-  dedicated test-account field map before implementing record sync. See the
-  [Beacon API guide](https://guide.beaconcrm.org/en/articles/5720215-beacon-s-api).
+- **Beacon CRM records API (A7 and FUNCTIONAL-12):** the public
+  [Beacon API guide](https://guide.beaconcrm.org/en/articles/5720215-beacon-s-api)
+  confirms that API access requires a Standard, Premium, or Ultimate plan; an
+  active-account admin creates and revokes API keys; and account-specific
+  developer docs are generated from that account's database and require login.
+  It documents `GET /v1/account/{account_id}/entity_types` for schema discovery,
+  limits normal calls to 300/minute and bulk calls to 60/minute, and warns that
+  API writes can trigger Beacon workflows. The remaining blocker is the
+  authorized account's exact authentication/record contract and approved
+  dedicated-test-account field map. Keep record writes disabled until those
+  inputs and workflow effects are reviewed; never infer the auth header or
+  mappings from the public overview.
 - **Beacons.ai creator link management (FUNCTIONAL-3):** the current source
   keeps this adapter unavailable. Beacons' creator help documents adding links
   through its page editor, while its separate Brands API page has no endpoint
