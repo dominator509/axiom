@@ -123,8 +123,8 @@ async function createProject() {
     method: 'POST',
     body: { email, password },
   });
-  const user = await apiRequest('/api/0/users/me/');
-  check('isolated GlitchTip account authenticated', Number.isInteger(user?.id));
+  const accessibleOrganizations = await apiRequest('/api/0/organizations/');
+  check('isolated GlitchTip account authenticated', Array.isArray(accessibleOrganizations));
 
   organizationName = `axiom-observability-${RUN_ID}`;
   const organization = await apiRequest('/api/0/organizations/', {
