@@ -3,6 +3,7 @@ import type { Event, Log } from '@sentry/node';
 import {
   sanitizeTelemetryEvent,
   sanitizeTelemetryLog,
+  sanitizeTelemetrySpan,
   sanitizeTelemetryValue,
   withTelemetrySpan,
 } from './index.js';
@@ -138,5 +139,27 @@ describe('server telemetry privacy boundary', () => {
   it('runs work unchanged when telemetry is not configured', async () => {
     const result = await withTelemetrySpan({ name: 'test operation', op: 'test' }, async () => 42);
     expect(result).toBe(42);
+  });
+
+  it('preserves span link arrays while scrubbing linked attributes', () => {
+    const span = {
+      trace_id: 'trace-1234567890abcdef',
+      span_id: 'span-1234567890',
+      name: 'provider call',
+      attributes: { access_token: 'private-span-token', 'user.email': 'span@example.test' },
+      links: [{ trace_id: 'linked-trace', span_id: 'linked-span', attributes: { api_key: 'private-link-key' } }],
+    };
+
+    const safe = sanitizeTelemetrySpan(span);
+    expect(Array.isArray(safe.links)).toBe(true);
+    expect(safe.attributes).toEqual({ access_token: '[REDACTED]' });
+    expect(safe.links).toEqual([{
+      trace_id: 'linked-trace',
+      span_id: 'linked-span',
+      attributes: { api_key: '[REDACTED]' },
+    }]);
+    expect(JSON.stringify(safe)).not.toContain('private-span-token');
+    expect(JSON.stringify(safe)).not.toContain('span@example.test');
+    expect(JSON.stringify(safe)).not.toContain('private-link-key');
   });
 });

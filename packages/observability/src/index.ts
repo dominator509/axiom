@@ -123,6 +123,27 @@ export function sanitizeTelemetryValue(value: unknown, depth = 0): unknown {
   return '[REDACTED]';
 }
 
+/** Scrub span data while preserving the SDK's typed links array contract. */
+export function sanitizeTelemetrySpan<T extends object>(span: T): T {
+  const original = span as T & { attributes?: unknown; links?: unknown };
+  const safe = sanitizeTelemetryValue(span) as Record<string, unknown>;
+  if (isRecord(original.attributes)) {
+    safe.attributes = sanitizeLogValue(original.attributes);
+  }
+  if (Array.isArray(original.links)) {
+    safe.links = original.links.map((link) => {
+      const safeLink = sanitizeTelemetryValue(link);
+      if (isRecord(link) && isRecord(link.attributes) && isRecord(safeLink)) {
+        safeLink.attributes = sanitizeLogValue(link.attributes);
+      }
+      return safeLink;
+    });
+  } else if (original.links !== undefined) {
+    delete safe.links;
+  }
+  return safe as T;
+}
+
 function sanitizeLogValue(value: unknown, depth = 0): unknown {
   if (typeof value === 'string') return sanitizeLogText(value);
   if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
@@ -255,7 +276,7 @@ export function initializeTelemetry(
     integrations: [Sentry.consoleLoggingIntegration({ levels: ['error', 'warn'] })],
     beforeSend: (event) => sanitizeTelemetryEvent(event),
     beforeSendLog: (log) => sanitizeTelemetryLog(log),
-    beforeSendSpan: (span) => sanitizeTelemetryValue(span) as typeof span,
+    beforeSendSpan: (span) => sanitizeTelemetrySpan(span),
     beforeBreadcrumb: (breadcrumb) => sanitizeTelemetryValue(breadcrumb) as typeof breadcrumb,
   });
   Sentry.getGlobalScope().setAttribute('sentry.service', sanitizeText(service));
