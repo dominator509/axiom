@@ -122,6 +122,8 @@ fn read_database_url(path: &Path) -> Result<Zeroizing<String>, String> {
             tokio_postgres::config::Host::Tcp(host) => {
                 host != "localhost" && host != "127.0.0.1" && host != "::1"
             }
+            #[cfg(unix)]
+            tokio_postgres::config::Host::Unix(_) => true,
         })
     {
         return Err("database target must name a database on loopback only".into());
