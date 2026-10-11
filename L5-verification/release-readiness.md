@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline (2026-10-11): `11d970c1486a83dfae4e65a86915605437c5cad3`, after PR #169. Exact-main [CI run 38137713092](https://github.com/dominator509/axiom/actions/runs/38137713092) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
+Latest verified application baseline before this documentation refresh (2026-10-11): `8cab6d61a4494246ee3f7615daa686d41a316bd3`, after PR #171. Exact-main [CI run 38145089711](https://github.com/dominator509/axiom/actions/runs/38145089711) completed with 12/12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). `rtk sh scripts/verify.sh` also passed on this exact source: preflight, P0–P4, and all 36 markers passed (11 gate checks, 0 failed); the Linux-only `ufw` check was skipped on Windows; final output was `verify: ok`. This documentation refresh does not change application code or acceptance status. The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -20,9 +20,12 @@ PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
 
-## Current exact-main RLS refresh (2026-10-11)
+## Previous exact-main RLS refresh (2026-10-11; SHA 11d970c)
 
-Current main is `11d970c1486a83dfae4e65a86915605437c5cad3` after PR #169. Exact-main
+The RLS receipt below was run against `11d970c1486a83dfae4e65a86915605437c5cad3`
+after PR #169. Main later advanced to PR #171 at
+`8cab6d61a4494246ee3f7615daa686d41a316bd3`; the RLS rehearsal remains to be
+repeated on the final release SHA. Exact-main
 [CI run 38137713092](https://github.com/dominator509/axiom/actions/runs/38137713092)
 completed 12/12 jobs successfully (0 failed, 0 cancelled). The release-register
 check `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
