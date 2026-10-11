@@ -141,6 +141,12 @@ test('evidence extraction rejects L5 invariant numbering or property drift', () 
     : read(file);
   assert.throws(() => requirements(readChanged), /L5\.0 invariant numbering or properties/);
 });
+test('feature catalog rejects missing or out-of-order feature IDs', () => {
+  const readChanged = file => file === 'L1-product/L1.1-feature-catalog.md'
+    ? read(file).replace(/^- \*\*F-89[^\r\n]*\r?\n/m, '')
+    : read(file);
+  assert.throws(() => requirements(readChanged), /L1\.1 feature catalog must list F-01 through F-92/);
+});
 test('complete synthetic evidence is accepted by the structural release validator', () => {
   assert.equal(validate(complete(), expected, { releaseSha }).passed, expected.length);
 });
