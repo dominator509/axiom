@@ -280,7 +280,7 @@ async fn append_rotation_audit(
         .query_one(
             "SELECT to_char(
                GREATEST(clock_timestamp(),
-                 COALESCE($1::timestamptz + INTERVAL '1 millisecond', clock_timestamp())),
+                 COALESCE($1::text::timestamptz + INTERVAL '1 millisecond', clock_timestamp())),
                'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')",
             &[&previous_ts],
         )
