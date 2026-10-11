@@ -1297,7 +1297,7 @@
       "requirementSha256": "0b6759749324a59799bb9320a9f881f4b85cd64ca07076f8e4d123b3fd2b372c",
       "lane": 4,
       "status": "blocked",
-      "nextStep": "For an eligible Standard, Premium, or Ultimate non-production account, obtain its login-protected authentication/record docs and an approved test-account field map; verify schema discovery and workflow effects, and keep record writes disabled until approved.",
+      "nextStep": "The public Beacon guide confirms API keys are created/revoked by account admins, exposes GET /v1/account/{account_id}/entity_types for account-schema discovery, documents 300 requests/minute (60 bulk), and confirms API actions can trigger workflows. For an eligible Standard, Premium, or Ultimate non-production account, obtain its login-protected authentication/record docs and an approved test-account field map; verify schema discovery and workflow effects, and keep record writes disabled until approved.",
       "evidence": [],
       "verification": {
         "test": "Verify safe configured/verified/unavailable/failed states and secret-free responses; after account documentation is available, verify schema discovery, approved mapped record sync and remote readback, rate-limit handling, audit/idempotency, revoke, and cleanup. Negative controls must reject guessed endpoints, missing field maps, unauthorized access, and unapproved writes or deletes.",
