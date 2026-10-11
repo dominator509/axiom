@@ -162,6 +162,17 @@ test('every acceptance row has a test, environment, dependencies, evidence and c
     assert.ok(row.verification.dependencies.every(lane => lane < row.lane), row.id);
   }
 });
+test('feature-preservation completion includes every F-89+ extension named by its requirement', () => {
+  const row = current.criteria.find(criterion => criterion.id === 'FEATURE-PRESERVATION');
+  assert.ok(row, 'FEATURE-PRESERVATION criterion is required');
+  const extensions = [...new Set(row.requirement.match(/\bF-\d{2}\b/g) ?? [])]
+    .filter(feature => Number(feature.slice(2)) >= 89);
+  assert.deepEqual(extensions, ['F-89', 'F-90', 'F-91', 'F-92']);
+  for (const feature of extensions) {
+    assert.ok(row.verification.completionCondition.includes(feature),
+      `${feature} appears in the requirement but not its completion condition`);
+  }
+});
 test('incremental exact-SHA evidence validates without closing open release rows', () => {
   const register = incremental();
   assert.equal(validate(register, expected, { verifySha: releaseSha }).passed, incrementalIds.size);
