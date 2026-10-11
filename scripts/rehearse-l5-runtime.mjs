@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -16,12 +16,15 @@ mkdirSync(directory, { recursive: true });
 const receipt = { sourceSha: '', command: 'node scripts/rehearse-l5-runtime.mjs --isolated-fixture',
   node: process.versions.node, environment: 'owned network-disabled Docker fixtures',
   egressFixture: { mode: 'test', scope: 'database-backed-health-only', productionProvisioner: 'scripts/rehearse-egress.mjs' },
+  secretDelivery: { mechanism: 'ephemeral read-only file mount', containerPath: '/run/secrets/egress-kek',
+    rootKeyInEnvironment: null, externalKms: false, filesCreated: 0, filesRemoved: 0, cleanupVerified: false },
   images: {}, runs: [], auditChecks: [], passed: 0, failed: 0, skipped: 0, cleanup: false };
 const secrets = [];
 const secret = () => { const value = randomBytes(32).toString('hex'); secrets.push(value); return value; };
 const scrub = text => secrets.reduce((value, key) => value.replaceAll(key, '[FIXTURE-REDACTED]'), String(text ?? ''));
 let operation = 0;
 const owned = { containers: new Set(), volumes: new Set(), images: new Set() };
+const secretFiles = new Set();
 function run(command, args, { input, env = {}, timeout = 180000, allowFailure = false } = {}) {
   const result = spawnSync(command, args, { cwd: root, input, windowsHide: true, timeout,
     env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
@@ -31,7 +34,7 @@ function run(command, args, { input, env = {}, timeout = 180000, allowFailure = 
 }
 const docker = (args, options) => run('docker', args, options);
 const sql = (db, statement) => docker(['exec', '-i', db, 'psql', '-X', '-qAt', '-U', 'axiom', '-d', 'axiom_test', '-v', 'ON_ERROR_STOP=1'], { input: statement });
-function create(name, image, network, env, extra = [], command = []) {
+function create(name, image, network, env, extra = [], command = [], allowedBindMountDestinations = []) {
   docker(['create', '--name', name, ...labels, '--network', network,
     ...Object.keys(env).flatMap(key => ['--env', key]), ...extra, image, ...command], { env });
   owned.containers.add(name);
@@ -43,9 +46,14 @@ function create(name, image, network, env, extra = [], command = []) {
     ? [network, `container:${docker(['inspect', '--format', '{{.Id}}', network.slice('container:'.length)]).stdout}`]
     : [network];
   assert.ok(networkModes.includes(info.network), 'Container must share only the intended fixture network namespace');
-  assert.equal(info.mounts.some(m => m.Type === 'bind'), false);
+  assert.deepEqual(
+    info.mounts.filter(m => m.Type === 'bind').map(m => m.Destination).sort(),
+    [...allowedBindMountDestinations].sort(),
+    'Only explicitly approved read-only fixture secret mounts may bind host files',
+  );
   assert.equal(Object.keys(info.ports ?? {}).length, 0);
   docker(['start', name]);
+  return info;
 }
 function remove(kind, name) {
   const inspect = kind === 'containers' ? ['inspect', '--format', '{{json .Config.Labels}}', name]
@@ -95,6 +103,12 @@ try {
     }
     const password = secret(), appPassword = secret(), token = secret(), relaySecret = secret(), hookToken = secret(), authSecret = secret();
     const egressToken = secret(), egressDek = secret();
+    const egressKekFile = join(directory, `egress-kek-${repetition}.secret`);
+    writeFileSync(egressKekFile, `${egressDek}\n`, { flag: 'wx', mode: 0o400 });
+    secretFiles.add(egressKekFile);
+    receipt.secretDelivery.filesCreated++;
+    assert.equal(run('git', ['check-ignore', '--quiet', `var/l5-runtime/${id}/egress-kek-${repetition}.secret`]).status, 0,
+      'Generated key file must remain outside tracked source');
     const providerAccessToken = secret(), providerRefreshToken = secret();
     const providerAccessTokenEnv = ['AXIOM_L5_PROVIDER_ACCESS', 'TOKEN'].join('_');
     const providerRefreshTokenEnv = ['AXIOM_L5_PROVIDER_REFRESH', 'TOKEN'].join('_');
@@ -129,12 +143,23 @@ try {
     // Production provisioner lifecycle is exercised by the separate isolated
     // Linux socket rehearsal; this unprivileged worker/model fixture verifies
     // the database-backed control-plane health endpoint only.
-    create(egress, receipt.images.egress, `container:${db}`, {
+    const egressInfo = create(egress, receipt.images.egress, `container:${db}`, {
       NODE_ENV: 'test', LISTEN_ADDR: '0.0.0.0:9090',
       EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
-      EGRESS_PLANE_TOKEN: egressToken, EGRESS_KEK: egressDek,
+      EGRESS_PLANE_TOKEN: egressToken, EGRESS_KEK_FILE: '/run/secrets/egress-kek',
       EGRESS_LEGACY_DEK_ID: 'l5-fixture-dek',
-    }, ['--cap-drop=ALL', '--security-opt=no-new-privileges']);
+    }, ['--cap-drop=ALL', '--security-opt=no-new-privileges', '--mount',
+      `type=bind,source=${egressKekFile},target=/run/secrets/egress-kek,readonly`], [], ['/run/secrets/egress-kek']);
+    const egressEnv = JSON.parse(docker(['inspect', '--format', '{{json .Config.Env}}', egress]).stdout);
+    assert.ok(egressEnv.includes('EGRESS_KEK_FILE=/run/secrets/egress-kek'));
+    assert.equal(egressEnv.some(value => /^(?:EGRESS_KEK|EGRESS_DEK)=/.test(value)), false,
+      'Root key value must not be present in container environment');
+    assert.equal(egressEnv.some(value => value.includes(egressDek)), false,
+      'Root key value must not be present in container environment');
+    const keyMount = egressInfo.mounts.find(mount => mount.Destination === '/run/secrets/egress-kek');
+    assert.ok(keyMount, 'Root key file must be mounted at the documented secret path');
+    assert.equal(keyMount.Type, 'bind');
+    assert.equal(keyMount.RW, false, 'Root key file mount must be read-only');
     docker(['exec', '--user', '0', runner, 'chown', '1001:1001', '/app/var/media', '/models']);
     docker(['cp', model, `${runner}:/models/nsfw-vit.onnx`]);
     assert.equal(docker(['exec', runner, 'node', '-e', "console.log(require('crypto').createHash('sha256').update(require('fs').readFileSync('/models/nsfw-vit.onnx')).digest('hex'))"]).stdout,
@@ -168,13 +193,24 @@ try {
     const dump = docker(['exec', db, 'pg_dump', '-U', 'axiom', '-d', 'axiom_test', '--data-only', '--table=public.platform_connection', '--inserts']).stdout;
     assert.equal(dump.includes(providerAccessToken), false, 'Provider access token must not appear in the database dump');
     assert.equal(dump.includes(providerRefreshToken), false, 'Provider refresh token must not appear in the database dump');
+    assert.equal(dump.includes(egressDek), false, 'Root key must not appear in the database dump');
     const egressLogs = docker(['logs', egress]).stdout;
     assert.equal(egressLogs.includes(providerAccessToken), false, 'Egress logs must not contain provider access tokens');
     assert.equal(egressLogs.includes(providerRefreshToken), false, 'Egress logs must not contain provider refresh tokens');
-    receipt.auditChecks.push({ repetition, databaseDumpPlaintextAbsent: true, egressLogPlaintextAbsent: true });
-    receipt.passed += 2;
+    assert.equal(egressLogs.includes(egressDek), false, 'Egress logs must not contain the root key');
+    receipt.auditChecks.push({ repetition, databaseDumpPlaintextAbsent: true, egressLogPlaintextAbsent: true,
+      rootKeyFileIgnoredByGit: true, rootKeyMountedAtDocumentedPath: true, rootKeyMountReadOnly: true,
+      rootKeyAbsentFromContainerEnvironment: true });
+    receipt.secretDelivery.rootKeyInEnvironment = false;
+    receipt.secretDelivery.readOnlyMountVerified = true;
+    receipt.passed += 5;
     for (const name of [...owned.containers].reverse()) remove('containers', name);
     for (const name of [...owned.volumes].reverse()) remove('volumes', name);
+    unlinkSync(egressKekFile);
+    secretFiles.delete(egressKekFile);
+    assert.equal(existsSync(egressKekFile), false, 'Generated root key file must be removed after its fixture');
+    receipt.secretDelivery.filesRemoved++;
+    receipt.passed++;
   }
 } catch (error) {
   receipt.failed++;
@@ -183,6 +219,18 @@ try {
   for (const kind of ['containers', 'volumes', 'images']) for (const name of [...owned[kind]].reverse()) {
     try { remove(kind, name); } catch { receipt.failed++; }
   }
+  for (const file of [...secretFiles]) {
+    try {
+      if (!existsSync(file)) throw new Error('Generated root key file disappeared before cleanup');
+      unlinkSync(file);
+      receipt.secretDelivery.filesRemoved++;
+      secretFiles.delete(file);
+    }
+    catch { receipt.failed++; }
+  }
+  receipt.secretDelivery.cleanupVerified = receipt.secretDelivery.filesCreated === 2
+    && receipt.secretDelivery.filesRemoved === 2 && secretFiles.size === 0;
+  if (!receipt.secretDelivery.cleanupVerified) receipt.failed++;
   try {
     receipt.cleanup = [['ps', '-aq'], ['volume', 'ls', '-q'], ['image', 'ls', '-q']].every(args =>
       docker([...args, '--filter', `label=${label}=${id}`]).stdout === '');
