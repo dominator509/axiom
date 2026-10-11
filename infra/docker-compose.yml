@@ -1,3 +1,6 @@
+# Local development dependencies only. This stack does not include the
+# application services and is not a production deployment manifest.
+
 networks:
   axiom-net:
     driver: bridge
@@ -14,7 +17,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: axiom
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_PASSWORD: ${AXIOM_DEV_POSTGRES_PASSWORD:?Set AXIOM_DEV_POSTGRES_PASSWORD in your ignored local .env}
       POSTGRES_DB: axiom
     ports:
       # Development credentials must not expose PostgreSQL to the host LAN.
@@ -38,7 +41,7 @@ services:
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@axiom.local
-      PGADMIN_DEFAULT_PASSWORD: changeme
+      PGADMIN_DEFAULT_PASSWORD: ${AXIOM_DEV_PGADMIN_PASSWORD:?Set AXIOM_DEV_PGADMIN_PASSWORD in your ignored local .env}
     ports:
       - '127.0.0.1:5050:80'
     depends_on:
@@ -87,7 +90,7 @@ services:
       - ../var/models:/opt/axiom/models:ro
       - media-data:/app/var/media:ro
     ports:
-      - '8101:8101'
+      - '127.0.0.1:8101:8101'
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8101/health']
       interval: 30s
@@ -108,7 +111,7 @@ services:
       # The process refuses non-loopback operation without this value.
       AXIOM_SCRAPER_AUTH_TOKEN: ${AXIOM_SCRAPER_AUTH_TOKEN:-}
     ports:
-      - '8102:8102'
+      - '127.0.0.1:8102:8102'
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8102/health']
       interval: 30s
