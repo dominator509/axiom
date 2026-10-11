@@ -21,7 +21,7 @@ vi.mock('@axiom/llm-gateway', () => ({
   resolveEgressBinding: vi.fn(async () => state.binding),
 }));
 
-import { asPlatform, parseConnectorAuth, telegramRelayTransportForTarget } from './connection.js';
+import { asPlatform, decryptConnectorAuth, parseConnectorAuth, telegramRelayTransportForTarget } from './connection.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -36,11 +36,13 @@ function telegramConnection(id: string, modelId = MODEL_ID, orgId = ORG_ID) {
     orgId,
     modelId,
     platform: 'telegram',
+    displayName: 'Telegram bot',
     status: 'connected',
     connectedAt: new Date('2026-01-01T00:00:00.000Z'),
-    encToken: new Uint8Array([1]),
-    encNonce: new Uint8Array([2]),
+    encToken: Buffer.from([1]),
+    encNonce: Buffer.from([2]),
     dekId: `dek-${id}`,
+    capabilities: [],
   };
 }
 
@@ -171,6 +173,30 @@ describe('parseConnectorAuth', () => {
 
   it('rejects empty credentials', () => {
     expect(() => parseConnectorAuth('   ')).toThrow('stored connector credential is empty');
+  });
+});
+
+describe('decryptConnectorAuth', () => {
+  it('supplies the owning organization when resolving an encrypted credential key', async () => {
+    const response = new Response(JSON.stringify({
+      plaintext: Buffer.from(JSON.stringify({ accessToken: 'synthetic-token' })).toString('base64'),
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    let request: { url: string; init?: RequestInit } | undefined;
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      request = { url: String(input), init };
+      return response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(decryptConnectorAuth(telegramConnection('connection-1'))).resolves.toEqual({ accessToken: 'synthetic-token' });
+
+    expect(request?.url).toContain('/egress/decrypt');
+    expect(JSON.parse(String(request?.init?.body))).toEqual({
+      org_id: ORG_ID,
+      enc_token: Buffer.from([1]).toString('base64'),
+      enc_nonce: Buffer.from([2]).toString('base64'),
+      dek_id: 'dek-connection-1',
+    });
   });
 });
 

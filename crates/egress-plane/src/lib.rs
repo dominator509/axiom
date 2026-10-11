@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 pub mod config;
 pub mod crypto;
@@ -63,6 +64,9 @@ pub enum EgressError {
 
     #[error("Config error: {0}")]
     Config(String),
+
+    #[error("Credential key store unavailable")]
+    KeyStore(String),
 }
 
 impl From<String> for EgressError {
@@ -77,6 +81,10 @@ impl IntoResponse for EgressError {
             EgressError::Validation(_) | EgressError::Netns(_) | EgressError::Config(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string())
             }
+            EgressError::KeyStore(_) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "credential key store unavailable".to_string(),
+            ),
             EgressError::KillSwitch(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
@@ -97,7 +105,13 @@ pub struct Config {
     /// Echo endpoint that reports the caller's egress IP.
     pub echo_url: String,
     pub database_url: Option<String>,
-    pub dek: Option<[u8; 32]>,
+    /// Root key used only to wrap organization DEKs (and read legacy global
+    /// envelopes during the transition).
+    pub root_kek: Option<crypto::SecretKey>,
+    pub kek_id: String,
+    /// Identifier used by existing global-key envelopes created before
+    /// organization-scoped DEKs. New envelopes always use generated UUIDs.
+    pub legacy_dek_id: String,
     /// Path to the egress-plane binary used to spawn per-model sidecars
     /// (defaults to the running executable). Overridable for tests.
     pub sidecar_bin: Option<std::path::PathBuf>,
@@ -120,7 +134,9 @@ impl Config {
             database_url: std::env::var("EGRESS_DATABASE_URL")
                 .ok()
                 .or_else(|| std::env::var("DATABASE_URL").ok()),
-            dek: db::dek_from_env(),
+            root_kek: db::root_kek_from_env(),
+            kek_id: db::kek_id_from_env(),
+            legacy_dek_id: db::legacy_dek_id_from_env(),
             sidecar_bin: std::env::var("SIDECAR_BIN")
                 .ok()
                 .map(std::path::PathBuf::from),
@@ -147,8 +163,17 @@ impl Config {
                 return Err("EGRESS_DATABASE_URL or DATABASE_URL is required in production".into())
             }
         }
-        if self.dek.is_none() {
-            return Err("EGRESS_DEK must be a 32-byte hex key in production".into());
+        if self.root_kek.is_none() {
+            return Err("EGRESS_KEK_FILE or EGRESS_KEK is required in production".into());
+        }
+        if self.kek_id.trim().is_empty() || self.kek_id.len() > 128 {
+            return Err("EGRESS_KEK_ID must contain 1 to 128 characters in production".into());
+        }
+        if self.legacy_dek_id.trim().is_empty()
+            || self.legacy_dek_id.trim() != self.legacy_dek_id
+            || self.legacy_dek_id.len() > 128
+        {
+            return Err("EGRESS_LEGACY_DEK_ID must contain 1 to 128 non-whitespace characters in production".into());
         }
         if self.provisioner.is_none() {
             return Err(
@@ -163,6 +188,7 @@ impl Config {
 #[cfg(test)]
 mod config_tests {
     use super::{Config, ProvisionerClient, CONTROL_PLANE_LISTEN_ADDR};
+    use crate::{crypto, db};
 
     fn production_config() -> Config {
         Config {
@@ -171,7 +197,9 @@ mod config_tests {
             auth_token: Some("x".repeat(32)),
             echo_url: "https://api.ipify.org".to_string(),
             database_url: Some("postgresql://egress@db.example/axiom".to_string()),
-            dek: Some([0; 32]),
+            root_kek: Some(crypto::SecretKey::new([0; 32])),
+            kek_id: db::LEGACY_DEK_ID.to_string(),
+            legacy_dek_id: db::LEGACY_DEK_ID.to_string(),
             sidecar_bin: None,
             provisioner: Some(ProvisionerClient::for_test()),
         }
@@ -199,12 +227,12 @@ mod config_tests {
         );
 
         let mut config = production_config();
-        config.dek = None;
+        config.root_kek = None;
         assert_eq!(
             config
                 .validate_production()
                 .expect_err("DEK must be required"),
-            "EGRESS_DEK must be a 32-byte hex key in production"
+            "EGRESS_KEK_FILE or EGRESS_KEK is required in production"
         );
 
         let mut config = production_config();
@@ -531,7 +559,9 @@ mod registry_tests {
                 auth_token: None,
                 echo_url: "https://example.invalid/ip".to_string(),
                 database_url: None,
-                dek: None,
+                root_kek: Some(crypto::SecretKey::new([0x5a; 32])),
+                kek_id: crate::db::LEGACY_DEK_ID.to_string(),
+                legacy_dek_id: crate::db::LEGACY_DEK_ID.to_string(),
                 sidecar_bin: None,
                 provisioner: None,
             },
@@ -697,26 +727,21 @@ pub struct HealthCheckRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DecryptRequest {
+    pub org_id: String,
     pub enc_token: String,
     pub enc_nonce: String,
     pub dek_id: String,
-    /// Optional test/key-rotation override. Normal execution-plane callers
-    /// omit this and the egress plane resolves its configured DEK.
-    #[serde(default)]
-    pub dek: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EncryptRequest {
-    /// Base64-encoded plaintext (the serialized `Creds` JSON).
+    /// Organization context is supplied by the authenticated API server.
+    pub org_id: String,
+    /// Base64-encoded plaintext. The plaintext is never persisted by the plane.
     pub plaintext: String,
-    /// Vault DEK id this envelope is encrypted under.
-    pub dek_id: String,
-    /// Optional DEK override (base64, 32 bytes). When absent the
-    /// configured `EGRESS_DEK` from the plane's environment is used.
-    #[serde(default)]
-    pub dek: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1583,8 +1608,8 @@ pub async fn egress_health_check(
 }
 
 /// POST /egress/decrypt — envelope decryption for the execution planes.
-/// When no explicit DEK override is supplied, the plane uses its configured
-/// EGRESS_DEK so callers never need to receive or forward the key.
+/// New envelopes resolve a wrapped DEK by organization and key version;
+/// legacy `egress-dek` rows continue to decrypt with the old root key.
 #[instrument(skip_all)]
 pub async fn egress_decrypt(
     State(state): State<Arc<AppState>>,
@@ -1598,23 +1623,47 @@ pub async fn egress_decrypt(
     let enc_nonce = base64::engine::general_purpose::STANDARD
         .decode(&body.enc_nonce)
         .map_err(|e| EgressError::Validation(format!("invalid enc_nonce: {e}")))?;
-    let mut dek = match &body.dek {
-        Some(d) => base64::engine::general_purpose::STANDARD
-            .decode(d)
-            .map_err(|e| EgressError::Validation(format!("invalid dek: {e}")))?,
-        None => state
-            .config
-            .dek
-            .map(|d| d.to_vec())
-            .ok_or_else(|| EgressError::Validation("EGRESS_DEK not configured".to_string()))?,
+    let org_id = Uuid::parse_str(&body.org_id)
+        .map_err(|_| EgressError::Validation("org_id must be a UUID".to_string()))?
+        .to_string();
+    let root_kek = state
+        .config
+        .root_kek
+        .as_ref()
+        .ok_or_else(|| EgressError::KeyStore("root KEK is not configured".to_string()))?;
+    let legacy_envelope = db::is_legacy_dek_id(&body.dek_id, &state.config.legacy_dek_id);
+    let dek =
+        if legacy_envelope {
+            Zeroizing::new(root_kek.as_bytes().to_vec())
+        } else {
+            let mut client =
+                state.db.lock().unwrap().take().ok_or_else(|| {
+                    EgressError::KeyStore("database is not configured".to_string())
+                })?;
+            let result = db::load_org_dek(
+                &mut client,
+                &org_id,
+                &body.dek_id,
+                root_kek,
+                &state.config.kek_id,
+            )
+            .await;
+            *state.db.lock().unwrap() = Some(client);
+            result.map_err(EgressError::KeyStore)?
+        };
+    let plaintext = if legacy_envelope {
+        crypto::decrypt_envelope(&enc_token, &enc_nonce, dek.as_slice())?
+    } else {
+        crypto::decrypt_org_envelope(
+            &enc_token,
+            &enc_nonce,
+            dek.as_slice(),
+            &org_id,
+            &body.dek_id,
+        )?
     };
-    if dek.len() != 32 {
-        return Err(EgressError::Validation("DEK must be 32 bytes".to_string()));
-    }
-    let mut plaintext = crypto::decrypt_envelope(&enc_token, &enc_nonce, &dek)?;
-    crypto::zeroize(dek.as_mut_slice());
-    let encoded = base64::engine::general_purpose::STANDARD.encode(&plaintext);
-    crypto::zeroize(plaintext.as_mut_slice());
+    let plaintext = Zeroizing::new(plaintext);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(plaintext.as_slice());
     Ok((
         StatusCode::OK,
         Json(DecryptResponse {
@@ -1624,11 +1673,9 @@ pub async fn egress_decrypt(
     ))
 }
 
-/// POST /egress/encrypt — envelope-encrypt credential plaintext for
-/// storage in `model_network_configs.enc_creds` (L2.6). The API control
-/// plane calls this BEFORE writing a config row, so secrets never touch
-/// the API process in plaintext after this call; the DEK stays in the
-/// egress plane's environment.
+/// POST /egress/encrypt — encrypt under a random organization DEK and persist
+/// only its KEK-wrapped form. The API control plane calls this before writing
+/// a credential row; plaintext DEKs never leave the egress plane.
 #[instrument(skip_all)]
 pub async fn egress_encrypt(
     State(state): State<Arc<AppState>>,
@@ -1637,34 +1684,38 @@ pub async fn egress_encrypt(
     use base64::Engine as _;
     let correlation_id = Uuid::new_v4().to_string();
 
-    let plaintext = base64::engine::general_purpose::STANDARD
-        .decode(&body.plaintext)
-        .map_err(|e| EgressError::Validation(format!("invalid plaintext: {e}")))?;
+    let org_id = Uuid::parse_str(&body.org_id)
+        .map_err(|_| EgressError::Validation("org_id must be a UUID".to_string()))?
+        .to_string();
+    let plaintext = Zeroizing::new(
+        base64::engine::general_purpose::STANDARD
+            .decode(&body.plaintext)
+            .map_err(|e| EgressError::Validation(format!("invalid plaintext: {e}")))?,
+    );
+    let root_kek = state
+        .config
+        .root_kek
+        .as_ref()
+        .ok_or_else(|| EgressError::KeyStore("root KEK is not configured".to_string()))?;
+    let mut client = state
+        .db
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| EgressError::KeyStore("database is not configured".to_string()))?;
+    let result = db::ensure_org_dek(&mut client, &org_id, root_kek, &state.config.kek_id).await;
+    *state.db.lock().unwrap() = Some(client);
+    let (dek_id, dek) = result.map_err(EgressError::KeyStore)?;
 
-    // Resolve the DEK: explicit override wins, else the configured env DEK.
-    let mut dek: Vec<u8> = match &body.dek {
-        Some(d) => base64::engine::general_purpose::STANDARD
-            .decode(d)
-            .map_err(|e| EgressError::Validation(format!("invalid dek: {e}")))?,
-        None => state
-            .config
-            .dek
-            .map(|d| d.to_vec())
-            .ok_or_else(|| EgressError::Validation("EGRESS_DEK not configured".to_string()))?,
-    };
-    if dek.len() != 32 {
-        return Err(EgressError::Validation("DEK must be 32 bytes".to_string()));
-    }
-
-    let (ct, nonce) = crypto::encrypt_envelope(&plaintext, &dek)?;
-    crypto::zeroize(dek.as_mut_slice());
+    let (ct, nonce) =
+        crypto::encrypt_org_envelope(plaintext.as_slice(), dek.as_slice(), &org_id, &dek_id)?;
 
     Ok((
         StatusCode::OK,
         Json(EncryptResponse {
             enc_creds: base64::engine::general_purpose::STANDARD.encode(&ct),
             enc_nonce: base64::engine::general_purpose::STANDARD.encode(&nonce),
-            dek_id: body.dek_id,
+            dek_id,
             correlation_id,
         }),
     ))
@@ -1952,14 +2003,17 @@ pub async fn egress_sync(
                 tx.commit()
                     .await
                     .map_err(|error| format!("commit org gate lookup failed: {error}"))?;
-                Ok::<_, String>((configs, disabled_orgs))
+                let org_deks =
+                    db::load_org_deks(client, state.config.root_kek.as_ref(), &state.config.kek_id)
+                        .await?;
+                Ok::<_, String>((configs, disabled_orgs, org_deks))
             }
             .await
         }
         None => Err("DATABASE_URL not configured".to_string()),
     };
     *state.db.lock().unwrap() = client;
-    let (configs, disabled_orgs) = configs_result.map_err(EgressError::Config)?;
+    let (configs, disabled_orgs, org_deks) = configs_result.map_err(EgressError::Config)?;
     let blocked_orgs = {
         let mut registry = state.registry.lock().unwrap();
         registry.blocked_orgs.extend(disabled_orgs);
@@ -2022,8 +2076,26 @@ pub async fn egress_sync(
             bound += 1;
             continue;
         }
-        let creds = db::decrypt_creds(&cfg, state.config.dek.as_ref().map(|d| d.as_slice()))
-            .map_err(EgressError::Config)?;
+        let creds = match cfg.dek_id.as_deref() {
+            Some(dek_id) if db::is_legacy_dek_id(dek_id, &state.config.legacy_dek_id) => {
+                db::decrypt_creds_with_legacy_id(
+                    &cfg,
+                    state
+                        .config
+                        .root_kek
+                        .as_ref()
+                        .map(|kek| kek.as_bytes().as_slice()),
+                    &state.config.legacy_dek_id,
+                )
+            }
+            Some(dek_id) => match org_deks.get(&(cfg.org_id.clone(), dek_id.to_string())) {
+                Some(Ok(dek)) => db::decrypt_creds(&cfg, Some(dek.as_slice())),
+                Some(Err(error)) => Err(error.clone()),
+                None => Err("organization DEK was not loaded".to_string()),
+            },
+            None => db::decrypt_creds(&cfg, None),
+        }
+        .map_err(EgressError::Config)?;
         let req = BindRequest {
             model_id: cfg.model_id.clone(),
             org_id: cfg.org_id.clone(),

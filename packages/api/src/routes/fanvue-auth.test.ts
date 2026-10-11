@@ -34,7 +34,6 @@ process.env.FANVUE_CLIENT_SECRET = 'test-client-secret';
 process.env.FANVUE_REDIRECT_URI = 'https://callback.example.test/api/v1/connectors/fanvue/callback';
 process.env.BETTER_AUTH_SECRET = 'test-oauth-cookie-secret';
 process.env.EGRESS_PLANE_URL = 'http://egress.example.test';
-process.env.EGRESS_DEK_ID = 'test-dek';
 
 let app: Hono<AppBindings>;
 
@@ -150,7 +149,7 @@ describe('GET /callback', () => {
     expect(encryptionCall).toBeDefined();
     const encryptedPayload = JSON.parse(encryptionCall![1]!.body as string) as {
       plaintext: string;
-      dek_id: string;
+      org_id: string;
     };
     const stored = JSON.parse(
       Buffer.from(encryptedPayload.plaintext, 'base64').toString('utf8'),
@@ -161,7 +160,7 @@ describe('GET /callback', () => {
       externalUserId: 'fanvue-user-1',
       extra: { clientId: 'test-client-id', clientSecret: 'test-client-secret' },
     });
-    expect(encryptedPayload.dek_id).toBe('test-dek');
+    expect(encryptedPayload.org_id).toBe(ORG_ID);
   });
 
   it('rejects a callback without a valid sealed state', async () => {

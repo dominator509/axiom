@@ -210,7 +210,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
       if (!origin) return apiError(c, 422, statusTitle(422), 'FanLynks profile URL must use HTTPS and cannot contain embedded credentials');
       let envelope;
       try {
-        envelope = await encryptOAuthCredentials({ accessToken: fanlynksBody.data.apiToken });
+        envelope = await encryptOAuthCredentials(orgId, { accessToken: fanlynksBody.data.apiToken });
       } catch {
         return apiError(c, 503, statusTitle(503), 'credential encryption service is unavailable');
       }
@@ -248,7 +248,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
 
   let envelope;
   try {
-    envelope = await encryptOAuthCredentials({
+    envelope = await encryptOAuthCredentials(orgId, {
       accessToken: 'google-analytics-service-account',
       extra: { clientEmail: ga4Body.data.clientEmail, privateKey: ga4Body.data.privateKey },
     });
@@ -386,6 +386,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', 
       const origin = fanlynksOrigin(provider.profileUrl ?? '');
       if (!origin) throw new Error('FanLynks profile URL is invalid');
       const credentials = await decryptOAuthCredentials({
+        orgId,
         encToken: provider.fanlynksTokenEnc!,
         encNonce: provider.fanlynksTokenNonce!,
         dekId: provider.fanlynksTokenDekId!,
@@ -450,6 +451,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-sync', zValidator('json', 
     }
 
     const credentials = await decryptOAuthCredentials({
+      orgId,
       encToken: provider.credentialsEnc,
       encNonce: provider.credentialsNonce,
       dekId: provider.credentialsDekId,

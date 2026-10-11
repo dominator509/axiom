@@ -272,6 +272,7 @@ export async function decryptConnectorAuth(
     method: 'POST',
     headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
+      org_id: connection.orgId,
       enc_token: Buffer.from(connection.encToken as Uint8Array).toString('base64'),
       enc_nonce: Buffer.from(connection.encNonce as Uint8Array).toString('base64'),
       dek_id: connection.dekId,

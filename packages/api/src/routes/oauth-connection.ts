@@ -14,7 +14,6 @@ const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_UR
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};
-const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
 export type OAuthPlatform =
   | 'fanvue'
@@ -57,14 +56,15 @@ export type EncryptedCredentialEnvelope = {
 
 /** Ask the egress plane to encrypt the connector credential envelope. */
 export async function encryptOAuthCredentials(
+  orgId: string,
   credentials: OAuthCredentialEnvelope,
 ): Promise<EncryptedCredentialEnvelope> {
   const response = await fetch(`${EGRESS_PLANE_URL}/egress/encrypt`, {
     method: 'POST',
     headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
+      org_id: orgId,
       plaintext: Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
-      dek_id: EGRESS_DEK_ID,
     }),
     signal: AbortSignal.timeout(2000),
   });
@@ -76,19 +76,20 @@ export async function encryptOAuthCredentials(
     enc_nonce?: string;
     dek_id?: string;
   }>(response);
-  if (!body.enc_creds || !body.enc_nonce) {
+  if (!body.enc_creds || !body.enc_nonce || !body.dek_id) {
     throw new Error('egress credential encryption returned an incomplete envelope');
   }
 
   return {
     encToken: new Uint8Array(Buffer.from(body.enc_creds, 'base64')),
     encNonce: new Uint8Array(Buffer.from(body.enc_nonce, 'base64')),
-    dekId: body.dek_id ?? EGRESS_DEK_ID,
+    dekId: body.dek_id,
   };
 }
 
 /** Decrypt one stored provider envelope through the key-owning egress plane. */
 export async function decryptOAuthCredentials(connection: {
+  orgId: string;
   encToken: Uint8Array;
   encNonce: Uint8Array;
   dekId: string;
@@ -97,6 +98,7 @@ export async function decryptOAuthCredentials(connection: {
     method: 'POST',
     headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
+      org_id: connection.orgId,
       enc_token: Buffer.from(connection.encToken).toString('base64'),
       enc_nonce: Buffer.from(connection.encNonce).toString('base64'),
       dek_id: connection.dekId,
@@ -134,7 +136,7 @@ export async function persistOAuthConnection(
   });
   if (!ownsModel) return null;
 
-  const envelope = await encryptOAuthCredentials(input.credentials);
+  const envelope = await encryptOAuthCredentials(input.orgId, input.credentials);
   const scopes = input.credentials.extra?.grantedScopes;
   const capabilities = input.platform === 'patreon'
     ? [...PATREON_CAPABILITY_NAMES]
@@ -197,7 +199,7 @@ export async function updateOAuthCredentials(
   actorRef: string,
   auditAction = 'social.oauth.refresh',
 ): Promise<boolean> {
-  const envelope = await encryptOAuthCredentials(credentials);
+  const envelope = await encryptOAuthCredentials(orgId, credentials);
   return withOrgContext(orgId, async (tx) => {
     const rows = await tx
       .update(schema.platformConnection)

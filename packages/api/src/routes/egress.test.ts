@@ -184,7 +184,8 @@ describe('POST / — create config', () => {
     const callUrl = fetchMock.mock.calls[0][0] as string;
     expect(callUrl.endsWith('/egress/encrypt')).toBe(true);
     const callInit = fetchMock.mock.calls[0][1] as { body: string };
-    const payload = JSON.parse(callInit.body) as { plaintext: string };
+    const payload = JSON.parse(callInit.body) as { org_id: string; plaintext: string };
+    expect(payload.org_id).toBe('org-1');
     // plaintext is base64 of the creds JSON — never raw in the request body
     const decoded = Buffer.from(payload.plaintext, 'base64').toString('utf8');
     expect(JSON.parse(decoded)).toEqual({

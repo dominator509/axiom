@@ -19,7 +19,6 @@ process.env.SNAPCHAT_CLIENT_SECRET = 'snap-secret';
 process.env.BETTER_AUTH_URL = 'https://axiom.example.test';
 process.env.BETTER_AUTH_SECRET = 'test-oauth-cookie-secret';
 process.env.EGRESS_PLANE_URL = 'http://egress.example.test';
-process.env.EGRESS_DEK_ID = 'test-dek';
 
 let app: Hono<AppBindings>;
 function makeApp() {
