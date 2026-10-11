@@ -1,30 +1,126 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline (2026-10-10): `8f106167168af13c70e2c1bc9b1ae9d2c37f2cd7`, after PR #160. Exact-main [CI run 38097344317](https://github.com/dominator509/axiom/actions/runs/38097344317) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
+Latest verified application baseline (2026-10-11): `47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db`, after PR #164. Exact-main [CI run 38125889370](https://github.com/dominator509/axiom/actions/runs/38125889370) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
 historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
 `rtk node scripts/check-release-evidence.mjs --check` reported 54 criteria,
-22 accepted, and 32 open; the register
-was structurally valid but not release approval. At that historical baseline,
-the release gate remained blocked by stale receipts for other passed criteria
-and by open criteria. The most recent RLS rehearsal was refreshed on main
-`8f106167168af13c70e2c1bc9b1ae9d2c37f2cd7` and is recorded below and in the
-release register. The preceding af62fb6 receipt remains as historical evidence.
-Repeat the complete RLS matrix on the final release SHA after the remaining lanes.
-Accepted rows retain their actual tested SHAs. A post-runexternal register cannot redefine acceptance criteria, and this document does
-not authorize release.
+22 accepted, and 32 open; the register was structurally valid but not release
+approval. At that historical baseline, the release gate remained blocked by
+stale receipts for other passed criteria and by open criteria. The latest
+effective-RLS rehearsal on main `47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db` is
+recorded below. The preceding `8f106167...` and `af62fb6` receipts remain
+historical evidence. Repeat the complete RLS matrix on the final release SHA
+after the remaining lanes. Accepted rows retain their actual tested SHAs. A
+post-run external register cannot redefine acceptance criteria, and this
+document does not authorize release.
 
 PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
 
+## Exact-main acceptance refresh (2026-10-11)
+
+All receipts below target application SHA
+`47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db` and are from hosted
+[CI run 38125889370](https://github.com/dominator509/axiom/actions/runs/38125889370),
+which completed 12/12 jobs successfully (0 failed, 0 cancelled). The register
+check command was `rtk node scripts/check-release-evidence.mjs --check`; it
+reported 54 criteria, 28 accepted, 23 unverified, 3 blocked, and 26 open. This
+checks register structure only, not release approval.
+
+- `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` passed 20
+  assertions, 0 failed, 0 skipped, with cleanup verified in
+  [ci (test)](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053792).
+  Raw job-log SHA-256:
+  `998290f8acaebacb68db07a45fd356bbad602f6f77e6f7bccc83e479e71f14b8`.
+- `node scripts/rehearse-l5-runtime.mjs --isolated-fixture` passed 118
+  assertions, 0 failed, 0 skipped, with cleanup verified in
+  [l5-runtime](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053611).
+  Raw job-log SHA-256:
+  `1b1ae00510809c85bc3073e0f824216955bf5f7cd7fcf75e76dafc85c61bac74`.
+- `node scripts/rehearse-egress.mjs --isolated-fixture` passed 96 checks,
+  including 17 required assertions, 0 failed, 0 skipped, with cleanup verified
+  in [egress-rehearsal](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053634).
+  Raw job-log SHA-256:
+  `3553f2c7d8b9d6ad094a1cadabc3f4d7598d38e1fd1bad354a64d5a4bf47def2`.
+- `node scripts/rehearse-glitchtip-observability.mjs --isolated-fixture`
+  passed 15 assertions, 0 failed, 0 skipped; two run-owned containers and one
+  network were removed and verified in
+  [observability](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053610).
+  Raw job-log SHA-256:
+  `fcad89d116f2523d301110c071eb5eddad23e4dec4103a26305d68f54710c60f`.
+- `node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha 47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db`
+  passed 47 assertions, 0 failed, 0 skipped, including 10 expected negative
+  control rejections, with cleanup verified in
+  [recovery-dr](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053419).
+  Raw job-log SHA-256:
+  `a14872b7184d41111f7f41357493bb94ef3d310202fc303d789a4252936dc56c`.
+  This remains database-only partial evidence: no Cloudflare R2 retention,
+  external KMS/KEK, restored application/worker stack, or provider reconciliation
+  was exercised, so `NONFUNCTIONAL-6` remains unverified.
+- `node scripts/rehearse-browser.mjs --isolated-fixture` passed 39 checks in
+  both default and configured-brand modes (0 failed, 0 skipped each). The
+  invalid-brand control had 4 passes and 1 expected failure; the unassigned
+  identity control had 7 passes and 1 expected failure; both controls passed
+  their intended rejection. The hosted browser job is
+  [browser](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053640);
+  raw job-log SHA-256:
+  `a90197dbd0422ac46e111090b9ea6796628b16269d2e17a4e3e4bd4b472bdec0`.
+  This covers Chromium desktop and narrow-screen browser behavior, not native
+  iOS/Android acceptance.
+- The exact seven `docker build` commands ran in the
+  [ci (container) job](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053754):
+  `docker build --label "org.opencontainers.image.revision=$GITHUB_SHA" --file infra/Dockerfile.hono --tag axiom-hono:ci .`,
+  `docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .`,
+  `docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .`,
+  `docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .`,
+  `docker build --file infra/Dockerfile.media --tag axiom-media-plane:ci .`,
+  `docker build --file infra/Dockerfile.vision --tag axiom-vision-engine:ci .`, and
+  `docker build --file infra/Dockerfile.scraper --tag axiom-scraper:ci .`.
+  The job passed 11/11 rollback checks (0 failed, 0 skipped); the global
+  suspension check completed in 885 ms. Raw job-log SHA-256:
+  `85392a7308f6ef3b204b3f4c52bf3ece90dbde27366c4f9d9028cd9160c72663`.
+  Immutable image IDs:
+
+  | Image | ID |
+  | --- | --- |
+  | `axiom-hono:ci` | `sha256:f222f051e6c498fb11efe9c477241340cd4017afde48067f5339222fad51c58d` |
+  | `axiom-dashboard:ci` | `sha256:2b968dbf09285d1ad3974bac48c2dcf35c290536606e5a9d5444361e006a50c2` |
+  | `axiom-worker:ci` | `sha256:422cdcef24d1e0c9752127b57499574e730e9a3238b5a62fcd5bd01cc169b860` |
+  | `axiom-egress-plane:ci` | `sha256:d6f1c1d19df72d80c4b4fcef94fbbec54f0cd0469a51e1f0436e64b4a34d0ea7` |
+  | `axiom-media-plane:ci` | `sha256:e9f36537be310e9acfc64d51fd794c3bc1a09d620d2bc63fe2fb939f596ebcf5` |
+  | `axiom-vision-engine:ci` | `sha256:503814218af8edc7f235c855797a0e11c0e5c362bdfeb3384031361f28addecd` |
+  | `axiom-scraper:ci` | `sha256:7dc2e97ae0c54e0bd9db189918e267077c6f6066a429f22f8bd180847ecb4bd8` |
+
+  The smoke checks
+  do not establish a Hetzner/Coolify deployment or Cloudflare R2 behavior, and
+  the CI vision image omits the external model artifact; no model-backed vision
+  inference is claimed.
+- `node scripts/test-security-gate.mjs` passed 6 negative-control cases,
+  0 failed, 0 skipped; `pnpm audit:dependencies` passed 39 tests, 0 failed,
+  0 skipped, and reported 0 unmitigated high/critical findings, 1 locally
+  patched advisory, and 1 narrow upstream node-forge limitation. The
+  [ci (security) job](https://github.com/dominator509/axiom/actions/runs/38125889370/job/114430053620)
+  completed successfully; raw job-log SHA-256:
+  `5c6484f0e60744642308ae812878b17300d695b8c436afb22ba47284b5cdcad4`.
+  This proves repository scans and test fixtures, not an external production
+  KMS/secret-store configuration; `SECURITY-8` remains unverified.
+
 ## Isolated Lane 5 evidence (2026-10-10)
 
 The prior exact-main CI run 38084582816 on SHA 3401c1e6a7522b219a634f365b582e37d2548207 supplied hosted receipts for three criteria. SECURITY-3 passed 17/17 required egress assertions (0 failed, 0 skipped), with 85 Rust tests passing. NONFUNCTIONAL-3 passed the same egress rehearsal and the LBI-11 global suspension assertion at 1,673 ms against the five-second limit; the isolated deployment also passed 8/8 service health checks and 11/11 rollback checks. FUNCTIONAL-6 passed 11/11 crash-report/dashboard assertions and 15/15 GlitchTip correlation, log, trace, privacy-marker, and cleanup assertions. Each receipt includes its exact job URL, raw-log SHA-256, counts, and immutable fixture image identities in the register. All data and services were synthetic and isolated.
 
-FUNCTIONAL-1 remains unverified. The seven-image CI deployment demonstrates service health, persistence, restart, and rollback in Docker, but does not yet establish the requirement's Hetzner/Coolify single-box deployment with Cloudflare R2. The next acceptance is a dedicated isolated deployment proving R2-compatible object write/read/restart and the target deployment boundaries. External-provider delivery, performance and cost measurement, full R2/KMS/application recovery acceptance, native-mobile consent journeys, and owner sign-off also remain open.
+FUNCTIONAL-1 remains unverified. The exact-main Docker job now proves all seven
+image builds, health and authentication boundaries, persistence/restart/rollback,
+and the smoke checks listed above. It does not prove the requirement's
+Hetzner/Coolify single-box deployment with Cloudflare R2. The remaining
+deployment acceptance is an isolated target-shaped deployment with an R2
+round-trip and the documented deployment boundaries; do not treat the current
+CI smoke as that evidence. External-provider delivery, provider-cache and load
+measurements, cost, full R2/KMS/application recovery, native-mobile consent
+journeys, and owner sign-off remain open.
 
 ## Isolated Lane 7 physical PITR evidence (2026-10-10)
 
