@@ -12,6 +12,9 @@ use crate::config::{Creds, EgressMode, NetworkConfig};
 use crate::crypto::{self, SecretKey};
 
 pub const LEGACY_DEK_ID: &str = "egress-dek";
+/// Shared xact advisory lock serializing org-key creation with an all-org
+/// wrapping-key rotation. The lock is local to this application namespace.
+pub const ORG_DEK_ROTATION_LOCK: (i32, i32) = (0x4158_494f, 0x4d4b_4559);
 
 /// Connect using DATABASE_URL (default: read the env var).
 pub async fn connect(database_url: &str) -> Result<Client, String> {
@@ -83,6 +86,12 @@ pub async fn ensure_org_dek(
         .transaction()
         .await
         .map_err(|error| format!("begin organization key transaction failed: {error}"))?;
+    tx.query_one(
+        "SELECT pg_advisory_xact_lock($1, $2)",
+        &[&ORG_DEK_ROTATION_LOCK.0, &ORG_DEK_ROTATION_LOCK.1],
+    )
+    .await
+    .map_err(|error| format!("lock organization key lifecycle failed: {error}"))?;
     tx.query_one(
         "SELECT set_config('app.current_org_id', $1, true)",
         &[&org_id],

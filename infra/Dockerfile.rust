@@ -36,7 +36,7 @@ COPY crates/vision-engine/src ./crates/vision-engine/src
 COPY crates/scraper/src ./crates/scraper/src
 
 # Full release build with the real source
-RUN cargo build --locked --release --package egress-plane
+RUN cargo build --locked --release --package egress-plane --bin egress-plane --bin rotate-org-kek
 
 # ------------------------------------------------------------------------------
 # Stage 2: Runtime
@@ -60,6 +60,7 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/target/release/egress-plane /app/egress-plane
+COPY --from=builder /app/target/release/rotate-org-kek /app/rotate-org-kek
 
 # Keep the unprivileged runtime identity. This image alone is not proof of
 # namespace provisioning: ip netns add/exec also requires SYS_ADMIN, and

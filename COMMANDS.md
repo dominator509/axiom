@@ -32,8 +32,10 @@
 - `node --test scripts/hermes-protocol-audit.test.mjs` — local protocol journal regressions; no network, bridge, credentials or runtime changes
 - `pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts` — run the real-PostgreSQL viral retrieval acceptance, including rollback-only synthetic provider snapshots, S2 prompt assembly and bandit updates; `DATABASE_URL` and `TEST_DATABASE_URL` must target the loopback disposable test database
 - `cargo test --workspace` — run all Rust tests
+- `cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_kek_rotation_is_atomic_and_preserves_payloads -- --exact` — exercise organization KEK rewrap, rollback, audit, and preserved ciphertext in the disposable axiom_test database
 
 ## Validation
+- `cargo run --locked --manifest-path crates/egress-plane/Cargo.toml --bin rotate-org-kek -- --database-url-file <protected-url-file> --old-kek-file <protected-old-key> --old-kek-id <old-id> --new-kek-file <protected-new-key> --new-kek-id <new-id>` — read-only organization KEK preflight; apply requires stopped services and explicit `--apply --confirm-services-stopped`
 - `node --check scripts/rehearse-glitchtip-observability.mjs` and `node --check scripts/rehearse-glitchtip-fault-child.mjs` — validate the isolated GlitchTip rehearsal harness JavaScript syntax without starting services
 - `git diff --check` — reject whitespace errors in the pending patch
 - `sh scripts/fetch-vision-model.sh` — fetch and checksum the pinned public ONNX artifact into ignored local storage; no inference or accuracy claim.

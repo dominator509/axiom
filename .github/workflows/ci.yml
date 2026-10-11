@@ -553,6 +553,13 @@ jobs:
           TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
         run: cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_data_keys_are_tenant_scoped_and_roundtrip -- --exact
 
+      - name: Verify operator-only organization KEK rotation
+        if: matrix.task == 'test'
+        env:
+          TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
+          TEST_DATABASE_ADMIN_URL: postgresql://axiom:changeme@localhost:5432/axiom_test
+        run: cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_kek_rotation_is_atomic_and_preserves_payloads -- --exact
+
       - name: Run focused crash-report body-cache regression
         if: matrix.task == 'test'
         run: pnpm --filter @axiom/api exec vitest run src/routes/crash-reports.test.ts
