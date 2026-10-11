@@ -62,6 +62,29 @@ uses the complementary non-egress claim function when confinement is required.
 This is source-level enforcement only: the actual installed worker bundle,
 systemd identity and namespace join still require target acceptance.
 
+## Credential encryption key configuration
+
+The egress plane creates a random data-encryption key per organization. It
+stores only the key wrapped by the configured root key and binds credential
+ciphertext to the organization and key ID. Provide the root key through
+`EGRESS_KEK_FILE` (a protected file whose contents are exactly 64 hexadecimal
+characters representing 32 bytes); `EGRESS_KEK` accepts the same value for
+isolated fixtures. Keep either value out of images, source files, logs and
+client configuration. `EGRESS_KEK_ID` must match the organization's
+`org.kek_id`; new schema rows default that field to `egress-dek`.
+
+`EGRESS_DEK` remains a compatibility alias for the root key for older
+envelopes and transitional configuration. `EGRESS_LEGACY_DEK_ID` identifies
+those global-key envelopes; it defaults to `EGRESS_DEK_ID`, then `egress-dek`.
+For an existing deployment with a custom `EGRESS_DEK_ID`, set the matching
+`EGRESS_LEGACY_DEK_ID` on the egress plane during rollout. Neither variable
+selects a new data-key ID. Root-key storage is currently operator-provided; a
+cloud KMS integration and a safe key rewrap/rotation tool are not implemented.
+Do not replace the configured root key or change `org.kek_id` in place,
+because existing wrapped keys would become unreadable. Production activation
+still requires the approved key-management and recovery procedures for the
+target environment.
+
 ```
 plane --signed local UDS--> provisioner --> closed egress_<model> netns
                                              |-- pinned proxy or WireGuard endpoint

@@ -22,7 +22,6 @@ const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TO
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};
 const EGRESS_MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
-const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
 const createEgressConfigSchema = z.object({
   modelId: z.string().uuid(),
@@ -61,6 +60,7 @@ async function withOrgContext<T>(orgId: string, fn: (tx: any) => Promise<T> | T)
 
 /** Ask the egress plane to envelope-encrypt credential plaintext. */
 async function encryptCreds(
+  orgId: string,
   plaintext: string,
 ): Promise<{ encCreds: Uint8Array; encNonce: Uint8Array; dekId: string } | null> {
   try {
@@ -68,8 +68,8 @@ async function encryptCreds(
       method: 'POST',
       headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({
+        org_id: orgId,
         plaintext: Buffer.from(plaintext, 'utf8').toString('base64'),
-        dek_id: EGRESS_DEK_ID,
       }),
       signal: AbortSignal.timeout(2000),
     });
@@ -79,11 +79,11 @@ async function encryptCreds(
       enc_nonce?: string;
       dek_id?: string;
     }>(res);
-    if (!body.enc_creds || !body.enc_nonce) return null;
+    if (!body.enc_creds || !body.enc_nonce || !body.dek_id) return null;
     return {
       encCreds: new Uint8Array(Buffer.from(body.enc_creds, 'base64')),
       encNonce: new Uint8Array(Buffer.from(body.enc_nonce, 'base64')),
-      dekId: body.dek_id ?? EGRESS_DEK_ID,
+      dekId: body.dek_id,
     };
   } catch {
     return null;
@@ -180,7 +180,7 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
     let encNonce: Uint8Array | null = null;
     let dekId: string | null = null;
     if (credsJson) {
-      const envelope = await encryptCreds(credsJson);
+      const envelope = await encryptCreds(orgId, credsJson);
       if (!envelope) {
         return apiError(
           c,
@@ -258,7 +258,7 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
 
     const credsJson = credsPayload(body as Record<string, unknown>);
     if (credsJson) {
-      const envelope = await encryptCreds(credsJson);
+      const envelope = await encryptCreds(orgId, credsJson);
       if (!envelope) {
         return apiError(
           c,

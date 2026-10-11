@@ -117,7 +117,7 @@ try {
       AXIOM_VISION_AUTH_TOKEN: token, MEDIA_PLANE_AUTH_TOKEN: token,
       RELAY_SECRET: relaySecret, AXIOM_L5_DISCORD_WEBHOOK_TOKEN: hookToken,
       EGRESS_PLANE_URL: 'http://127.0.0.1:9090', EGRESS_PLANE_TOKEN: egressToken,
-      EGRESS_DEK_ID: 'l5-fixture-dek',
+      EGRESS_KEK_ID: 'egress-dek',
       [providerAccessTokenEnv]: providerAccessToken,
       [providerRefreshTokenEnv]: providerRefreshToken,
       AXIOM_ASSET_DELIVERY_BASE_URL: 'https://media.example.invalid/assets/',
@@ -132,7 +132,8 @@ try {
     create(egress, receipt.images.egress, `container:${db}`, {
       NODE_ENV: 'test', LISTEN_ADDR: '0.0.0.0:9090',
       EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@127.0.0.1:5432/axiom_test`,
-      EGRESS_PLANE_TOKEN: egressToken, EGRESS_DEK: egressDek,
+      EGRESS_PLANE_TOKEN: egressToken, EGRESS_KEK: egressDek,
+      EGRESS_LEGACY_DEK_ID: 'l5-fixture-dek',
     }, ['--cap-drop=ALL', '--security-opt=no-new-privileges']);
     docker(['exec', '--user', '0', runner, 'chown', '1001:1001', '/app/var/media', '/models']);
     docker(['cp', model, `${runner}:/models/nsfw-vit.onnx`]);

@@ -78,7 +78,7 @@ describe('GA4 provider credentials', () => {
     expect(await response.json()).toMatchObject({ data: {
       kind: 'linktree', analyticsConnected: true, status: 'configured', propertyId: '12345678',
     } });
-    expect(mocks.encryptOAuthCredentials).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.encryptOAuthCredentials).toHaveBeenCalledWith(ORG_ID, expect.objectContaining({
       accessToken: 'google-analytics-service-account',
       extra: { clientEmail: 'analytics@axiom-test.iam.gserviceaccount.com', privateKey },
     }));
@@ -147,7 +147,7 @@ describe('FanLynks first-party analytics connection', () => {
     expect(await response.json()).toMatchObject({ data: {
       kind: 'fanlynks', fanlynksConnected: true, profileUrl: 'https://links.example/creator',
     } });
-    expect(mocks.encryptOAuthCredentials).toHaveBeenCalledWith({ accessToken: apiToken });
+    expect(mocks.encryptOAuthCredentials).toHaveBeenCalledWith(ORG_ID, { accessToken: apiToken });
     expect(mockState.updates).toContainEqual(expect.objectContaining({
       fanlynksTokenEnc: Buffer.from('ciphertext'), fanlynksTokenNonce: Buffer.from('nonce'),
       fanlynksTokenDekId: 'fixture-dek', profileUrl: 'https://links.example/creator', fanlynksAnalyticsStatus: 'configured',
@@ -257,6 +257,7 @@ describe('FanLynks first-party analytics sync', () => {
     } });
     expect(mocks.resolveEgressBinding).toHaveBeenCalledWith(MODEL_ID);
     expect(mocks.decryptOAuthCredentials).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: ORG_ID,
       encToken: Buffer.from('encrypted'), encNonce: Buffer.from('nonce'), dekId: 'fixture-dek',
     }));
     expect(fetcher).toHaveBeenCalledOnce();

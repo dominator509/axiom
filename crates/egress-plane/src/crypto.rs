@@ -4,6 +4,34 @@ use chacha20poly1305::{
 };
 use thiserror::Error;
 use tracing::instrument;
+use zeroize::Zeroize;
+
+/// Root wrapping-key material. Debug output is always redacted and the bytes
+/// are cleared when the last owned copy is dropped.
+#[derive(Clone)]
+pub struct SecretKey([u8; 32]);
+
+impl SecretKey {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SecretKey([REDACTED])")
+    }
+}
+
+impl Drop for SecretKey {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
 
 /// Errors that can occur during cryptographic operations.
 #[derive(Debug, Error)]
@@ -26,6 +54,25 @@ pub enum CryptoError {
 /// Used by the control plane when persisting model egress credentials
 /// (L2.6: proxy/WG creds are envelope-encrypted at rest).
 pub fn encrypt_envelope(plaintext: &[u8], dek: &[u8]) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+    encrypt_with_aad(plaintext, dek, b"")
+}
+
+/// Encrypt a new organization-scoped envelope. The authenticated metadata
+/// prevents ciphertext from being moved between tenants or key versions.
+pub fn encrypt_org_envelope(
+    plaintext: &[u8],
+    dek: &[u8],
+    org_id: &str,
+    dek_id: &str,
+) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+    encrypt_with_aad(plaintext, dek, &org_envelope_aad(org_id, dek_id))
+}
+
+fn encrypt_with_aad(
+    plaintext: &[u8],
+    dek: &[u8],
+    aad: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
     if dek.len() != 32 {
         return Err(CryptoError::InvalidKeyLength(dek.len()));
     }
@@ -39,7 +86,7 @@ pub fn encrypt_envelope(plaintext: &[u8], dek: &[u8]) -> Result<(Vec<u8>, Vec<u8
             XNonce::from_slice(&nonce),
             Payload {
                 msg: plaintext,
-                aad: b"",
+                aad,
             },
         )
         .map_err(|e| CryptoError::EncryptionFailed(format!("encrypt: {e}")))?;
@@ -60,6 +107,28 @@ pub fn decrypt_envelope(
     enc_token: &[u8],
     enc_nonce: &[u8],
     dek: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    decrypt_with_aad(enc_token, enc_nonce, dek, b"")
+}
+
+/// Decrypt a new organization-scoped envelope, authenticating its tenant and
+/// data-key identity as associated data.
+#[instrument(skip_all)]
+pub fn decrypt_org_envelope(
+    enc_token: &[u8],
+    enc_nonce: &[u8],
+    dek: &[u8],
+    org_id: &str,
+    dek_id: &str,
+) -> Result<Vec<u8>, CryptoError> {
+    decrypt_with_aad(enc_token, enc_nonce, dek, &org_envelope_aad(org_id, dek_id))
+}
+
+fn decrypt_with_aad(
+    enc_token: &[u8],
+    enc_nonce: &[u8],
+    dek: &[u8],
+    aad: &[u8],
 ) -> Result<Vec<u8>, CryptoError> {
     // Validate key length (XChaCha20 requires 256-bit / 32-byte key)
     if dek.len() != 32 {
@@ -83,7 +152,7 @@ pub fn decrypt_envelope(
             nonce,
             Payload {
                 msg: enc_token,
-                aad: b"",
+                aad,
             },
         )
         .map_err(|e| CryptoError::DecryptionFailed(format!("decrypt: {}", e)))?;
@@ -91,10 +160,46 @@ pub fn decrypt_envelope(
     Ok(plaintext)
 }
 
+/// Wrap a random per-organization DEK with the configured root KEK.
+pub fn wrap_org_dek(
+    dek: &[u8],
+    kek: &[u8],
+    org_id: &str,
+    dek_id: &str,
+    kek_id: &str,
+) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+    encrypt_with_aad(dek, kek, &wrapped_dek_aad(org_id, dek_id, kek_id))
+}
+
+/// Unwrap a tenant DEK only for the organization, key version, and KEK id
+/// recorded with the wrapped bytes.
+pub fn unwrap_org_dek(
+    wrapped_dek: &[u8],
+    nonce: &[u8],
+    kek: &[u8],
+    org_id: &str,
+    dek_id: &str,
+    kek_id: &str,
+) -> Result<Vec<u8>, CryptoError> {
+    decrypt_with_aad(
+        wrapped_dek,
+        nonce,
+        kek,
+        &wrapped_dek_aad(org_id, dek_id, kek_id),
+    )
+}
+
+fn org_envelope_aad(org_id: &str, dek_id: &str) -> Vec<u8> {
+    format!("axiom:org-envelope:v1\0{org_id}\0{dek_id}").into_bytes()
+}
+
+fn wrapped_dek_aad(org_id: &str, dek_id: &str, kek_id: &str) -> Vec<u8> {
+    format!("axiom:wrapped-org-dek:v1\0{org_id}\0{dek_id}\0{kek_id}").into_bytes()
+}
+
 /// Safely zero out sensitive memory.
 /// Uses `zeroize` crate's volatile write to prevent compiler optimization.
 pub fn zeroize(data: &mut [u8]) {
-    use zeroize::Zeroize;
     data.zeroize();
 }
 
@@ -250,5 +355,41 @@ mod tests {
         let key = random_bytes(16);
         let result = encrypt_envelope(b"x", &key);
         assert!(matches!(result, Err(CryptoError::InvalidKeyLength(16))));
+    }
+
+    #[test]
+    fn organization_dek_wrap_is_authenticated_to_org_and_key_ids() {
+        let kek = random_bytes(32);
+        let dek = random_bytes(32);
+        let (wrapped, nonce) = wrap_org_dek(&dek, &kek, "org-a", "dek-a", "kek-a").unwrap();
+
+        assert_eq!(
+            unwrap_org_dek(&wrapped, &nonce, &kek, "org-a", "dek-a", "kek-a").unwrap(),
+            dek
+        );
+        assert!(unwrap_org_dek(&wrapped, &nonce, &kek, "org-b", "dek-a", "kek-a").is_err());
+        assert!(unwrap_org_dek(&wrapped, &nonce, &kek, "org-a", "dek-b", "kek-a").is_err());
+        assert!(unwrap_org_dek(&wrapped, &nonce, &kek, "org-a", "dek-a", "kek-b").is_err());
+    }
+
+    #[test]
+    fn organization_credential_envelope_rejects_tenant_or_key_substitution() {
+        let dek = random_bytes(32);
+        let plaintext = b"synthetic credential";
+        let (ciphertext, nonce) = encrypt_org_envelope(plaintext, &dek, "org-a", "dek-a").unwrap();
+
+        assert_eq!(
+            decrypt_org_envelope(&ciphertext, &nonce, &dek, "org-a", "dek-a").unwrap(),
+            plaintext
+        );
+        assert!(decrypt_org_envelope(&ciphertext, &nonce, &dek, "org-b", "dek-a").is_err());
+        assert!(decrypt_org_envelope(&ciphertext, &nonce, &dek, "org-a", "dek-b").is_err());
+    }
+
+    #[test]
+    fn secret_key_debug_is_redacted() {
+        let key = SecretKey::new([0xabu8; 32]);
+        assert_eq!(format!("{key:?}"), "SecretKey([REDACTED])");
+        assert!(!format!("{key:?}").contains("ab".repeat(8).as_str()));
     }
 }

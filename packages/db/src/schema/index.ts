@@ -62,6 +62,7 @@ import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplay
 import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
 import { providerCacheControl, providerCacheControlRelations } from './provider_cache_control.js';
 import { providerCacheObservation, providerCacheObservationRelations } from './provider_cache_observation.js';
+import { organizationDataKey } from './organization_data_key.js';
 import { watermarkPolicy, watermarkPolicyRelations } from './watermark_policy.js';
 import {
   affiliateProgramRelations,
@@ -154,6 +155,7 @@ export { modelUserAssignment } from './model_user_assignment.js';
 export { uiLocalePreference, uiLocalePreferenceRelations };
 export { providerCacheControl, providerCacheControlRelations };
 export { providerCacheObservation, providerCacheObservationRelations };
+export { organizationDataKey };
 export { watermarkPolicy, watermarkPolicyRelations };
 export {
   affiliateProgram,

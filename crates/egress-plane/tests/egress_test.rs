@@ -1,11 +1,11 @@
 #[cfg(target_os = "linux")]
 use std::process::Command;
 #[cfg(target_os = "linux")]
+use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-#[cfg(target_os = "linux")]
-use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(target_os = "linux")]
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -41,7 +41,9 @@ fn test_config(echo_url: String) -> egress_plane::Config {
         auth_token: None,
         echo_url,
         database_url: None,
-        dek: None,
+        root_kek: Some(egress_plane::crypto::SecretKey::new([0x5a; 32])),
+        kek_id: "egress-dek".to_string(),
+        legacy_dek_id: "egress-dek".to_string(),
         sidecar_bin: Some(sidecar_bin()),
         provisioner: None,
     }
@@ -75,6 +77,33 @@ async fn start_test_server_with_base(echo_url: String, base_octet: u16) -> Strin
 
 async fn start_test_server(echo_url: String) -> String {
     start_test_server_with_base(echo_url, 1).await
+}
+
+#[cfg(feature = "db-integration-tests")]
+async fn start_test_server_with_db(
+    echo_url: String,
+    db: tokio_postgres::Client,
+) -> (String, tokio::task::JoinHandle<()>) {
+    let kill_switch = egress_plane::killswitch::KillSwitch::new(false);
+    let config = test_config(echo_url);
+    let state = Arc::new(egress_plane::AppState {
+        config,
+        kill_switch,
+        db: Mutex::new(Some(db)),
+        registry: Mutex::new(egress_plane::Registry::new()),
+        lifecycle: tokio::sync::Mutex::new(()),
+    });
+    let app = egress_plane::build_router_for_test(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind test server");
+    let addr = listener.local_addr().expect("test server address");
+    let base_url = format!("http://{addr}");
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve test router");
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    (base_url, server)
 }
 
 #[tokio::test]
@@ -616,6 +645,271 @@ async fn test_org_publishing_gate_is_rls_scoped() {
     connection_task.abort();
 }
 
+#[cfg(feature = "db-integration-tests")]
+#[tokio::test]
+async fn test_org_data_keys_are_tenant_scoped_and_roundtrip() {
+    use base64::Engine as _;
+    use tokio_postgres::config::Host;
+
+    let database_url = std::env::var("TEST_DATABASE_URL")
+        .expect("TEST_DATABASE_URL must point to the disposable axiom_test database");
+    let database_config: tokio_postgres::Config = database_url.parse().expect("valid database URL");
+    assert_eq!(database_config.get_dbname(), Some("axiom_test"));
+    assert_eq!(database_config.get_user(), Some("axiom_app"));
+    assert!(
+        database_config.get_hosts().iter().any(|host| matches!(
+            host,
+            Host::Tcp(host) if host == "localhost" || host == "127.0.0.1" || host == "::1"
+        )),
+        "database fixture must be loopback-only"
+    );
+
+    let mut fixture_client = egress_plane::db::connect(&database_url)
+        .await
+        .expect("connect to disposable database");
+    let org_a = uuid::Uuid::new_v4();
+    let org_b = uuid::Uuid::new_v4();
+    {
+        let tx = fixture_client
+            .transaction()
+            .await
+            .expect("begin isolated organization fixtures");
+        for (org_id, suffix) in [(&org_a, "a"), (&org_b, "b")] {
+            let org_id_text = org_id.to_string();
+            tx.query_one(
+                "SELECT set_config('app.current_org_id', $1, true)",
+                &[&org_id_text],
+            )
+            .await
+            .expect("set tenant context for organization fixture");
+            let slug = format!("egress-data-key-{}-{suffix}", org_id.simple());
+            tx.execute(
+                "INSERT INTO org (id, name, slug) VALUES ($1, $2, $3)",
+                &[org_id, &"Egress data-key test", &slug],
+            )
+            .await
+            .expect("insert isolated organization fixture");
+        }
+        tx.commit()
+            .await
+            .expect("commit isolated organization fixtures");
+    }
+
+    let api_db = egress_plane::db::connect(&database_url)
+        .await
+        .expect("connect egress test router to disposable database");
+    let (base_url, server) =
+        start_test_server_with_db("http://127.0.0.1:9/ip".into(), api_db).await;
+    let http = reqwest::Client::new();
+    let plaintext_a = br#"{"proxy_username":"tenant-a","proxy_password":"only-secret-a"}"#;
+    let plaintext_b = br#"{"proxy_username":"tenant-b","proxy_password":"only-secret-b"}"#;
+    let org_a_text = org_a.to_string();
+    let org_b_text = org_b.to_string();
+
+    // Keep cleanup outside the checks so a failed assertion still removes
+    // these synthetic organizations from the disposable CI database.
+    let checks: Result<(), String> = async {
+        let encrypt = |org_id: &str, plaintext: &[u8]| {
+            http.post(format!("{base_url}/egress/encrypt"))
+                .json(&serde_json::json!({
+                    "org_id": org_id,
+                    "plaintext": base64::engine::general_purpose::STANDARD.encode(plaintext),
+                }))
+        };
+        let encrypted_a = encrypt(&org_a_text, plaintext_a)
+            .send()
+            .await
+            .map_err(|error| format!("encrypt org A request failed: {error}"))?;
+        if encrypted_a.status() != reqwest::StatusCode::OK {
+            return Err(format!("encrypt org A returned {}", encrypted_a.status()));
+        }
+        let encrypted_a: serde_json::Value = encrypted_a
+            .json()
+            .await
+            .map_err(|error| format!("decode org A response failed: {error}"))?;
+        let dek_a = encrypted_a["dek_id"]
+            .as_str()
+            .ok_or_else(|| "org A response omitted key id".to_string())?
+            .to_string();
+        let ciphertext_a = encrypted_a["enc_creds"]
+            .as_str()
+            .ok_or_else(|| "org A response omitted ciphertext".to_string())?
+            .to_string();
+        let nonce_a = encrypted_a["enc_nonce"]
+            .as_str()
+            .ok_or_else(|| "org A response omitted nonce".to_string())?
+            .to_string();
+        if dek_a == egress_plane::db::LEGACY_DEK_ID
+            || encrypted_a.get("dek").is_some()
+            || encrypted_a.to_string().contains("only-secret-a")
+        {
+            return Err("org A response exposed legacy key material or plaintext".into());
+        }
+        let decoded_ciphertext_a = base64::engine::general_purpose::STANDARD
+            .decode(&ciphertext_a)
+            .map_err(|error| format!("org A ciphertext was invalid base64: {error}"))?;
+        if decoded_ciphertext_a == plaintext_a {
+            return Err("org A response stored plaintext instead of ciphertext".into());
+        }
+
+        let encrypted_a_again = encrypt(&org_a_text, plaintext_a)
+            .send()
+            .await
+            .map_err(|error| format!("repeat org A encrypt request failed: {error}"))?;
+        if encrypted_a_again.status() != reqwest::StatusCode::OK {
+            return Err(format!("repeat org A encrypt returned {}", encrypted_a_again.status()));
+        }
+        let encrypted_a_again: serde_json::Value = encrypted_a_again
+            .json()
+            .await
+            .map_err(|error| format!("decode repeat org A response failed: {error}"))?;
+        if encrypted_a_again["dek_id"].as_str() != Some(&dek_a) {
+            return Err("org A did not reuse its active data key".into());
+        }
+
+        let encrypted_b = encrypt(&org_b_text, plaintext_b)
+            .send()
+            .await
+            .map_err(|error| format!("encrypt org B request failed: {error}"))?;
+        if encrypted_b.status() != reqwest::StatusCode::OK {
+            return Err(format!("encrypt org B returned {}", encrypted_b.status()));
+        }
+        let encrypted_b: serde_json::Value = encrypted_b
+            .json()
+            .await
+            .map_err(|error| format!("decode org B response failed: {error}"))?;
+        let dek_b = encrypted_b["dek_id"]
+            .as_str()
+            .ok_or_else(|| "org B response omitted key id".to_string())?;
+        if dek_b == dek_a {
+            return Err("organizations shared a data-key id".into());
+        }
+
+        let mut verify_tx = fixture_client
+            .transaction()
+            .await
+            .map_err(|error| format!("begin data-key RLS verification failed: {error}"))?;
+        verify_tx
+            .query_one(
+                "SELECT set_config('app.current_org_id', $1, true)",
+                &[&org_a_text],
+            )
+            .await
+            .map_err(|error| format!("set org A verification context failed: {error}"))?;
+        let foreign_rows: i64 = verify_tx
+            .query_one(
+                "SELECT count(*) FROM organization_data_key WHERE org_id = $1",
+                &[&org_b],
+            )
+            .await
+            .map_err(|error| format!("read foreign data-key count failed: {error}"))?
+            .get(0);
+        if foreign_rows != 0 {
+            return Err("org A runtime role could read org B's stored key".into());
+        }
+        let resolver_rows: i64 = verify_tx
+            .query_one(
+                "SELECT count(*) FROM load_organization_data_keys() WHERE org_id = ANY($1)",
+                &[&vec![org_a, org_b]],
+            )
+            .await
+            .map_err(|error| format!("read wrapped-key resolver failed: {error}"))?
+            .get(0);
+        if resolver_rows != 2 {
+            return Err(format!("wrapped-key resolver returned {resolver_rows} fixture keys, expected 2"));
+        }
+        let key_row = verify_tx
+            .query_one(
+                "SELECT wrapped_dek, wrap_nonce FROM organization_data_key WHERE org_id = $1 AND dek_id = $2",
+                &[&org_a, &uuid::Uuid::parse_str(&dek_a).map_err(|error| format!("invalid org A key id: {error}"))?],
+            )
+            .await
+            .map_err(|error| format!("load org A wrapped key row failed: {error}"))?;
+        let wrapped: Vec<u8> = key_row.get(0);
+        let wrap_nonce: Vec<u8> = key_row.get(1);
+        if wrapped.len() != 48 || wrap_nonce.len() != 24 {
+            return Err("stored organization key was not an XChaCha20-Poly1305 wrapped 32-byte key".into());
+        }
+        verify_tx
+            .rollback()
+            .await
+            .map_err(|error| format!("rollback data-key RLS verification failed: {error}"))?;
+
+        let decrypt_a = http
+            .post(format!("{base_url}/egress/decrypt"))
+            .json(&serde_json::json!({
+                "org_id": org_a_text,
+                "enc_token": ciphertext_a,
+                "enc_nonce": nonce_a,
+                "dek_id": dek_a,
+            }))
+            .send()
+            .await
+            .map_err(|error| format!("decrypt org A request failed: {error}"))?;
+        if decrypt_a.status() != reqwest::StatusCode::OK {
+            return Err(format!("decrypt org A returned {}", decrypt_a.status()));
+        }
+        let decrypted_a: serde_json::Value = decrypt_a
+            .json()
+            .await
+            .map_err(|error| format!("decode org A decrypt response failed: {error}"))?;
+        if decrypted_a["plaintext"].as_str()
+            != Some(base64::engine::general_purpose::STANDARD.encode(plaintext_a).as_str())
+        {
+            return Err("org A plaintext did not roundtrip".into());
+        }
+
+        let foreign_decrypt = http
+            .post(format!("{base_url}/egress/decrypt"))
+            .json(&serde_json::json!({
+                "org_id": org_b_text,
+                "enc_token": ciphertext_a,
+                "enc_nonce": nonce_a,
+                "dek_id": dek_a,
+            }))
+            .send()
+            .await
+            .map_err(|error| format!("cross-tenant decrypt request failed: {error}"))?;
+        if foreign_decrypt.status() != reqwest::StatusCode::SERVICE_UNAVAILABLE {
+            return Err(format!("cross-tenant decrypt returned {} instead of failing closed", foreign_decrypt.status()));
+        }
+        let foreign_body = foreign_decrypt
+            .text()
+            .await
+            .map_err(|error| format!("read cross-tenant error response failed: {error}"))?;
+        if foreign_body.contains("only-secret-a") || foreign_body.contains("tenant-a") {
+            return Err("cross-tenant error response exposed plaintext".into());
+        }
+        Ok(())
+    }
+    .await;
+
+    server.abort();
+    let _ = server.await;
+    {
+        let tx = fixture_client
+            .transaction()
+            .await
+            .expect("begin isolated organization cleanup");
+        for org_id in [&org_a, &org_b] {
+            let org_id_text = org_id.to_string();
+            tx.query_one(
+                "SELECT set_config('app.current_org_id', $1, true)",
+                &[&org_id_text],
+            )
+            .await
+            .expect("set tenant context for organization cleanup");
+            tx.execute("DELETE FROM org WHERE id = $1", &[org_id])
+                .await
+                .expect("delete isolated organization fixture");
+        }
+        tx.commit()
+            .await
+            .expect("commit isolated organization cleanup");
+    }
+    checks.unwrap_or_else(|error| panic!("organization data-key integration failed: {error}"));
+}
+
 #[tokio::test]
 async fn test_drain_during_probe_cannot_resurrect_binding() {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -749,11 +1043,7 @@ async fn test_decrypt_endpoint_roundtrip() {
     };
     let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
     let client = reqwest::Client::new();
-    let key = {
-        let mut k = vec![0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut k);
-        k
-    };
+    let key = vec![0x5a; 32];
     let nonce = {
         let mut n = vec![0u8; 24];
         rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut n);
@@ -774,10 +1064,10 @@ async fn test_decrypt_endpoint_roundtrip() {
     let resp = client
         .post(format!("{base_url}/egress/decrypt"))
         .json(&serde_json::json!({
+            "org_id": "11111111-1111-4111-8111-111111111111",
             "enc_token": base64::engine::general_purpose::STANDARD.encode(&ciphertext),
             "enc_nonce": base64::engine::general_purpose::STANDARD.encode(&nonce),
-            "dek_id": "test-dek",
-            "dek": base64::engine::general_purpose::STANDARD.encode(&key)
+            "dek_id": "egress-dek"
         }))
         .send()
         .await
@@ -791,72 +1081,87 @@ async fn test_decrypt_endpoint_roundtrip() {
 }
 
 #[tokio::test]
-async fn test_encrypt_endpoint_roundtrip() {
+async fn test_configured_legacy_dek_id_preserves_global_envelope_compatibility() {
     use base64::Engine as _;
-    use chacha20poly1305::{
-        aead::{Aead, KeyInit, Payload},
-        XChaCha20Poly1305, XNonce,
-    };
+
+    let key = [0x5a; 32];
+    let plaintext = b"legacy credential envelope";
+    let (ciphertext, nonce) =
+        egress_plane::crypto::encrypt_envelope(plaintext, &key).expect("encrypt legacy envelope");
+    let mut config = test_config("http://127.0.0.1:9/ip".to_string());
+    config.legacy_dek_id = "l5-fixture-dek".to_string();
+    let state = Arc::new(egress_plane::AppState {
+        config,
+        kill_switch: egress_plane::killswitch::KillSwitch::new(false),
+        db: Mutex::new(None),
+        registry: Mutex::new(egress_plane::Registry::new()),
+        lifecycle: tokio::sync::Mutex::new(()),
+    });
+    let app = egress_plane::build_router_for_test(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind test server");
+    let addr = listener.local_addr().expect("test server address");
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve test router");
+    });
+    let response = reqwest::Client::new()
+        .post(format!("http://{addr}/egress/decrypt"))
+        .json(&serde_json::json!({
+            "org_id": "11111111-1111-4111-8111-111111111111",
+            "enc_token": base64::engine::general_purpose::STANDARD.encode(&ciphertext),
+            "enc_nonce": base64::engine::general_purpose::STANDARD.encode(&nonce),
+            "dek_id": "l5-fixture-dek",
+        }))
+        .send()
+        .await
+        .expect("decrypt legacy envelope");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("legacy decrypt JSON");
+    let decrypted = base64::engine::general_purpose::STANDARD
+        .decode(body["plaintext"].as_str().expect("legacy plaintext"))
+        .expect("legacy plaintext base64");
+    assert_eq!(decrypted, plaintext);
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_encrypt_endpoint_fails_closed_without_database_key_store() {
+    use base64::Engine as _;
     let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
     let client = reqwest::Client::new();
-    let key = {
-        let mut k = vec![0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut k);
-        k
-    };
     let plaintext = br#"{"proxy_username":"u","proxy_password":"p","wg_private_key":"k"}"#;
 
     let resp = client
         .post(format!("{base_url}/egress/encrypt"))
         .json(&serde_json::json!({
+            "org_id": "11111111-1111-4111-8111-111111111111",
             "plaintext": base64::engine::general_purpose::STANDARD.encode(plaintext),
-            "dek_id": "test-dek",
-            "dek": base64::engine::general_purpose::STANDARD.encode(&key)
         }))
         .send()
         .await
         .expect("encrypt");
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 503);
     let body: serde_json::Value = resp.json().await.expect("json");
-    assert_eq!(body["dek_id"], "test-dek");
-    let enc_creds = base64::engine::general_purpose::STANDARD
-        .decode(body["enc_creds"].as_str().unwrap())
-        .unwrap();
-    let enc_nonce = base64::engine::general_purpose::STANDARD
-        .decode(body["enc_nonce"].as_str().unwrap())
-        .unwrap();
-    assert_eq!(enc_nonce.len(), 24, "XChaCha20 nonce must be 24 bytes");
-
-    // Decrypt the envelope externally and confirm the plaintext round-trips.
-    let cipher = XChaCha20Poly1305::new_from_slice(&key).unwrap();
-    let decrypted = cipher
-        .decrypt(
-            XNonce::from_slice(&enc_nonce),
-            Payload {
-                msg: &enc_creds,
-                aad: b"",
-            },
-        )
-        .expect("decrypt");
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(body["error"], "credential key store unavailable");
 }
 
 #[tokio::test]
-async fn test_encrypt_endpoint_rejects_bad_dek() {
+async fn test_encrypt_endpoint_rejects_caller_supplied_dek() {
     use base64::Engine as _;
     let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{base_url}/egress/encrypt"))
         .json(&serde_json::json!({
+            "org_id": "11111111-1111-4111-8111-111111111111",
             "plaintext": base64::engine::general_purpose::STANDARD.encode(b"x"),
-            "dek_id": "test-dek",
             "dek": base64::engine::general_purpose::STANDARD.encode([0u8; 16])
         }))
         .send()
         .await
         .expect("encrypt");
-    assert_eq!(resp.status(), 400, "16-byte DEK must be rejected");
+    assert_eq!(resp.status(), 422, "caller-supplied DEKs must be rejected");
 }
 
 // Regression: LBI-02 fail-closed with an HTTPS echo URL. Before the
@@ -1373,7 +1678,10 @@ async fn test_route_loss_fails_closed_without_host_fallback() {
         "egress_it_route_fault_m1",
         &["ip", "route", "del", "10.240.40.0/30"],
     );
-    assert!(route.is_ok(), "could not inject connected-route loss: {route:?}");
+    assert!(
+        route.is_ok(),
+        "could not inject connected-route loss: {route:?}"
+    );
     let route_lookup = egress_plane::netns::execute_in_netns(
         "egress_it_route_fault_m1",
         &["ip", "route", "get", "10.240.40.1"],
@@ -1405,12 +1713,13 @@ async fn test_route_loss_fails_closed_without_host_fallback() {
         hits_before_failed_probe,
         "failed route probe reached the host echo through a fallback path"
     );
-    assert!(!ns_curl(
-        "egress_it_route_fault_m1",
-        &format!("http://10.240.40.1:{upstream_port}/ip")
-    )
-    .status
-    .success(),
+    assert!(
+        !ns_curl(
+            "egress_it_route_fault_m1",
+            &format!("http://10.240.40.1:{upstream_port}/ip")
+        )
+        .status
+        .success(),
         "model namespace reached the approved proxy after route loss"
     );
 

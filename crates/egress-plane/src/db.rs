@@ -3,10 +3,15 @@
 //! model_network_configs (decrypt in-memory)"). All queries run with the
 //! model's org RLS context set, so tenant isolation is enforced by the DB.
 
+use std::collections::HashMap;
 use tokio_postgres::{Client, NoTls, Transaction};
 use tracing::{error, info, warn};
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::config::{Creds, EgressMode, NetworkConfig};
+use crate::crypto::{self, SecretKey};
+
+pub const LEGACY_DEK_ID: &str = "egress-dek";
 
 /// Connect using DATABASE_URL (default: read the env var).
 pub async fn connect(database_url: &str) -> Result<Client, String> {
@@ -63,6 +68,206 @@ pub async fn load_configs(client: &mut Client) -> Result<Vec<NetworkConfig>, Str
     Ok(out)
 }
 
+/// Create or retrieve an organization's active random DEK. The egress plane
+/// locks the organization row so concurrent first writes cannot mint two
+/// active keys. Only its KEK-wrapped form is persisted.
+pub async fn ensure_org_dek(
+    client: &mut Client,
+    org_id: &str,
+    root_kek: &SecretKey,
+    configured_kek_id: &str,
+) -> Result<(String, Zeroizing<Vec<u8>>), String> {
+    let org_uuid = uuid::Uuid::parse_str(org_id)
+        .map_err(|error| format!("invalid organization id: {error}"))?;
+    let tx = client
+        .transaction()
+        .await
+        .map_err(|error| format!("begin organization key transaction failed: {error}"))?;
+    tx.query_one(
+        "SELECT set_config('app.current_org_id', $1, true)",
+        &[&org_id],
+    )
+    .await
+    .map_err(|error| format!("set organization key context failed: {error}"))?;
+
+    let org_row = tx
+        .query_opt(
+            "SELECT kek_id FROM org WHERE id = $1 FOR UPDATE",
+            &[&org_uuid],
+        )
+        .await
+        .map_err(|error| format!("load organization KEK id failed: {error}"))?
+        .ok_or_else(|| "organization key owner not found".to_string())?;
+    let org_kek_id: String = org_row.get(0);
+    if org_kek_id != configured_kek_id {
+        return Err("organization references an unavailable KEK".to_string());
+    }
+
+    if let Some(row) = tx
+        .query_opt(
+            "SELECT dek_id::text, wrapped_dek, wrap_nonce, kek_id
+             FROM organization_data_key
+             WHERE org_id = $1 AND is_active
+             FOR UPDATE",
+            &[&org_uuid],
+        )
+        .await
+        .map_err(|error| format!("load active organization DEK failed: {error}"))?
+    {
+        let dek_id: String = row.get(0);
+        let wrapped: Vec<u8> = row.get(1);
+        let nonce: Vec<u8> = row.get(2);
+        let row_kek_id: String = row.get(3);
+        if row_kek_id != org_kek_id {
+            return Err("organization DEK references an unavailable KEK".to_string());
+        }
+        let dek = Zeroizing::new(
+            crypto::unwrap_org_dek(
+                &wrapped,
+                &nonce,
+                root_kek.as_bytes(),
+                org_id,
+                &dek_id,
+                &row_kek_id,
+            )
+            .map_err(|_| "organization DEK could not be unwrapped".to_string())?,
+        );
+        if dek.len() != 32 {
+            return Err("organization DEK has an invalid length".to_string());
+        }
+        tx.commit()
+            .await
+            .map_err(|error| format!("commit organization key transaction failed: {error}"))?;
+        return Ok((dek_id, dek));
+    }
+
+    let dek_id = uuid::Uuid::new_v4();
+    let mut dek = Zeroizing::new(vec![0u8; 32]);
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), dek.as_mut_slice());
+    let (wrapped, nonce) = crypto::wrap_org_dek(
+        dek.as_slice(),
+        root_kek.as_bytes(),
+        org_id,
+        &dek_id.to_string(),
+        &org_kek_id,
+    )
+    .map_err(|_| "organization DEK could not be wrapped".to_string())?;
+    tx.execute(
+        "INSERT INTO organization_data_key
+           (org_id, dek_id, wrapped_dek, wrap_nonce, kek_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)",
+        &[&org_uuid, &dek_id, &wrapped, &nonce, &org_kek_id],
+    )
+    .await
+    .map_err(|error| format!("persist wrapped organization DEK failed: {error}"))?;
+    tx.commit()
+        .await
+        .map_err(|error| format!("commit organization key transaction failed: {error}"))?;
+    Ok((dek_id.to_string(), dek))
+}
+
+/// Load one previously wrapped key through FORCE RLS for an API decrypt.
+pub async fn load_org_dek(
+    client: &mut Client,
+    org_id: &str,
+    dek_id: &str,
+    root_kek: &SecretKey,
+    configured_kek_id: &str,
+) -> Result<Zeroizing<Vec<u8>>, String> {
+    let org_uuid = uuid::Uuid::parse_str(org_id)
+        .map_err(|error| format!("invalid organization id: {error}"))?;
+    let dek_uuid = uuid::Uuid::parse_str(dek_id)
+        .map_err(|error| format!("invalid organization DEK id: {error}"))?;
+    let tx = client
+        .transaction()
+        .await
+        .map_err(|error| format!("begin organization key transaction failed: {error}"))?;
+    tx.query_one(
+        "SELECT set_config('app.current_org_id', $1, true)",
+        &[&org_id],
+    )
+    .await
+    .map_err(|error| format!("set organization key context failed: {error}"))?;
+    let row = tx
+        .query_opt(
+            "SELECT wrapped_dek, wrap_nonce, kek_id FROM organization_data_key
+             WHERE org_id = $1 AND dek_id = $2",
+            &[&org_uuid, &dek_uuid],
+        )
+        .await
+        .map_err(|error| format!("load organization DEK failed: {error}"))?
+        .ok_or_else(|| "organization DEK not found".to_string())?;
+    let wrapped: Vec<u8> = row.get(0);
+    let nonce: Vec<u8> = row.get(1);
+    let kek_id: String = row.get(2);
+    if kek_id != configured_kek_id {
+        return Err("organization DEK references an unavailable KEK".to_string());
+    }
+    let dek = Zeroizing::new(
+        crypto::unwrap_org_dek(
+            &wrapped,
+            &nonce,
+            root_kek.as_bytes(),
+            org_id,
+            dek_id,
+            &kek_id,
+        )
+        .map_err(|_| "organization DEK could not be unwrapped".to_string())?,
+    );
+    if dek.len() != 32 {
+        return Err("organization DEK has an invalid length".to_string());
+    }
+    tx.commit()
+        .await
+        .map_err(|error| format!("commit organization key transaction failed: {error}"))?;
+    Ok(dek)
+}
+
+/// Read wrapped keys through a narrowly scoped definer for egress sync. This
+/// returns ciphertext only; the configured KEK is used here to unwrap rows in
+/// memory, and errors are retained per key so one unavailable tenant key does
+/// not stop unrelated organizations from reconciling.
+pub async fn load_org_deks(
+    client: &mut Client,
+    root_kek: Option<&SecretKey>,
+    configured_kek_id: &str,
+) -> Result<HashMap<(String, String), Result<Zeroizing<Vec<u8>>, String>>, String> {
+    let rows = client
+        .query(
+            "SELECT org_id::text, dek_id::text, wrapped_dek, wrap_nonce, kek_id
+             FROM load_organization_data_keys()",
+            &[],
+        )
+        .await
+        .map_err(|error| format!("load wrapped organization DEKs failed: {error}"))?;
+    let mut keys = HashMap::with_capacity(rows.len());
+    for row in rows {
+        let org_id: String = row.get(0);
+        let dek_id: String = row.get(1);
+        let wrapped: Vec<u8> = row.get(2);
+        let nonce: Vec<u8> = row.get(3);
+        let kek_id: String = row.get(4);
+        let resolved = match root_kek {
+            Some(kek) if kek_id == configured_kek_id => {
+                crypto::unwrap_org_dek(&wrapped, &nonce, kek.as_bytes(), &org_id, &dek_id, &kek_id)
+                    .map_err(|_| "organization DEK could not be unwrapped".to_string())
+                    .map(Zeroizing::new)
+                    .and_then(|dek| {
+                        if dek.len() == 32 {
+                            Ok(dek)
+                        } else {
+                            Err("organization DEK has an invalid length".to_string())
+                        }
+                    })
+            }
+            Some(_) => Err("organization DEK references an unavailable KEK".to_string()),
+            None => Err("root KEK is not configured".to_string()),
+        };
+        keys.insert((org_id, dek_id), resolved);
+    }
+    Ok(keys)
+}
+
 /// Read one tenant's durable publishing gate under FORCE RLS. The caller must
 /// provide a transaction so app.current_org_id remains transaction-local and
 /// cannot leak into the egress connection's next tenant query.
@@ -90,18 +295,43 @@ pub async fn load_org_publishing_enabled(
 /// Decrypt a config's credential envelope with the supplied DEK.
 /// The returned `Creds` must be zeroized after use (LBI-05).
 pub fn decrypt_creds(cfg: &NetworkConfig, dek: Option<&[u8]>) -> Result<Option<Creds>, String> {
-    let (Some(enc), Some(nonce), Some(key)) =
-        (cfg.enc_creds.as_deref(), cfg.enc_nonce.as_deref(), dek)
-    else {
-        return Ok(None);
+    decrypt_creds_with_legacy_id(cfg, dek, LEGACY_DEK_ID)
+}
+
+/// Decrypt with a configured compatibility identity for envelopes written by
+/// releases that used one global EGRESS_DEK and a caller-selected dek_id.
+pub fn decrypt_creds_with_legacy_id(
+    cfg: &NetworkConfig,
+    dek: Option<&[u8]>,
+    legacy_dek_id: &str,
+) -> Result<Option<Creds>, String> {
+    let (Some(enc), Some(nonce)) = (cfg.enc_creds.as_deref(), cfg.enc_nonce.as_deref()) else {
+        if cfg.enc_creds.is_none() && cfg.enc_nonce.is_none() {
+            return Ok(None);
+        }
+        return Err("credential envelope is incomplete".to_string());
     };
-    let plain = zeroize::Zeroizing::new(
-        crate::crypto::decrypt_envelope(enc, nonce, key)
-            .map_err(|e| format!("envelope decrypt failed: {e}"))?,
-    );
+    let key = dek.ok_or_else(|| "credential envelope key is unavailable".to_string())?;
+    let Some(dek_id) = cfg.dek_id.as_deref() else {
+        return Err("credential envelope has no DEK id".to_string());
+    };
+    if dek_id.is_empty() {
+        return Err("credential envelope has an empty DEK id".to_string());
+    }
+    let plaintext = if is_legacy_dek_id(dek_id, legacy_dek_id) {
+        crypto::decrypt_envelope(enc, nonce, key)
+    } else {
+        crypto::decrypt_org_envelope(enc, nonce, key, &cfg.org_id, dek_id)
+    }
+    .map_err(|_| "credential envelope decrypt failed".to_string())?;
+    let plain = Zeroizing::new(plaintext);
     let creds: Creds =
         serde_json::from_slice(&plain).map_err(|e| format!("creds parse failed: {e}"))?;
     Ok(Some(creds))
+}
+
+pub fn is_legacy_dek_id(dek_id: &str, configured_legacy_dek_id: &str) -> bool {
+    dek_id == LEGACY_DEK_ID || dek_id == configured_legacy_dek_id
 }
 
 /// Persist a model's health state back to `model_network_configs`.
@@ -161,51 +391,74 @@ pub async fn save_health(
     Ok(())
 }
 
-/// Resolve the DEK from the environment (64 hex chars -> 32 bytes).
-pub fn dek_from_env() -> Option<[u8; 32]> {
-    let v = std::env::var("EGRESS_DEK").ok()?;
+/// Resolve the local root KEK (64 hex chars -> 32 bytes). The file form is
+/// suitable for an operator-provided Docker secret; EGRESS_DEK is retained as
+/// a migration-compatible alias for installations that still use the legacy
+/// global envelope key.
+pub fn root_kek_from_env() -> Option<SecretKey> {
+    let mut value = match std::env::var("EGRESS_KEK_FILE") {
+        Ok(path) if !path.trim().is_empty() => match std::fs::read_to_string(path) {
+            Ok(value) => value,
+            Err(_) => {
+                warn!("EGRESS_KEK_FILE could not be read; credential encryption disabled");
+                return None;
+            }
+        },
+        _ => std::env::var("EGRESS_KEK")
+            .or_else(|_| std::env::var("EGRESS_DEK"))
+            .ok()?,
+    };
+    let parsed = parse_root_kek(&value);
+    value.zeroize();
+    if parsed.is_none() {
+        warn!("configured root KEK is invalid; credential encryption disabled");
+    }
+    parsed
+}
+
+pub fn parse_root_kek(value: &str) -> Option<SecretKey> {
+    let v = value.trim();
     if v.len() != 64 {
-        warn!("EGRESS_DEK must be 64 hex chars; envelope decryption disabled");
         return None;
     }
     let mut out = [0u8; 32];
     for i in 0..32 {
-        out[i] = u8::from_str_radix(&v[i * 2..i * 2 + 2], 16).ok()?;
+        out[i] = match u8::from_str_radix(&v[i * 2..i * 2 + 2], 16) {
+            Ok(byte) => byte,
+            Err(_) => {
+                out.zeroize();
+                return None;
+            }
+        };
     }
-    Some(out)
+    Some(SecretKey::new(out))
+}
+
+pub fn kek_id_from_env() -> String {
+    std::env::var("EGRESS_KEK_ID").unwrap_or_else(|_| LEGACY_DEK_ID.to_string())
+}
+
+pub fn legacy_dek_id_from_env() -> String {
+    std::env::var("EGRESS_LEGACY_DEK_ID")
+        .or_else(|_| std::env::var("EGRESS_DEK_ID"))
+        .unwrap_or_else(|_| LEGACY_DEK_ID.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // Environment variables are process-global, so these tests must not race
-    // while assigning EGRESS_DEK under Rust's default parallel test runner.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn dek_parses_hex() {
-        let _lock = ENV_LOCK
-            .lock()
-            .expect("DEK test lock should not be poisoned");
-        // 64 hex chars = 32 bytes of 0xAB
+    fn root_kek_parser_accepts_exact_32_byte_hex_value() {
         let hex = "ab".repeat(32);
-        std::env::set_var("EGRESS_DEK", &hex);
-        let dek = dek_from_env().expect("dek should parse");
-        assert_eq!(dek.len(), 32);
-        assert!(dek.iter().all(|&b| b == 0xAB));
-        std::env::remove_var("EGRESS_DEK");
+        let kek = parse_root_kek(&hex).expect("root KEK should parse");
+        assert!(kek.as_bytes().iter().all(|&b| b == 0xAB));
     }
 
     #[test]
-    fn dek_rejects_bad_length() {
-        let _lock = ENV_LOCK
-            .lock()
-            .expect("DEK test lock should not be poisoned");
-        std::env::set_var("EGRESS_DEK", "abc");
-        assert!(dek_from_env().is_none());
-        std::env::remove_var("EGRESS_DEK");
+    fn root_kek_parser_rejects_bad_length_and_non_hex() {
+        assert!(parse_root_kek("abc").is_none());
+        assert!(parse_root_kek(&"gg".repeat(32)).is_none());
     }
 
     /// Regression for the TEST egress health-persistence failure

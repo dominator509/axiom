@@ -187,7 +187,7 @@ try {
       NODE_ENV: 'test',
       EGRESS_DATABASE_URL: `postgresql://axiom_app:${appPassword}@${db}:5432/axiom_test`,
       EGRESS_PLANE_TOKEN: egressToken,
-      EGRESS_DEK: egressDek,
+      EGRESS_KEK: egressDek,
     });
     start(api, receipt.images.api, 'container:' + db, apiEnv);
     start(dashboard, receipt.images.dashboard, 'container:' + db, { NODE_ENV: 'production', PORT: '3000', HOSTNAME: '0.0.0.0', BROWSER_SECRET_SENTINEL: sentinel, AXIOM_BROWSER_DIAGNOSTICS: '1' });

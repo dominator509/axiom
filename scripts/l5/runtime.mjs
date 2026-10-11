@@ -1285,10 +1285,10 @@ for (const kind of Object.keys(defaultExecutors)) {
       tokenType: 'Bearer',
       expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
     };
-    const envelope = await encryptOAuthCredentials(credentials);
+    const envelope = await encryptOAuthCredentials(fixture.org, credentials);
     assert.ok(envelope.encToken.length > 32, 'Real egress encryption must return authenticated ciphertext');
     assert.equal(envelope.encNonce.length, 24, 'XChaCha20-Poly1305 envelope nonce must be 24 bytes');
-    assert.deepEqual(await decryptOAuthCredentials(envelope), credentials, 'The stored envelope must round-trip through the real egress plane');
+    assert.deepEqual(await decryptOAuthCredentials({ orgId: fixture.org, ...envelope }), credentials, 'The stored envelope must round-trip through the real egress plane');
 
     const url = `https://l5-fixture.invalid/api/v1/social-accounts?modelId=${encodeURIComponent(fixture.model)}`;
     const headers = { Origin: 'https://l5-fixture.invalid', Cookie: cookie };
@@ -1339,6 +1339,7 @@ for (const kind of Object.keys(defaultExecutors)) {
       assert.equal(ciphertext.includes(Buffer.from(accessToken)), false, 'Database credential bytes must not contain the access token');
       assert.equal(ciphertext.includes(Buffer.from(refreshToken)), false, 'Database credential bytes must not contain the refresh token');
       assert.deepEqual(await decryptOAuthCredentials({
+        orgId: fixture.org,
         encToken: new Uint8Array(stored.rows[0].enc_token),
         encNonce: new Uint8Array(stored.rows[0].enc_nonce), dekId: stored.rows[0].dek_id,
       }), credentials, 'The persisted bytes must decrypt to the original fixture credentials');
