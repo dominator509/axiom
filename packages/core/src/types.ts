@@ -1,17 +1,20 @@
 // ─── Domain Types for AXIOM FanvueCRM ───
 
-export type Platform =
-  | 'instagram'
-  | 'tiktok'
-  | 'x'
-  | 'youtube'
-  | 'reddit'
-  | 'threads'
-  | 'discord'
-  | 'telegram'
-  | 'facebook'
-  | 'snapchat'
-  | 'fanvue';
+export const PLATFORM_IDS = [
+  'instagram',
+  'tiktok',
+  'x',
+  'youtube',
+  'reddit',
+  'threads',
+  'discord',
+  'telegram',
+  'facebook',
+  'snapchat',
+  'fanvue',
+] as const;
+
+export type Platform = (typeof PLATFORM_IDS)[number];
 
 export type PublishMode = 'api' | 'assisted' | 'link_share';
 

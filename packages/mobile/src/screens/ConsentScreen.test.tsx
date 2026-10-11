@@ -1,11 +1,11 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, PLATFORM_IDS } from '@axiom/core';
 import type { MobileConsentRecord, MobileConsentStatus, MobileModelProfile } from '../api/endpoints';
 
 vi.mock('../api/endpoints', () => ({
-  getConsentRecords: async () => [],
-  getConsentStatus: async (modelId: string, platform: string) => ({ modelId, platform, ok: false, missing: ['2257'] }),
+  getConsentRecords: vi.fn(async () => []),
+  getConsentStatus: vi.fn(async (modelId: string, platform: string) => ({ modelId, platform, ok: false, missing: ['2257'] })),
   getModels: async () => ({ data: [], meta: { total: 0, limit: 100, next_cursor: null } }),
   getUiLocale: async () => ({
     locale: 'en',
@@ -17,7 +17,8 @@ vi.mock('../api/endpoints', () => ({
   }),
 }));
 
-import ConsentScreen, { ConsentView, consentRecordState, type ConsentViewProps } from './ConsentScreen';
+import { getConsentRecords, getConsentStatus } from '../api/endpoints';
+import ConsentScreen, { ConsentView, consentRecordState, loadConsentSnapshot, type ConsentViewProps } from './ConsentScreen';
 
 const catalog = new LocaleCatalog(CATALOGS);
 const model: MobileModelProfile = {
@@ -43,6 +44,24 @@ function renderView(overrides: Partial<ConsentViewProps> = {}, locale: ConsentVi
 it('mounts with a real loading state while assigned models are being read', () => {
   const html = renderToStaticMarkup(<ConsentScreen />);
   expect(html).toContain(catalog.t('en', 'mobile.consent.loadingModels'));
+});
+
+it('loads publish eligibility for every shared platform using the selected model scope', async () => {
+  const recordsMock = vi.mocked(getConsentRecords);
+  const statusMock = vi.mocked(getConsentStatus);
+  recordsMock.mockClear();
+  statusMock.mockClear();
+
+  const snapshot = await loadConsentSnapshot(model.id);
+  expect(recordsMock).toHaveBeenCalledWith(model.id);
+  expect(statusMock).toHaveBeenCalledTimes(PLATFORM_IDS.length);
+  expect(statusMock.mock.calls.map(([modelId, platform]) => [modelId, platform])).toEqual(
+    PLATFORM_IDS.map(platform => [model.id, platform]),
+  );
+  expect(snapshot.statuses.map(status => status.platform)).toEqual(PLATFORM_IDS);
+  expect(snapshot.statuses.every(status => !status.ok)).toBe(true);
+  const html = renderView({ statuses: snapshot.statuses });
+  for (const platform of PLATFORM_IDS) expect(html).toContain(platform);
 });
 
 it('shows localized server eligibility and consent metadata without private document fields', () => {
