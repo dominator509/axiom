@@ -1765,6 +1765,7 @@ export const MESSAGE_KEYS = [
   'scrape.notObserved',
   'scrape.finished',
   'scrape.queueFailed',
+  'scrape.queueFailedReference',
   'scrape.queueUnconfirmed',
   'scrape.researchUnavailable',
   'scrape.unavailable',

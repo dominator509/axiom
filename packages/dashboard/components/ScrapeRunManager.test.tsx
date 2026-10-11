@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ScrapeRun } from '@/lib/api';
 import type { ScrapeCompetitorBenchmark } from '@/lib/api';
 import LocaleProvider from './LocaleProvider';
-import ScrapeRunManager from './ScrapeRunManager';
+import ScrapeRunManager, { scrapeQueueCorrelationId, scrapeQueueErrorKey } from './ScrapeRunManager';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -49,6 +49,17 @@ it('keeps history visible while withholding mutation controls from read-only use
   expect(html).toContain('Completed research');
   expect(html).not.toContain('Start a research run');
   expect(html).not.toContain('Queue scrape');
+});
+
+it('explains only the known social URL rejection and keeps safe support references', () => {
+  const urlRejection = 'social scrape requires an HTTPS public profile URL and supported platform';
+  expect(scrapeQueueErrorKey('social', 400, urlRejection)).toBe('scrape.httpsProfileRequired');
+  expect(scrapeQueueErrorKey('social', 400, 'invalid scrape request')).toBe('scrape.queueFailed');
+  expect(scrapeQueueErrorKey('social', 422, urlRejection)).toBe('scrape.queueFailed');
+  expect(scrapeQueueErrorKey('competitor', 400, urlRejection)).toBe('scrape.queueFailed');
+  expect(scrapeQueueErrorKey('social', 503, urlRejection)).toBe('scrape.queueFailed');
+  expect(scrapeQueueCorrelationId('c61fb32a-2bfa-4457-8f85-b87230e0676b')).toBe('c61fb32a-2bfa-4457-8f85-b87230e0676b');
+  expect(scrapeQueueCorrelationId('not-a-correlation-id')).toBeNull();
 });
 
 it('shows localized repeated competitor observations without inventing missing counts', () => {

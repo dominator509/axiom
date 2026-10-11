@@ -4,6 +4,8 @@ export interface DashboardErrorBody {
   error?: { message?: string };
   message?: string;
   code?: string;
+  detail?: string;
+  correlation_id?: string;
   [key: string]: unknown;
 }
 
