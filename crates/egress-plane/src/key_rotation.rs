@@ -308,7 +308,7 @@ async fn append_rotation_audit(
     tx.execute(
         "INSERT INTO public.audit_log
            (org_id, actor_ref, action, target, detail, ts, prev_hash, row_hash)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6::text::timestamptz, $7, $8)",
+         VALUES ($1, $2, $3, $4, $5::text::jsonb, $6::text::timestamptz, $7, $8)",
         &[
             &org_id,
             &ROTATION_ACTOR,
