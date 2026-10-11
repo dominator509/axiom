@@ -263,6 +263,29 @@
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "LBI-01",
+          "sha": "fb25f47f9eda2940e5dcdbe608e6d127c8f393b5",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; tenant read/write isolation, context manipulation rejection, rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-11T17:15:03Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335/job/114527338695",
+          "logSha256": "c409ab9c7bd9f4e3e1fdade579fee1afc91e70a808699ef3e64ad2dca92410a7",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -2246,6 +2269,29 @@
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "NONFUNCTIONAL-2",
+          "sha": "fb25f47f9eda2940e5dcdbe608e6d127c8f393b5",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; tenant read/write isolation, context manipulation rejection, rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-11T17:15:03Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335/job/114527338695",
+          "logSha256": "c409ab9c7bd9f4e3e1fdade579fee1afc91e70a808699ef3e64ad2dca92410a7",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -2683,6 +2729,29 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38137713092",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38137713092/job/114464900061",
           "logSha256": "ce9e279ea5fcadae5282f6cb446d49d41c5fd038a9242148ab4f5f73b1df26ab",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "SECURITY-2",
+          "sha": "fb25f47f9eda2940e5dcdbe608e6d127c8f393b5",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; tenant read/write isolation, context manipulation rejection, rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-11T17:15:03Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38158846335/job/114527338695",
+          "logSha256": "c409ab9c7bd9f4e3e1fdade579fee1afc91e70a808699ef3e64ad2dca92410a7",
           "counts": {
             "passed": 20,
             "failed": 0,
