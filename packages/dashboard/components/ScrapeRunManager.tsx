@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { ScrapeCompetitorBenchmark, ScrapeRun } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
-import { readDashboardJson } from '@/lib/response';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
 import ScrapeResult from './ScrapeResult';
 import ResearchRefresh from './ResearchRefresh';
 import { useLocale } from './LocaleProvider';
@@ -14,6 +14,21 @@ function badgeClass(state: string): string {
   if (state === 'completed') return 'good';
   if (state === 'failed' || state === 'unavailable') return 'bad';
   return 'warn';
+}
+
+export function scrapeQueueErrorKey(kind: 'social' | 'competitor', status: number, detail?: string) {
+  if (kind === 'social' && status === 400
+    && detail === 'social scrape requires an HTTPS public profile URL and supported platform') {
+    return 'scrape.httpsProfileRequired';
+  }
+  return 'scrape.queueFailed';
+}
+
+export function scrapeQueueCorrelationId(value: unknown): string | null {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
 }
 
 export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor, nextCursor, canEdit }: {
@@ -59,7 +74,12 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
     try {
       const response = await mutationFetch(`/api/v1/models/${encodeURIComponent(modelId)}/scrape-runs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: intent.current.body }, { idempotencyKey: intent.current.key, retries: 0 });
       if (!response.ok) {
-        setError(t('scrape.queueFailed'));
+        const problem = await readDashboardError(response);
+        const errorKey = scrapeQueueErrorKey(kind, response.status, problem.detail);
+        const reference = errorKey === 'scrape.queueFailed' ? scrapeQueueCorrelationId(problem.correlation_id) : null;
+        setError(reference
+          ? t('scrape.queueFailedReference', { reference })
+          : t(errorKey));
         if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
         return;
       }
