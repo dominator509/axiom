@@ -11,6 +11,7 @@ export const documents = [
 ];
 const invariantDocument = 'L0-governance/L0.0-governance-and-invariants.md';
 const invariantCrosswalkDocument = 'L5-verification/release-evidence-invariant-crosswalk.json';
+const featureCatalogDocument = 'L1-product/L1.1-feature-catalog.md';
 const sha = /^[a-f0-9]{40}$/;
 const digest = value => createHash('sha256').update(value).digest('hex');
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
@@ -21,6 +22,11 @@ const repository = 'https://github.com/dominator509/axiom';
 // Read requirements, never dated checkpoint prose. Exact text binding makes
 // additions, removals and edits visible in review instead of silently omitting them.
 export function requirements(read) {
+  const featureIds = [...read(featureCatalogDocument).matchAll(/^- \*\*F-(\d{2})\b/gm)]
+    .map(([, id]) => Number(id));
+  check(featureIds.length === 92 && featureIds.every((id, index) => id === index + 1),
+    'L1.1 feature catalog must list F-01 through F-92 exactly once in order');
+
   const result = [];
   for (const file of documents) {
     let section = '';

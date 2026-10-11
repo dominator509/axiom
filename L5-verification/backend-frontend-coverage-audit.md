@@ -119,7 +119,7 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 
 For every operator capability: name its architecture feature, mounted backend contract, permitted roles, reachable UI control, validated payload, visible success/error/empty states, persistence after reload, and desktop/mobile browser result. Test forbidden roles as well as allowed roles. Destructive operations need confirmation; retries must preserve user-intent idempotency; asynchronous operations need terminal status and reconciliation. Do not bypass safety gates or dispatch publication merely to satisfy coverage.
 
-Remaining audit depth: complete field-by-field and role-by-role runtime execution; inspect all worker-only architectural features for missing orchestration rather than merely missing buttons; verify every F-01..F-91 requirement individually. This document is a coverage finding, not a new execution plan, and does not certify architecture completeness or production readiness.
+Remaining audit depth: complete field-by-field and role-by-role runtime execution; inspect all worker-only architectural features for missing orchestration rather than merely missing buttons; verify every F-01..F-92 requirement individually. This document is a coverage finding, not a new execution plan, and does not certify architecture completeness or production readiness.
 
 ## Remediation evidence after baseline
 
