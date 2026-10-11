@@ -42,6 +42,7 @@ vi.mock('@/lib/server-locale', () => ({ getServerLocale: async () => ({
     'calendar.postDetails': 'Post details',
     'calendar.utc': 'UTC',
     'calendar.notScheduled': 'not scheduled',
+    'calendar.scheduleTimeUnavailable': 'Schedule time unavailable',
     'calendar.reviewDrafts': 'Review drafts',
     'calendar.viewBundlesApprovals': 'View bundles and approvals',
     'playbook.cadenceSectionAria': 'Weekly playbook cadence',
@@ -73,9 +74,9 @@ async function render(query: Record<string, string | string[] | undefined> = {})
   }));
 }
 
-function transport(status = 200, count = 1) {
+function transport(status = 200, count = 1, scheduledFor = '2030-02-20T18:30:00Z') {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: Array.from({ length: count }, (_, index) => ({
-    id: `post-${index}`, platform: 'telegram', state: 'published', scheduledFor: '2030-02-20T18:30:00Z',
+    id: `post-${index}`, platform: 'telegram', state: 'published', scheduledFor,
   })) }), { status, headers: { 'content-type': 'application/json' } }));
   vi.stubGlobal('fetch', fetch);
   return fetch;
@@ -179,5 +180,12 @@ describe('calendar month navigation', () => {
     expect(html).not.toContain('0 posts');
     expect(html).not.toContain('No scheduled posts');
     expect(html).toContain('Next month');
+  });
+
+  it('renders an unavailable state for a malformed persisted schedule timestamp', async () => {
+    transport(200, 1, 'not-a-date');
+    const html = await render({ month: '2030-02' });
+    expect(html).toContain('Schedule time unavailable');
+    expect(html).toContain('1 post in this month');
   });
 });

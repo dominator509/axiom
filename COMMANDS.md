@@ -31,6 +31,7 @@
 - `node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]` — fail-closed logical ACK/NACK journal audit; ignores legacy transport timestamps and rejects WIRE collisions, unreadable correlations, sequence gaps, wrong signatures/roles, contradictory NEXT_OWNER handoffs, evidence-free progress, and silent pending ownership
 - `node --test scripts/hermes-protocol-audit.test.mjs` — local protocol journal regressions; no network, bridge, credentials or runtime changes
 - `pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts` — run the real-PostgreSQL viral retrieval acceptance, including rollback-only synthetic provider snapshots, S2 prompt assembly and bandit updates; `DATABASE_URL` and `TEST_DATABASE_URL` must target the loopback disposable test database
+- `pnpm --filter @axiom/dashboard exec vitest run "app/models/[id]/calendar/page.test.tsx"` — run the focused server-rendered calendar route regression; synthetic API responses only, no provider or database access
 - `cargo test --workspace` — run all Rust tests
 - `cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_kek_rotation_is_atomic_and_preserves_payloads -- --exact` — exercise organization KEK rewrap, rollback, audit, and preserved ciphertext in the disposable axiom_test database
 
