@@ -393,9 +393,73 @@ COMMIT;
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
   let syntheticConsentId = null;
-  await check('mobile consent vault round-trips a 25 MiB expired synthetic DNG and blocks its publishing', async () => {
+  await check('mobile consent vault blocks missing, expired, revoked, and other-model consent at the publish boundary', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/models/${ownModel}/consent`);
+    const missingStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
+    expect(missingStatus.status).toBe(200);
+    expect(missingStatus.data.data.ok).toBe(false);
+    expect(missingStatus.data.data.missing).toEqual(expect.arrayContaining([
+      '2257', 'model_release', 'id_verify', 'platform_consent:instagram',
+    ]));
+    expect((await linkbioRequest(`/api/v1/models/${otherModel}/consent-status?platform=instagram`)).status).toBe(404);
+
+    const peerModel = randomUUID();
+    expect(fixtureSql(`
+INSERT INTO model_profile (id, org_id, display_name, handle)
+VALUES (:'peer_model', :'org', 'Synthetic peer talent', :'peer_model');
+SELECT id FROM model_profile WHERE id = :'peer_model';
+`, { peer_model: peerModel, org })).toBe(peerModel);
+    const peerUploads = await page.evaluate(async ({ modelId, validFrom }) => {
+      const results = [];
+      for (const docKind of ['2257', 'model_release', 'id_verify', 'platform_consent']) {
+        const form = new FormData();
+        form.set('platform', docKind === 'platform_consent' ? 'instagram' : 'all');
+        form.set('docKind', docKind);
+        form.set('subjectRef', `synthetic-peer-${docKind}`);
+        form.set('validFrom', validFrom);
+        form.set('document', new File(['%PDF-1.7\nsynthetic fixture only'], `synthetic-${docKind}.pdf`, { type: 'application/pdf' }));
+        const response = await fetch(`/api/v1/models/${modelId}/consent-records`, {
+          method: 'POST',
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
+          body: form,
+          cache: 'no-store',
+        });
+        const body = await response.json().catch(() => null);
+        results.push({ status: response.status, id: body?.data?.id, modelId: body?.data?.modelId, docKind: body?.data?.docKind });
+      }
+      return results;
+    }, { modelId: peerModel, validFrom: new Date().toISOString().slice(0, 10) });
+    expect(peerUploads.map(upload => upload.status)).toEqual([201, 201, 201, 201]);
+    expect(peerUploads.every(upload => upload.modelId === peerModel && typeof upload.id === 'string')).toBe(true);
+    const peerStatus = await linkbioRequest(`/api/v1/models/${peerModel}/consent-status?platform=instagram`);
+    expect(peerStatus).toMatchObject({ status: 200, data: { data: { ok: true, missing: [] } } });
+
+    const publishBundleId = randomUUID();
+    expect(fixtureSql(`
+INSERT INTO content_bundle (id, org_id, model_id, state)
+VALUES (:'bundle', :'org', :'model', 'approved');
+SELECT id FROM content_bundle WHERE id = :'bundle';
+`, { bundle: publishBundleId, org, model: ownModel })).toBe(publishBundleId);
+    const attemptSchedule = async () => linkbioRequest('/api/v1/posts', 'POST', {
+      bundleId: publishBundleId,
+      platform: 'instagram',
+      scheduledFor: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const missingPublish = await attemptSchedule();
+    expect(missingPublish.status).toBe(409);
+    expect(missingPublish.data.detail).toMatch(/consent/i);
+    expect(fixtureSql(`SELECT count(*)::text FROM post_target WHERE bundle_id = :'bundle'`, { bundle: publishBundleId })).toBe('0');
+
+    const revoked = await linkbioRequest(
+      `/api/v1/models/${peerModel}/consent-records/${peerUploads[0].id}/revoke`,
+      'POST',
+    );
+    expect(revoked.status).toBe(200);
+    const revokedPeerStatus = await linkbioRequest(`/api/v1/models/${peerModel}/consent-status?platform=instagram`);
+    expect(revokedPeerStatus.data.data.ok).toBe(false);
+    expect(revokedPeerStatus.data.data.missing).toContain('2257');
+
     await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
     const form = page.locator('form[aria-label="Add consent metadata"]');
     const mobileLayout = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
@@ -463,7 +527,24 @@ COMMIT;
     const publishStatus = await linkbioRequest(`/api/v1/models/${ownModel}/consent-status?platform=instagram`);
     expect(publishStatus.status).toBe(200);
     expect(publishStatus.data.data.ok).toBe(false);
+    const expiredPublish = await attemptSchedule();
+    expect(expiredPublish.status).toBe(409);
+    expect(expiredPublish.data.detail).toMatch(/consent/i);
+    expect(fixtureSql(`SELECT count(*)::text FROM post_target WHERE bundle_id = :'bundle'`, { bundle: publishBundleId })).toBe('0');
     expect(await status(`/api/v1/models/${otherModel}/consent-records/${syntheticConsentId}/document`)).toBe(404);
+    const cleanup = fixtureSql(`
+BEGIN;
+DELETE FROM content_bundle WHERE id = :'bundle' AND org_id = :'org';
+DELETE FROM consent_record WHERE id = :'consent' AND org_id = :'org' AND model_id = :'model';
+DELETE FROM consent_record WHERE model_id = :'peer_model' AND org_id = :'org';
+DELETE FROM model_profile WHERE id = :'peer_model' AND org_id = :'org';
+SELECT (SELECT count(*) FROM content_bundle WHERE id = :'bundle')::text || '|'
+  || (SELECT count(*) FROM consent_record WHERE id = :'consent')::text || '|'
+  || (SELECT count(*) FROM model_profile WHERE id = :'peer_model')::text || '|'
+  || (SELECT count(*) FROM consent_record WHERE model_id = :'peer_model')::text;
+COMMIT;
+`, { bundle: publishBundleId, consent: syntheticConsentId, org, model: ownModel, peer_model: peerModel });
+    expect(cleanup).toBe('0|0|0|0');
     await page.setViewportSize({ width: 1440, height: 1000 });
   });
   await check('roleplay explains missing assignments, saves persona, and persists a handoff only after a synthetic active actor exists', async () => {
