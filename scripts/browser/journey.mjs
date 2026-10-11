@@ -217,34 +217,33 @@ COMMIT;
   };
   const createRoleplayActor = () => {
     const actorRef = `browser-llm-${randomUUID()}`;
-    const shiftId = randomUUID();
     const inserted = fixtureSql(`
+BEGIN;
 INSERT INTO agent_permission (org_id, agent_ref, model_id, tier, can_publish, can_edit)
 VALUES (:'org', :'agent', :'model', 'operator', false, true);
-INSERT INTO team_shift (id, org_id, model_id, assignee_type, assignee_user_id, assignee_agent_ref, queue, starts_at, ends_at, status)
-VALUES (:'shift', :'org', :'model', 'llm', NULL, :'agent', 'chatter', statement_timestamp() - interval '1 minute', statement_timestamp() + interval '1 hour', 'active');
-SELECT id FROM team_shift WHERE id = :'shift';
-`, { org, model: ownModel, agent: actorRef, shift: shiftId });
-    if (inserted !== shiftId) throw new Error('Disposable roleplay actor was not created');
-    return { actorRef, shiftId };
+SELECT agent_ref FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent';
+COMMIT;
+`, { org, model: ownModel, agent: actorRef });
+    if (inserted !== actorRef) throw new Error('Disposable roleplay permission was not created');
+    return { actorRef };
   };
   const removeRoleplayActor = ({ actorRef, shiftId }) => {
     const remaining = fixtureSql(`
 BEGIN;
 DELETE FROM roleplay_turn
-WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = NULLIF(:'shift', '')::uuid
   AND actor_type = 'llm' AND actor_ref = :'agent';
 DELETE FROM roleplay_handoff
-WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift'
+WHERE org_id = :'org' AND model_id = :'model' AND shift_id = NULLIF(:'shift', '')::uuid
   AND actor_type = 'llm' AND actor_ref = :'agent';
-DELETE FROM team_shift WHERE id = :'shift' AND org_id = :'org' AND model_id = :'model';
+DELETE FROM team_shift WHERE id = NULLIF(:'shift', '')::uuid AND org_id = :'org' AND model_id = :'model';
 DELETE FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent';
-SELECT (SELECT count(*) FROM team_shift WHERE id = :'shift')::text || '|'
-  || (SELECT count(*) FROM roleplay_handoff WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
-  || (SELECT count(*) FROM roleplay_turn WHERE org_id = :'org' AND model_id = :'model' AND shift_id = :'shift' AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+SELECT (SELECT count(*) FROM team_shift WHERE id = NULLIF(:'shift', '')::uuid)::text || '|'
+  || (SELECT count(*) FROM roleplay_handoff WHERE org_id = :'org' AND model_id = :'model' AND shift_id = NULLIF(:'shift', '')::uuid AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
+  || (SELECT count(*) FROM roleplay_turn WHERE org_id = :'org' AND model_id = :'model' AND shift_id = NULLIF(:'shift', '')::uuid AND actor_type = 'llm' AND actor_ref = :'agent')::text || '|'
   || (SELECT count(*) FROM agent_permission WHERE org_id = :'org' AND model_id = :'model' AND agent_ref = :'agent')::text;
 COMMIT;
-`, { org, model: ownModel, agent: actorRef, shift: shiftId });
+`, { org, model: ownModel, agent: actorRef, shift: shiftId ?? '' });
     if (remaining !== '0|0|0|0') throw new Error('Disposable roleplay actor cleanup was not verified');
   };
   let relayRouteStatus = null;
@@ -547,11 +546,11 @@ COMMIT;
     expect(cleanup).toBe('0|0|0|0');
     await page.setViewportSize({ width: 1440, height: 1000 });
   });
-  await check('roleplay explains missing assignments, saves persona, and persists a handoff only after a synthetic active actor exists', async () => {
+  await check('roleplay explains actor setup, saves persona, and enables handoff after scheduling an AI shift', async () => {
     const roleplayUrl = `/models/${ownModel}/roleplay`;
     await page.goto(roleplayUrl);
-    await expect(page.getByText('Handoff and context reload need an active assigned shift.', { exact: false })).toBeVisible();
-    const actorHelp = page.locator('p.notice').filter({ hasText: 'Handoff and context reload need an active assigned shift.' });
+    await expect(page.getByText('Actors are not added here; this list comes from assigned shifts.', { exact: false })).toBeVisible();
+    const actorHelp = page.locator('p.notice').filter({ hasText: 'Actors are not added here; this list comes from assigned shifts.' });
     const assignmentLink = actorHelp.getByRole('link');
     await expect(assignmentLink).toBeVisible();
     const assignmentHref = await assignmentLink.getAttribute('href');
@@ -581,8 +580,46 @@ COMMIT;
     expect(personaReadback).toMatchObject({ status: 200, body: { data: { revision: 1, content: 'Synthetic persona guidance used only by this disposable browser test.' } } });
 
     const fixtureActor = createRoleplayActor();
+    let shiftId = '';
     try {
-      await page.reload();
+      await assignmentLink.click();
+      await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/team$`));
+      await page.getByLabel('Actor type').selectOption('llm');
+      const permissionSelect = page.getByLabel('LLM permission');
+      await expect(permissionSelect.locator(`option[value="${fixtureActor.actorRef}"]`)).toHaveCount(1);
+      await permissionSelect.selectOption(fixtureActor.actorRef);
+      const shiftWindow = await page.evaluate(() => {
+        const localDateTime = (date) => {
+          const pad = value => String(value).padStart(2, '0');
+          return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        };
+        return {
+          startsAt: localDateTime(new Date(Date.now() - 60_000)),
+          endsAt: localDateTime(new Date(Date.now() + 60 * 60_000)),
+        };
+      });
+      await page.getByLabel('Starts').fill(shiftWindow.startsAt);
+      await page.getByLabel('Ends').fill(shiftWindow.endsAt);
+      const shiftCreated = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/team-shifts`
+        && response.request().method() === 'POST');
+      await page.getByRole('button', { name: 'Schedule shift', exact: true }).click();
+      const shiftResponse = await shiftCreated;
+      const shiftBody = await shiftResponse.json();
+      expect(shiftResponse.status(), `Shift schedule rejected: ${JSON.stringify(shiftBody)}`).toBe(201);
+      shiftId = shiftBody?.data?.id;
+      expect(shiftId, 'Scheduled shift response omitted its ID').toEqual(expect.any(String));
+      const shiftCard = page.locator('article.card').filter({ hasText: fixtureActor.actorRef });
+      await expect(shiftCard).toContainText('scheduled');
+      const shiftActivated = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/team-shifts/${shiftId}`
+        && response.request().method() === 'PATCH');
+      await shiftCard.getByRole('button', { name: 'Start shift', exact: true }).click();
+      const activationResponse = await shiftActivated;
+      const activationBody = await activationResponse.json();
+      expect(activationResponse.status(), `Shift activation rejected: ${JSON.stringify(activationBody)}`).toBe(200);
+      expect(activationBody?.data?.status).toBe('active');
+      await expect(shiftCard).toContainText('active');
+
+      await page.goto(roleplayUrl);
       const actorSelect = page.getByLabel('Active actor');
       await expect(actorSelect).toHaveValue(`llm:${fixtureActor.actorRef}`);
       await expect(reloadContext).toBeEnabled();
@@ -607,11 +644,11 @@ COMMIT;
       }, { modelId: ownModel, actorRef: fixtureActor.actorRef });
       expect(contextReadback.status).toBe(200);
       expect(contextReadback.body.data).toMatchObject({
-        meta: { activeShiftId: fixtureActor.shiftId, actor: { type: 'llm', ref: fixtureActor.actorRef } },
+        meta: { activeShiftId: shiftId, actor: { type: 'llm', ref: fixtureActor.actorRef } },
         handoff: { lastSafeSummary: 'Synthetic handoff summary; no provider turn was requested.', allowedNextAction: 'Review the fixture only.' },
       });
     } finally {
-      removeRoleplayActor(fixtureActor);
+      removeRoleplayActor({ ...fixtureActor, shiftId });
     }
   });
   await check('Patreon and Snapchat missing credentials return a safe in-app explanation', async () => {

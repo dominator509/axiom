@@ -56,7 +56,7 @@ export default function TeamOperationsManager({ modelId, members, shifts, shifts
     finally { setReading(false); }
   }
 
-  async function send(path: string, nextBody: Record<string, unknown>, success?: () => void, method: 'POST' | 'PATCH' = 'POST') {
+  async function send(path: string, nextBody: Record<string, unknown>, success?: (data: unknown) => void, method: 'POST' | 'PATCH' = 'POST') {
     if (!canEdit || busy) return;
     intent.current ??= { path, body: JSON.stringify(nextBody), key: createIdempotencyKey(), method };
     setBusy(true); setError('');
@@ -64,17 +64,30 @@ export default function TeamOperationsManager({ modelId, members, shifts, shifts
       const response = await mutationFetch(intent.current.path, { method: intent.current.method, headers: { 'content-type': 'application/json' }, body: intent.current.body }, { idempotencyKey: intent.current.key, retries: 0 });
       if (!response.ok) { const details = await readDashboardError(response); setError(details?.error?.message ?? t('team.teamChangeNotAccepted')); if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null; return; }
       const result = await readDashboardJson<{ data?: unknown }>(response); if (!result.data) throw new Error('unconfirmed team response');
-      intent.current = null; success?.(); router.refresh();
+      intent.current = null; success?.(result.data); router.refresh();
     } catch { setError(t('team.teamChangeNotConfirmed')); }
     finally { setBusy(false); }
   }
 
+  function applyShiftResult(data: unknown) {
+    if (!data || typeof data !== 'object') return;
+    const shift = data as Partial<TeamShift>;
+    const shiftId = shift.id;
+    if (typeof shiftId !== 'string' || typeof shift.modelId !== 'string' || typeof shift.startsAt !== 'string'
+      || typeof shift.endsAt !== 'string' || typeof shift.queue !== 'string' || typeof shift.status !== 'string'
+      || (shift.assigneeType !== 'human' && shift.assigneeType !== 'llm')) return;
+    setLiveShifts(previous => {
+      const next = new Map(previous.map(item => [item.id, item]));
+      next.set(shiftId, shift as TeamShift);
+      return [...next.values()].sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt) || left.id.localeCompare(right.id));
+    });
+  }
   function saveShift() {
     if ((!assigneeUserId && assigneeType === 'human') || (!assigneeAgentRef && assigneeType === 'llm') || !startsAt || !endsAt) { setError(t('team.chooseActorTimes')); return; }
-  void send(`/api/v1/models/${encodeURIComponent(modelId)}/team-shifts`, { assigneeType, ...(assigneeType === 'human' ? { assigneeUserId } : { assigneeAgentRef }), queue, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), note });
+  void send(`/api/v1/models/${encodeURIComponent(modelId)}/team-shifts`, { assigneeType, ...(assigneeType === 'human' ? { assigneeUserId } : { assigneeAgentRef }), queue, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), note }, applyShiftResult);
   }
   function saveNote() { if (!body.trim()) { setError(t('team.enterNote')); return; } void send(`/api/v1/models/${encodeURIComponent(modelId)}/team-notes`, { body: body.trim() }, () => setBody('')); }
-  function updateShift(shift: TeamShift, status: string, note?: string) { void send(`/api/v1/models/${encodeURIComponent(modelId)}/team-shifts/${encodeURIComponent(shift.id)}`, { status, ...(note === undefined ? {} : { note }) }, undefined, 'PATCH'); }
+  function updateShift(shift: TeamShift, status: string, note?: string) { void send(`/api/v1/models/${encodeURIComponent(modelId)}/team-shifts/${encodeURIComponent(shift.id)}`, { status, ...(note === undefined ? {} : { note }) }, applyShiftResult, 'PATCH'); }
 
   return <div className="stack">
     <p className="subtle">{t('team.operationsDescription')}</p>
