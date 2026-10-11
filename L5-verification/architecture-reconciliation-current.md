@@ -1906,3 +1906,22 @@ variant-metric formatting slice; remaining catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime evidence, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### 2026-10-11 — Beacon CRM public API contract reconciled
+
+The current [Beacon API guide](https://guide.beaconcrm.org/en/articles/5720215-beacon-s-api)
+confirms that API access requires an active Standard, Premium, or Ultimate
+account; an account admin creates and revokes API keys in Beacon settings; and
+the account schema can be discovered with
+`GET https://api.beaconcrm.org/v1/account/{account_id}/entity_types`. The guide
+documents limits of 300 requests per minute (60 for bulk requests), a 429
+response on limit exhaustion, and confirms that API actions can run Beacon
+workflows.
+
+The account-generated developer documentation still requires an authenticated
+Beacon login and contains the detailed request/authentication and record-field
+contract. F-92 therefore remains blocked: no authentication header, record
+endpoint, or field mapping is inferred from the public guide. Record writes stay
+disabled until an eligible dedicated test account supplies its generated docs,
+an approved field map, and workflow-effect readback. No Beacon credentials or
+records were accessed in this reconciliation.
