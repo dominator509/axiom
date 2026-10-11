@@ -78,9 +78,14 @@ envelopes and transitional configuration. `EGRESS_LEGACY_DEK_ID` identifies
 those global-key envelopes; it defaults to `EGRESS_DEK_ID`, then `egress-dek`.
 For an existing deployment with a custom `EGRESS_DEK_ID`, set the matching
 `EGRESS_LEGACY_DEK_ID` on the egress plane during rollout. Neither variable
-selects a new data-key ID. Root-key storage is currently operator-provided; a
-cloud KMS integration is not implemented. Do not replace the configured root
-key or change `org.kek_id` in place outside the rotation procedure below.
+selects a new data-key ID. In deployment, provide the key from the platform's
+secret store as a read-only file mount at `/run/secrets/egress-kek`, and set
+`EGRESS_KEK_FILE=/run/secrets/egress-kek`. Mount it only into the egress
+service; do not put the key value in the container environment or repository.
+`EGRESS_KEK` and `EGRESS_DEK` remain compatibility paths for migration and
+older installations. Root-key storage is currently operator-provided; a cloud
+KMS integration is not implemented. Do not replace the configured root key or
+change `org.kek_id` in place outside the rotation procedure below.
 
 ### Operator KEK rotation
 

@@ -2956,7 +2956,7 @@
       "requirementSha256": "27d69a3f065ed301ed7019856280766b56866ed588713b76e977b97583e0167f",
       "lane": 3,
       "status": "unverified",
-      "nextStep": "Attach exact-SHA L5 journey or invariant assertions, negative controls, counts and hosted receipt.",
+      "nextStep": "Use the owned deployment's configured secret store to mount the KEK read-only at /run/secrets/egress-kek; verify no key value in container environment, tracked source, dumps or logs, and record dependency/secret scans plus key recovery/rotation. The synthetic CI file-mount rehearsal does not prove external KMS or owner deployment state.",
       "evidence": [],
       "verification": {
         "test": "Run repository secret scanning and dependency auditing; inspect secret-store references without exposing secret values.",
