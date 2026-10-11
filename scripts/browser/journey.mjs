@@ -393,10 +393,13 @@ COMMIT;
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
   let syntheticConsentId = null;
-  await check('consent vault round-trips a 25 MiB expired synthetic DNG and blocks its publishing', async () => {
+  await check('mobile consent vault round-trips a 25 MiB expired synthetic DNG and blocks its publishing', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/models/${ownModel}/consent`);
     await page.locator('summary').filter({ hasText: 'Add consent metadata' }).click();
     const form = page.locator('form[aria-label="Add consent metadata"]');
+    const mobileLayout = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+    expect(mobileLayout.document).toBeLessThanOrEqual(mobileLayout.viewport);
     const dng = Buffer.alloc(25 * 1024 * 1024, 0x5a);
     const subjectRef = `synthetic-consent-${randomUUID()}`;
     expect(dng.length).toBe(25 * 1024 * 1024);
@@ -461,6 +464,7 @@ COMMIT;
     expect(publishStatus.status).toBe(200);
     expect(publishStatus.data.data.ok).toBe(false);
     expect(await status(`/api/v1/models/${otherModel}/consent-records/${syntheticConsentId}/document`)).toBe(404);
+    await page.setViewportSize({ width: 1440, height: 1000 });
   });
   await check('roleplay explains missing assignments, saves persona, and persists a handoff only after a synthetic active actor exists', async () => {
     const roleplayUrl = `/models/${ownModel}/roleplay`;
