@@ -521,6 +521,16 @@ export interface AffiliateHold {
   createdAt: string;
   resolvedAt: string | null;
 }
+export interface AffiliateCommission {
+  id: string;
+  programId: string;
+  partnerId: string;
+  campaignId: string;
+  conversionId: string;
+  state: 'accrued' | 'approved' | 'reversed' | 'held' | 'exported' | string;
+  amountCents: number;
+  createdAt: string;
+}
 export interface AffiliateSummary {
   partners: number;
   campaigns: number;
@@ -535,6 +545,7 @@ export interface AffiliateProgramSnapshot {
   billingWebhook: { configured: boolean; endpoint: string; signatureHeader: string };
   partners: AffiliatePartner[];
   campaigns: AffiliateCampaign[];
+  commissions: AffiliateCommission[];
   holds: AffiliateHold[];
   summary: AffiliateSummary;
 }

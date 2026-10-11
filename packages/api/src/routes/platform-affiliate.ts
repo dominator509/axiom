@@ -17,6 +17,7 @@ import { rateLimit } from '../contract.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import {
   buildPayoutExport,
+  canTransitionCommission,
   commissionCents,
   exportPartnerData,
   type CommissionRecord,
@@ -75,6 +76,10 @@ const reconcileSchema = z.object({
 }).strict();
 const holdResolveSchema = z.object({
   resolution: z.enum(['released', 'upheld']),
+}).strict();
+const commissionApproveSchema = z.object({}).strict();
+const commissionHoldSchema = z.object({
+  reason: z.enum(['fraud_suspected', 'chargeback', 'self_referral', 'terms_violation']),
 }).strict();
 const referralTokenSchema = z.string().trim().min(1).max(256).regex(/^[A-Za-z0-9_-]+$/);
 const affiliateClaimSchema = z.object({ referralToken: referralTokenSchema }).strict();
@@ -266,6 +271,16 @@ router.get('/program', async (c) => {
       },
       partners,
       campaigns,
+      commissions: latest.map((row) => ({
+        id: row.id,
+        programId: row.programId,
+        partnerId: row.partnerId,
+        campaignId: row.campaignId,
+        conversionId: row.conversionId,
+        state: commissionState(row.kind),
+        amountCents: row.amountCents,
+        createdAt: row.createdAt,
+      })),
       holds,
       summary: {
         partners: partners.length,
@@ -613,6 +628,121 @@ router.post('/conversions/reconcile', async (c) => {
   return c.json({ data: result.data, commission: 'commission' in result ? result.commission : undefined, duplicate: result.duplicate }, result.status);
 });
 
+router.post('/commissions/:conversionId/approve', async (c) => {
+  let payload: unknown;
+  try { payload = await readBody(c); }
+  catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'affiliate commission body too large');
+    return apiError(c, 400, statusTitle(400), 'invalid affiliate commission body');
+  }
+  if (!commissionApproveSchema.safeParse(payload).success) return apiError(c, 400, statusTitle(400), 'invalid affiliate commission approval');
+
+  const actor = c.get('userId') ?? 'system';
+  const result = await db.transaction(async (tx) => {
+    const program = await programBySlug(tx);
+    if (!program) return { status: 404 as const, error: 'FanThynks affiliate program not configured' };
+    const rows = await tx.select().from(schema.affiliateCommissionEvent).where(and(
+      eq(schema.affiliateCommissionEvent.programId, program.id),
+      eq(schema.affiliateCommissionEvent.conversionId, c.req.param('conversionId')),
+    )).orderBy(asc(schema.affiliateCommissionEvent.createdAt)).for('update');
+    const current = currentCommissionRows(rows)[0];
+    if (!current) return { status: 404 as const, error: 'affiliate commission not found' };
+    if (current.kind === 'approved') return { status: 200 as const, data: current, duplicate: true };
+    if (current.kind !== 'accrued' || !canTransitionCommission(commissionState(current.kind), 'approved')) {
+      return { status: 409 as const, error: 'only accrued commissions can be approved' };
+    }
+
+    const [event] = await tx.insert(schema.affiliateCommissionEvent).values({
+      programId: current.programId,
+      campaignId: current.campaignId,
+      partnerId: current.partnerId,
+      conversionId: current.conversionId,
+      kind: 'approved',
+      amountCents: current.amountCents,
+      eventKey: 'commission:' + current.id + ':approved',
+      reason: 'owner_approval',
+    }).onConflictDoNothing({ target: schema.affiliateCommissionEvent.eventKey }).returning();
+    if (!event) return { status: 409 as const, error: 'commission changed during review; refresh and try again' };
+    await recordAudit(tx, current.programId, actor, 'affiliate.commission.approve', current.conversionId, {
+      commissionEventId: current.id,
+      amountCents: current.amountCents,
+      from: 'accrued',
+      to: 'approved',
+    }, auditKey(c, 'commission.approve', current.id));
+    return { status: 201 as const, data: event, duplicate: false };
+  });
+  if (result.status !== 200 && result.status !== 201) return apiError(c, result.status, statusTitle(result.status), result.error);
+  return c.json({ data: result.data, duplicate: result.duplicate }, result.status);
+});
+
+router.post('/commissions/:conversionId/hold', async (c) => {
+  let payload: unknown;
+  try { payload = await readBody(c); }
+  catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'affiliate hold body too large');
+    return apiError(c, 400, statusTitle(400), 'invalid affiliate hold body');
+  }
+  const parsed = commissionHoldSchema.safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid affiliate hold body');
+
+  const actor = c.get('userId') ?? 'system';
+  const result = await db.transaction(async (tx) => {
+    const program = await programBySlug(tx);
+    if (!program) return { status: 404 as const, error: 'FanThynks affiliate program not configured' };
+    const rows = await tx.select().from(schema.affiliateCommissionEvent).where(and(
+      eq(schema.affiliateCommissionEvent.programId, program.id),
+      eq(schema.affiliateCommissionEvent.conversionId, c.req.param('conversionId')),
+    )).orderBy(asc(schema.affiliateCommissionEvent.createdAt)).for('update');
+    const current = currentCommissionRows(rows)[0];
+    if (!current) return { status: 404 as const, error: 'affiliate commission not found' };
+    if (!['accrued', 'approved', 'held'].includes(current.kind)) {
+      return { status: 409 as const, error: 'this commission can no longer be placed on hold' };
+    }
+
+    const [existingHold] = await tx.select().from(schema.affiliateHold).where(and(
+      eq(schema.affiliateHold.commissionId, current.id),
+      eq(schema.affiliateHold.state, 'open'),
+    )).limit(1).for('update');
+    if (existingHold) return { status: 200 as const, data: existingHold, duplicate: true };
+
+    let heldEvent = current;
+    if (current.kind !== 'held') {
+      if (!canTransitionCommission(commissionState(current.kind), 'held')) {
+        return { status: 409 as const, error: 'this commission cannot be placed on hold' };
+      }
+      const [event] = await tx.insert(schema.affiliateCommissionEvent).values({
+        programId: current.programId,
+        campaignId: current.campaignId,
+        partnerId: current.partnerId,
+        conversionId: current.conversionId,
+        kind: 'held',
+        amountCents: current.amountCents,
+        eventKey: 'commission:' + current.id + ':held',
+        reason: parsed.data.reason,
+      }).onConflictDoNothing({ target: schema.affiliateCommissionEvent.eventKey }).returning();
+      if (!event) return { status: 409 as const, error: 'commission changed during review; refresh and try again' };
+      heldEvent = event;
+    }
+
+    const [hold] = await tx.insert(schema.affiliateHold).values({
+      programId: current.programId,
+      partnerId: current.partnerId,
+      commissionId: heldEvent.id,
+      reason: parsed.data.reason,
+      state: 'open',
+    }).returning();
+    if (!hold) return { status: 500 as const, error: 'affiliate hold could not be created' };
+    await recordAudit(tx, current.programId, actor, 'affiliate.commission.hold', hold.id, {
+      conversionId: current.conversionId,
+      commissionEventId: heldEvent.id,
+      reason: parsed.data.reason,
+    }, auditKey(c, 'commission.hold', heldEvent.id));
+    return { status: 201 as const, data: hold, duplicate: false };
+  });
+  if (result.status !== 200 && result.status !== 201) return apiError(c, result.status, statusTitle(result.status), result.error);
+  return c.json({ data: result.data, duplicate: result.duplicate }, result.status);
+});
+
 router.get('/payouts/export', async (c) => {
   const partnerId = c.req.query('partnerId');
   if (!partnerId) return apiError(c, 400, statusTitle(400), 'partnerId is required');
@@ -635,6 +765,7 @@ router.get('/payouts/export', async (c) => {
   const holds: FraudHold[] = holdRows.map((row) => ({
     holdId: row.id,
     partnerId: row.partnerId,
+    commissionId: row.commissionId ?? undefined,
     reason: row.reason,
     openedAt: row.createdAt.toISOString(),
     resolvedAt: row.state === 'resolved' ? (row.resolvedAt?.toISOString() ?? row.createdAt.toISOString()) : undefined,
@@ -693,7 +824,37 @@ router.post('/holds/:holdId/resolve', async (c) => {
   const resolved = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(schema.affiliateHold).where(eq(schema.affiliateHold.id, c.req.param('holdId'))).limit(1).for('update');
     if (!current) return null;
-    if (current.state === 'resolved') return current;
+    if (current.state === 'resolved') return { status: 409 as const, error: 'affiliate hold was already resolved' };
+    if (parsed.data.resolution === 'released' && current.commissionId) {
+      const [heldEvent] = await tx.select().from(schema.affiliateCommissionEvent)
+        .where(eq(schema.affiliateCommissionEvent.id, current.commissionId)).limit(1).for('update');
+      if (heldEvent) {
+        const events = await tx.select().from(schema.affiliateCommissionEvent).where(eq(
+          schema.affiliateCommissionEvent.conversionId,
+          heldEvent.conversionId,
+        )).orderBy(asc(schema.affiliateCommissionEvent.createdAt)).for('update');
+        const latest = currentCommissionRows(events)[0];
+        if (latest?.kind === 'held' && canTransitionCommission('held', 'approved')) {
+          const [approved] = await tx.insert(schema.affiliateCommissionEvent).values({
+            programId: latest.programId,
+            campaignId: latest.campaignId,
+            partnerId: latest.partnerId,
+            conversionId: latest.conversionId,
+            kind: 'approved',
+            amountCents: latest.amountCents,
+            eventKey: 'commission:' + latest.id + ':approved',
+            reason: 'hold_released',
+          }).onConflictDoNothing({ target: schema.affiliateCommissionEvent.eventKey }).returning();
+          if (!approved) return { status: 409 as const, error: 'commission changed during hold resolution; refresh and try again' };
+          await recordAudit(tx, latest.programId, actor, 'affiliate.commission.release', latest.conversionId, {
+            commissionEventId: latest.id,
+            holdId: current.id,
+            from: 'held',
+            to: 'approved',
+          }, auditKey(c, 'commission.release', current.id));
+        }
+      }
+    }
     const [row] = await tx.update(schema.affiliateHold).set({
       state: 'resolved',
       resolvedByUserId: actor,
@@ -703,10 +864,11 @@ router.post('/holds/:holdId/resolve', async (c) => {
       resolution: parsed.data.resolution,
       reason: row.reason,
     }, auditKey(c, 'hold.resolve', row.id));
-    return row ?? null;
+    return row ? { status: 200 as const, data: row } : null;
   });
   if (!resolved) return apiError(c, 404, statusTitle(404), 'affiliate hold not found');
-  return c.json({ data: resolved, resolution: parsed.data.resolution });
+  if (resolved.status !== 200) return apiError(c, resolved.status, statusTitle(resolved.status), resolved.error);
+  return c.json({ data: resolved.data, resolution: parsed.data.resolution });
 });
 
 export { router as platformAffiliateRouter };

@@ -2,10 +2,11 @@
 
 import { useRef, useState } from 'react';
 import * as React from 'react';
-import { CATALOGS, formatNumber, LocaleCatalog, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, formatNumber, LocaleCatalog, PLATFORM_AFFILIATE_CATALOGS, type SupportedLocale } from '@axiom/core';
 import type {
   AffiliateCampaign,
   AffiliateCampaignReport,
+  AffiliateCommission,
   AffiliateHold,
   AffiliatePartner,
   AffiliateProgramSnapshot,
@@ -15,7 +16,9 @@ import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
 const fallbackCatalog = new LocaleCatalog(CATALOGS);
-const englishT = (key: string, values?: Record<string, string | number>) => fallbackCatalog.t('en', key, values);
+const englishT = (key: string, values?: Record<string, string | number>) =>
+  PLATFORM_AFFILIATE_CATALOGS.en[key as keyof typeof PLATFORM_AFFILIATE_CATALOGS.en]
+  ?? fallbackCatalog.t('en', key, values);
 
 function hasReactDispatcher(): boolean {
   const internals = (React as unknown as {
@@ -95,6 +98,7 @@ export default function PlatformAffiliateManager({ initial }: Props) {
   const [campaignSlug, setCampaignSlug] = useState('');
   const [commissionBps, setCommissionBps] = useState(String(initial.program.defaultCommissionBps));
   const [campaignStatus, setCampaignStatus] = useState<'draft' | 'active'>('draft');
+  const [holdReasonByConversion, setHoldReasonByConversion] = useState<Record<string, AffiliateHold['reason']>>({});
   const [report, setReport] = useState<AffiliateCampaignReport | null>(null);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -205,6 +209,24 @@ export default function PlatformAffiliateManager({ initial }: Props) {
     await mutate(`/api/v1/platform/affiliate/holds/${encodeURIComponent(hold.id)}/resolve`, 'POST', { resolution }, t('affiliate.holdResolved', { status: statusLabel(resolution, t) }));
   }
 
+  async function approveCommission(commission: AffiliateCommission): Promise<void> {
+    await mutate(
+      '/api/v1/platform/affiliate/commissions/' + encodeURIComponent(commission.conversionId) + '/approve',
+      'POST',
+      {},
+      t('affiliate.commissionApproved'),
+    );
+  }
+
+  async function placeCommissionOnHold(commission: AffiliateCommission): Promise<void> {
+    await mutate(
+      '/api/v1/platform/affiliate/commissions/' + encodeURIComponent(commission.conversionId) + '/hold',
+      'POST',
+      { reason: holdReasonByConversion[commission.conversionId] ?? 'fraud_suspected' },
+      t('affiliate.commissionHeld'),
+    );
+  }
+
   async function loadReport(campaign: AffiliateCampaign): Promise<void> {
     setBusy(`report:${campaign.id}`); setMessage(''); setError('');
     try {
@@ -309,6 +331,53 @@ export default function PlatformAffiliateManager({ initial }: Props) {
         <div><p className="eyebrow">{t('affiliate.referralLinks')}</p><h2 id="campaigns-heading">{t('affiliate.campaignsHeading')}</h2></div>
         {snapshot.campaigns.length === 0 ? <p className="subtle">{t('affiliate.noCampaigns')}</p> : <table><caption className="sr-only">{t('affiliate.campaignTable')}</caption><thead><tr><th>{t('affiliate.campaign')}</th><th>{t('affiliate.partner')}</th><th>{t('affiliate.commission')}</th><th>{t('affiliate.referralLink')}</th><th>{t('affiliate.actions')}</th></tr></thead><tbody>{snapshot.campaigns.map(campaign => { const partner = snapshot.partners.find(item => item.id === campaign.partnerId); const link = referralPath(campaign.referralToken); return <tr key={campaign.id}><td><strong>{campaign.name}</strong><br /><span className="subtle">/{campaign.slug} · {statusLabel(campaign.status, t)}</span></td><td>{partner?.displayName ?? shortId(campaign.partnerId)}</td><td>{new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(campaign.commissionBps / 100)}%</td><td><a className="mono" href={link} target="_blank" rel="noreferrer" referrerPolicy="no-referrer">{link}</a><br /><button className="btn secondary" type="button" onClick={() => void copyReferralLink(campaign.referralToken)}>{t('affiliate.copyReferralLink')}</button></td><td><button className="btn secondary" type="button" disabled={!!busy || pendingIntent !== null} onClick={() => void loadReport(campaign)}>{busy === `report:${campaign.id}` ? t('status.loading') : t('affiliate.viewReport')}</button></td></tr>; })}</tbody></table>}
         {report && <div className="card stack" aria-live="polite"><div className="row" style={{ justifyContent: 'space-between' }}><h3>{t('affiliate.reportTitle', { name: report.campaign.name })}</h3><span className={statusClass(report.campaign.status)}><i />{statusLabel(report.campaign.status, t)}</span></div><div className="stat-grid"><div className="stat-card"><small>{t('affiliate.clicksVisits')}</small><strong>{formatNumber(report.attribution.clicks, locale)} / {formatNumber(report.attribution.visits, locale)}</strong><span>{t('affiliate.identityStitches', { count: formatNumber(report.attribution.identityStitches, locale) })}</span></div><div className="stat-card"><small>{t('affiliate.conversions')}</small><strong>{formatNumber(report.conversions, locale)}</strong><span>{t('affiliate.attributedSignups')}</span></div><div className="stat-card accent"><small>{t('affiliate.exportable')}</small><strong>{money(report.commissions.exportableCents, locale)}</strong><span>{report.commissions.openHold ? t('affiliate.blockedOpenHold') : t('affiliate.noOpenHold')}</span></div></div></div>}
+      </section>
+
+      <section className="card stack" aria-labelledby="commissions-heading">
+        <div>
+          <p className="eyebrow">{t('affiliate.riskReview')}</p>
+          <h2 id="commissions-heading">{t('affiliate.commissionsTitle')}</h2>
+          <p className="subtle">{t('affiliate.commissionReviewHelp')}</p>
+        </div>
+        {snapshot.commissions.length === 0
+          ? <p className="subtle">{t('affiliate.noCommissions')}</p>
+          : <table>
+            <caption className="sr-only">{t('affiliate.commissionsTitle')}</caption>
+            <thead><tr>
+              <th>{t('affiliate.campaign')}</th>
+              <th>{t('affiliate.commissionDate')}</th>
+              <th>{t('affiliate.commissionAmount')}</th>
+              <th>{t('affiliate.commissionStatus')}</th>
+              <th>{t('affiliate.actions')}</th>
+            </tr></thead>
+            <tbody>{snapshot.commissions.map(commission => {
+              const campaign = snapshot.campaigns.find(item => item.id === commission.campaignId);
+              const holdReason = holdReasonByConversion[commission.conversionId] ?? 'fraud_suspected';
+              return <tr key={commission.conversionId}>
+                <td>{campaign?.name ?? shortId(commission.campaignId)}</td>
+                <td>{formatAffiliateDate(commission.createdAt, locale)}</td>
+                <td>{money(commission.amountCents, locale)}</td>
+                <td><span className={statusClass(commission.state)}><i />{statusLabel(commission.state, t)}</span></td>
+                <td><div className="action-row">
+                  {commission.state === 'accrued' && <button className="btn secondary" type="button" disabled={!!busy || pendingIntent !== null} onClick={() => void approveCommission(commission)}>{t('affiliate.approveCommission')}</button>}
+                  {(commission.state === 'accrued' || commission.state === 'approved') && <>
+                    <label>
+                      {t('affiliate.holdReasonLabel')}
+                      <select
+                        name={'holdReason.' + commission.conversionId}
+                        value={holdReason}
+                        disabled={!!busy || pendingIntent !== null}
+                        onChange={event => setHoldReasonByConversion(current => ({ ...current, [commission.conversionId]: event.target.value as AffiliateHold['reason'] }))}
+                      >
+                        {(['fraud_suspected', 'chargeback', 'self_referral', 'terms_violation'] as const).map(reason => <option key={reason} value={reason}>{holdReasonLabel(reason, t)}</option>)}
+                      </select>
+                    </label>
+                    <button className="btn danger" type="button" disabled={!!busy || pendingIntent !== null} onClick={() => void placeCommissionOnHold(commission)}>{t('affiliate.placeOnHold')}</button>
+                  </>}
+                </div></td>
+              </tr>;
+            })}</tbody>
+          </table>}
       </section>
 
       <section className="card stack" aria-labelledby="holds-heading">

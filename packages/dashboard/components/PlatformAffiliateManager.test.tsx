@@ -26,7 +26,7 @@ vi.mock('react', async original => ({
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => `affiliate-intent-${++hooks.keyCounter}` }));
 
 import PlatformAffiliateManager, { formatAffiliateDate, referralPath } from './PlatformAffiliateManager';
-import type { AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
+import type { AffiliateCommission, AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
 
 const partner = {
   id: 'partner-1', programId: 'program-1', displayName: 'Partner One', email: 'one@example.test', status: 'active',
@@ -35,10 +35,20 @@ const partner = {
 const campaign = {
   id: 'campaign-1', programId: 'program-1', partnerId: 'partner-1', name: 'Launch', slug: 'launch', referralToken: 'ref-token', status: 'active', commissionBps: 2000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
 } as const;
+const commission: AffiliateCommission = {
+  id: 'commission-event-1',
+  programId: 'program-1',
+  partnerId: 'partner-1',
+  campaignId: 'campaign-1',
+  conversionId: 'conversion-1',
+  state: 'accrued',
+  amountCents: 2000,
+  createdAt: '2026-01-02T00:00:00.000Z',
+};
 const snapshot: AffiliateProgramSnapshot = {
   program: { id: 'program-1', slug: 'fanthynks', name: 'FanThynks Creator Referral', status: 'active', termsVersion: 'affiliate-v1', defaultCommissionBps: 2000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
   billingWebhook: { configured: false, endpoint: '/api/v1/platform/affiliate-billing/webhook', signatureHeader: 'X-Axiom-Billing-Signature' },
-  partners: [], campaigns: [], holds: [],
+  partners: [], campaigns: [], commissions: [], holds: [],
   summary: { partners: 0, campaigns: 0, attributionEvents: 0, conversions: 0, accruedCents: 0, reversedCents: 0, openHolds: 0 },
 };
 
@@ -162,6 +172,43 @@ it('creates campaigns only from disclosed partners and renders report and payout
   const payout = find(tree, node => node.type === 'a' && String(node.props.href).includes('/payouts/export?partnerId=partner-1'));
   expect(payout).toBeDefined();
   expect(find(tree, node => node.type === 'button' && node.props.children === 'View report')).toBeDefined();
+});
+
+it('approves an accrued commission through the idempotent owner action', async () => {
+  const reviewSnapshot: AffiliateProgramSnapshot = { ...snapshot, partners: [partner], campaigns: [campaign], commissions: [commission] };
+  vi.mocked(fetch).mockResolvedValue(Response.json({ data: reviewSnapshot }));
+  hooks.send.mockResolvedValue(Response.json({ data: { ...commission, state: 'approved' } }, { status: 201 }));
+
+  const tree = render(reviewSnapshot);
+  expect(textContent(tree)).toContain('Approving creates no transfer');
+  const approve = find(tree, node => node.type === 'button' && textContent(node.props.children) === 'Approve commission');
+  expect(approve).toBeDefined();
+  (approve!.props.onClick as () => void)();
+
+  await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
+  expect(hooks.send.mock.calls[0][0]).toBe('/api/v1/platform/affiliate/commissions/conversion-1/approve');
+  expect(JSON.parse(hooks.send.mock.calls[0][1].body)).toEqual({});
+  expect(hooks.send.mock.calls[0][2]).toMatchObject({ idempotencyKey: 'affiliate-intent-1', retries: 0 });
+  await vi.waitFor(() => expect(textContent(render(reviewSnapshot))).toContain('Commission approved for payout export.'));
+});
+
+it('lets the owner choose a reason before placing an accrued commission on hold', async () => {
+  const reviewSnapshot: AffiliateProgramSnapshot = { ...snapshot, partners: [partner], campaigns: [campaign], commissions: [commission] };
+  vi.mocked(fetch).mockResolvedValue(Response.json({ data: reviewSnapshot }));
+  hooks.send.mockResolvedValue(Response.json({ data: { id: 'hold-1', reason: 'chargeback' } }, { status: 201 }));
+
+  let tree = render(reviewSnapshot);
+  const reason = namedSelect(tree, 'holdReason.conversion-1');
+  expect(reason.props.value).toBe('fraud_suspected');
+  reason.props.onChange!({ target: { value: 'chargeback' } });
+  tree = render(reviewSnapshot);
+  const placeOnHold = find(tree, node => node.type === 'button' && textContent(node.props.children) === 'Place on hold');
+  expect(placeOnHold).toBeDefined();
+  (placeOnHold!.props.onClick as () => void)();
+
+  await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
+  expect(hooks.send.mock.calls[0][0]).toBe('/api/v1/platform/affiliate/commissions/conversion-1/hold');
+  expect(JSON.parse(hooks.send.mock.calls[0][1].body)).toEqual({ reason: 'chargeback' });
 });
 
 it('renders a public referral path and copies an origin-qualified link', async () => {

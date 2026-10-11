@@ -96,15 +96,24 @@ describe('platform affiliate API', () => {
       [{ id: campaignId, programId, partnerId, status: 'active' }],
       [{ kind: 'click' }, { kind: 'visit' }],
       [{ id: conversionId }],
-      [{ conversionId, kind: 'approved', amountCents: 2000 }],
+      [{
+        id: 'commission-1', programId, partnerId, campaignId, conversionId,
+        kind: 'approved', amountCents: 2000, createdAt: new Date('2026-01-03T00:00:00.000Z'),
+        eventKey: 'private-event-key', reason: 'private-source-key',
+      }],
       [],
     ];
     const response = await app().request('/program');
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    const body = await response.json() as { data: { commissions: Array<Record<string, unknown>> } };
+    expect(body).toMatchObject({
       data: {
         program: { slug: 'fanthynks' },
         holds: [],
+        commissions: [{
+          id: 'commission-1', programId, partnerId, campaignId, conversionId,
+          state: 'approved', amountCents: 2000, createdAt: '2026-01-03T00:00:00.000Z',
+        }],
         summary: {
           partners: 1,
           campaigns: 1,
@@ -115,6 +124,8 @@ describe('platform affiliate API', () => {
         },
       },
     });
+    expect(body.data.commissions[0]).not.toHaveProperty('eventKey');
+    expect(body.data.commissions[0]).not.toHaveProperty('reason');
   });
 
   it('does not activate a partner without disclosure acceptance', async () => {
@@ -239,6 +250,105 @@ describe('platform affiliate API', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ detail: 'refund requires a source billing event key' });
     expect(harness.state.inserts).toHaveLength(0);
+  });
+
+  it('approves an accrued commission as an append-only owner decision', async () => {
+    const accrued = {
+      id: 'commission-accrued', programId, campaignId, partnerId, conversionId,
+      kind: 'accrued', amountCents: 2000, eventKey: 'conversion:one:accrued',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    const approved = { ...accrued, id: 'commission-approved', kind: 'approved', eventKey: 'commission:commission-accrued:approved' };
+    harness.state.results = [[{ id: programId, slug: 'fanthynks' }], [accrued], [approved], []];
+
+    const response = await jsonRequest('/commissions/' + conversionId + '/approve', {});
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ data: { id: 'commission-approved', kind: 'approved' }, duplicate: false });
+    expect(harness.state.inserts[0]).toMatchObject({
+      programId, campaignId, partnerId, conversionId, kind: 'approved', amountCents: 2000,
+      eventKey: 'commission:commission-accrued:approved', reason: 'owner_approval',
+    });
+    expect(harness.state.inserts[1]).toMatchObject({
+      programId, actorUserId: 'owner-user', action: 'affiliate.commission.approve', target: conversionId,
+      detail: { from: 'accrued', to: 'approved' },
+    });
+  });
+
+  it('rejects approval of a commission already held for review', async () => {
+    harness.state.results = [
+      [{ id: programId, slug: 'fanthynks' }],
+      [{ id: 'commission-held', programId, campaignId, partnerId, conversionId, kind: 'held', amountCents: 2000 }],
+    ];
+
+    const response = await jsonRequest('/commissions/' + conversionId + '/approve', {});
+
+    expect(response.status).toBe(409);
+    expect(harness.state.inserts).toHaveLength(0);
+  });
+
+  it('places an accrued commission on hold with a reason and audit event', async () => {
+    const accrued = {
+      id: 'commission-accrued', programId, campaignId, partnerId, conversionId,
+      kind: 'accrued', amountCents: 2000, createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    const held = { ...accrued, id: 'commission-held', kind: 'held', eventKey: 'commission:commission-accrued:held' };
+    const hold = {
+      id: 'hold-1', programId, partnerId, commissionId: held.id, reason: 'chargeback',
+      state: 'open', createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    };
+    harness.state.results = [[{ id: programId, slug: 'fanthynks' }], [accrued], [], [held], [hold], []];
+
+    const response = await jsonRequest('/commissions/' + conversionId + '/hold', { reason: 'chargeback' });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ data: { id: 'hold-1', state: 'open', reason: 'chargeback' }, duplicate: false });
+    expect(harness.state.inserts[0]).toMatchObject({ kind: 'held', eventKey: 'commission:commission-accrued:held' });
+    expect(harness.state.inserts[1]).toMatchObject({ programId, partnerId, commissionId: held.id, reason: 'chargeback', state: 'open' });
+    expect(harness.state.inserts[2]).toMatchObject({
+      action: 'affiliate.commission.hold', target: 'hold-1',
+      detail: { conversionId, commissionEventId: held.id, reason: 'chargeback' },
+    });
+  });
+
+  it('releasing a commission hold restores its approved state before resolving the hold', async () => {
+    const held = {
+      id: 'commission-held', programId, campaignId, partnerId, conversionId,
+      kind: 'held', amountCents: 2000, eventKey: 'commission:commission-approved:held',
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    };
+    const hold = {
+      id: 'hold-1', programId, partnerId, commissionId: held.id, reason: 'chargeback',
+      state: 'open', createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    };
+    const resolvedHold = { ...hold, state: 'resolved', resolvedByUserId: 'owner-user', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
+    const approved = { ...held, id: 'commission-released', kind: 'approved', eventKey: 'commission:commission-held:approved' };
+    harness.state.results = [[hold], [held], [held], [approved], [], [resolvedHold], []];
+
+    const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'released' });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: 'hold-1', state: 'resolved' }, resolution: 'released' });
+    expect(harness.state.inserts[0]).toMatchObject({
+      kind: 'approved', eventKey: 'commission:commission-held:approved', reason: 'hold_released',
+    });
+    expect(harness.state.updates[0]).toMatchObject({ state: 'resolved', resolvedByUserId: 'owner-user' });
+  });
+
+  it('keeps a commission held when an owner upholds the review hold', async () => {
+    const hold = {
+      id: 'hold-1', programId, partnerId, commissionId: 'commission-held', reason: 'fraud_suspected',
+      state: 'open', createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    };
+    const resolvedHold = { ...hold, state: 'resolved', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
+    harness.state.results = [[hold], [resolvedHold], []];
+
+    const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'upheld' });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ resolution: 'upheld' });
+    expect(harness.state.inserts).toHaveLength(1);
+    expect(harness.state.updates[0]).toMatchObject({ state: 'resolved' });
   });
 
   it('exports an approved payout file only and never represents a transfer', async () => {
