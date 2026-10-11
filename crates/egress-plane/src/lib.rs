@@ -19,6 +19,7 @@ pub mod config;
 pub mod crypto;
 pub mod db;
 pub mod health;
+pub mod key_rotation;
 pub mod killswitch;
 pub mod metrics;
 pub mod netns;

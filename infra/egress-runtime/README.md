@@ -79,11 +79,45 @@ those global-key envelopes; it defaults to `EGRESS_DEK_ID`, then `egress-dek`.
 For an existing deployment with a custom `EGRESS_DEK_ID`, set the matching
 `EGRESS_LEGACY_DEK_ID` on the egress plane during rollout. Neither variable
 selects a new data-key ID. Root-key storage is currently operator-provided; a
-cloud KMS integration and a safe key rewrap/rotation tool are not implemented.
-Do not replace the configured root key or change `org.kek_id` in place,
-because existing wrapped keys would become unreadable. Production activation
-still requires the approved key-management and recovery procedures for the
-target environment.
+cloud KMS integration is not implemented. Do not replace the configured root
+key or change `org.kek_id` in place outside the rotation procedure below.
+
+### Operator KEK rotation
+
+The egress image includes the operator-only `rotate-org-kek` binary. It accepts
+an explicit database URL file and old/new KEK files, never loads dotenv or
+ambient database settings, rejects symlinks and group/world-readable files,
+and refuses non-loopback database targets. Use a local database or a
+loopback-bound SSH tunnel. Store the database URL and both 64-character hex
+keys in separate files with owner-only permissions (0600 on Linux); never put
+key values in arguments, images, logs, or source.
+
+Run a read-only cryptographic preflight first:
+
+```sh
+./rotate-org-kek \
+  --database-url-file /run/secrets/axiom-db-url \
+  --old-kek-file /run/secrets/axiom-old-kek \
+  --old-kek-id egress-dek \
+  --new-kek-file /run/secrets/axiom-new-kek \
+  --new-kek-id egress-kek-2026-10
+```
+
+For an operator rotation, stop the API, worker, and egress writer services,
+take and verify a protected backup, then rerun the command with
+`--apply --confirm-services-stopped`. The operation requires a BYPASSRLS
+database role, serializes with organization key creation, locks the affected
+tables, verifies every wrapped key before changing anything, and atomically
+rewraps the same DEKs without re-encrypting tenant ciphertext. It appends one
+hash-chained audit record per organization and reports counts only. Any
+unknown KEK ID, unreadable wrapper, database error, or audit error rolls back
+the complete transaction.
+
+After success, configure `EGRESS_KEK_FILE` and `EGRESS_KEK_ID` with the new values
+on every egress-plane instance before restarting services. Verify credential
+decryption, then retain the old key in the protected recovery store until no
+retained backup references its KEK ID. Cloud KMS integration, key escrow, and
+owner-environment recovery acceptance remain separate release requirements.
 
 ```
 plane --signed local UDS--> provisioner --> closed egress_<model> netns

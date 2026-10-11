@@ -910,6 +910,303 @@ async fn test_org_data_keys_are_tenant_scoped_and_roundtrip() {
     checks.unwrap_or_else(|error| panic!("organization data-key integration failed: {error}"));
 }
 
+#[cfg(feature = "db-integration-tests")]
+#[tokio::test]
+async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
+    use tokio_postgres::config::Host;
+
+    let app_url = std::env::var("TEST_DATABASE_URL")
+        .expect("TEST_DATABASE_URL must point to the disposable axiom_test database");
+    let admin_url = std::env::var("TEST_DATABASE_ADMIN_URL")
+        .expect("TEST_DATABASE_ADMIN_URL must point to the disposable admin connection");
+    let app_config: tokio_postgres::Config = app_url.parse().expect("valid app database URL");
+    let admin_config: tokio_postgres::Config = admin_url.parse().expect("valid admin database URL");
+    for config in [&app_config, &admin_config] {
+        assert_eq!(config.get_dbname(), Some("axiom_test"));
+        assert!(
+            config.get_hosts().iter().all(|host| matches!(
+                host,
+                Host::Tcp(host) if host == "localhost" || host == "127.0.0.1" || host == "::1"
+            )),
+            "key rotation test must use a loopback-only disposable database"
+        );
+    }
+    assert_eq!(app_config.get_user(), Some("axiom_app"));
+    assert_eq!(admin_config.get_user(), Some("axiom"));
+
+    let old_kek = egress_plane::crypto::SecretKey::new([0x5a; 32]);
+    let new_kek = egress_plane::crypto::SecretKey::new([0x6b; 32]);
+    let old_kek_id = "egress-dek";
+    let new_kek_id = "rotation-test-v2";
+    let mut app_client = egress_plane::db::connect(&app_url)
+        .await
+        .expect("connect to disposable app role");
+    let app_tx = app_client
+        .transaction()
+        .await
+        .expect("begin app-role transaction");
+    let role_error = egress_plane::key_rotation::rotate_org_kek(
+        &app_tx, &old_kek, old_kek_id, &new_kek, new_kek_id, false,
+    )
+    .await
+    .expect_err("runtime application role must not perform global key rotation");
+    assert!(role_error.contains("BYPASSRLS"));
+    app_tx
+        .rollback()
+        .await
+        .expect("roll back app-role transaction");
+
+    let mut admin_client = egress_plane::db::connect(&admin_url)
+        .await
+        .expect("connect to disposable rotation operator role");
+    let mut tx = admin_client
+        .transaction()
+        .await
+        .expect("begin rollback-only rotation fixture");
+    let mut org_a = uuid::Uuid::new_v4();
+    let mut org_b = uuid::Uuid::new_v4();
+    if org_a > org_b {
+        std::mem::swap(&mut org_a, &mut org_b);
+    }
+    let org_a_text = org_a.to_string();
+    let org_b_text = org_b.to_string();
+    for (org_id, suffix) in [(&org_a, "a"), (&org_b, "b")] {
+        tx.execute(
+            "INSERT INTO org (id, name, slug, kek_id) VALUES ($1, $2, $3, $4)",
+            &[
+                org_id,
+                &"KEK rotation fixture",
+                &format!("kek-rotation-{}-{suffix}", org_id.simple()),
+                &old_kek_id,
+            ],
+        )
+        .await
+        .expect("insert rollback-only organization fixture");
+    }
+
+    let active_dek_id = uuid::Uuid::new_v4();
+    let history_dek_id = uuid::Uuid::new_v4();
+    let active_dek = [0x21; 32];
+    let history_dek = [0x22; 32];
+    let (wrapped_active, wrap_nonce_active) = egress_plane::crypto::wrap_org_dek(
+        &active_dek,
+        old_kek.as_bytes(),
+        &org_a_text,
+        &active_dek_id.to_string(),
+        old_kek_id,
+    )
+    .expect("wrap synthetic active DEK");
+    let (wrapped_history, wrap_nonce_history) = egress_plane::crypto::wrap_org_dek(
+        &history_dek,
+        old_kek.as_bytes(),
+        &org_a_text,
+        &history_dek_id.to_string(),
+        old_kek_id,
+    )
+    .expect("wrap synthetic historical DEK");
+    tx.execute(
+        "INSERT INTO organization_data_key
+           (org_id, dek_id, wrapped_dek, wrap_nonce, kek_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)",
+        &[
+            &org_a,
+            &active_dek_id,
+            &wrapped_active,
+            &wrap_nonce_active,
+            &old_kek_id,
+        ],
+    )
+    .await
+    .expect("insert active synthetic DEK");
+    tx.execute(
+        "INSERT INTO organization_data_key
+           (org_id, dek_id, wrapped_dek, wrap_nonce, kek_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, FALSE)",
+        &[
+            &org_a,
+            &history_dek_id,
+            &wrapped_history,
+            &wrap_nonce_history,
+            &old_kek_id,
+        ],
+    )
+    .await
+    .expect("insert historical synthetic DEK");
+
+    let plaintext = b"synthetic connector payload survives KEK rotation";
+    let (ciphertext, payload_nonce) = egress_plane::crypto::encrypt_org_envelope(
+        plaintext,
+        &active_dek,
+        &org_a_text,
+        &active_dek_id.to_string(),
+    )
+    .expect("encrypt synthetic organization payload");
+    let preview = egress_plane::key_rotation::rotate_org_kek(
+        &tx, &old_kek, old_kek_id, &new_kek, new_kek_id, false,
+    )
+    .await
+    .expect("read-only key rotation preflight");
+    assert!(preview.organizations_scanned >= 2);
+    assert!(preview.organizations_to_update >= 2);
+    assert!(preview.keys_to_rewrap >= 2);
+    let still_old: String = tx
+        .query_one("SELECT kek_id FROM org WHERE id = $1", &[&org_a])
+        .await
+        .expect("read preflight organization state")
+        .get(0);
+    assert_eq!(
+        still_old, old_kek_id,
+        "preflight must not modify the database"
+    );
+
+    let corrupt_dek_id = uuid::Uuid::new_v4();
+    tx.execute(
+        "INSERT INTO organization_data_key
+           (org_id, dek_id, wrapped_dek, wrap_nonce, kek_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, FALSE)",
+        &[
+            &org_b,
+            &corrupt_dek_id,
+            &vec![0u8; 48],
+            &vec![0u8; 24],
+            &"unexpected-fixture-kek",
+        ],
+    )
+    .await
+    .expect("insert rollback-only key mismatch fixture");
+    let rejected = egress_plane::key_rotation::rotate_org_kek(
+        &tx, &old_kek, old_kek_id, &new_kek, new_kek_id, true,
+    )
+    .await
+    .expect_err("mismatched key metadata must reject the entire rotation");
+    assert!(rejected.contains("different KEK"));
+    let after_rejection: String = tx
+        .query_one("SELECT kek_id FROM org WHERE id = $1", &[&org_a])
+        .await
+        .expect("read organization after expected rollback")
+        .get(0);
+    assert_eq!(after_rejection, old_kek_id);
+    let old_row = tx
+        .query_one(
+            "SELECT wrapped_dek, wrap_nonce FROM organization_data_key
+             WHERE org_id = $1 AND dek_id = $2",
+            &[&org_a, &active_dek_id],
+        )
+        .await
+        .expect("read key after expected rollback");
+    assert_eq!(old_row.get::<_, Vec<u8>>(0), wrapped_active);
+    assert_eq!(old_row.get::<_, Vec<u8>>(1), wrap_nonce_active);
+    let rejected_audit_count: i64 = tx
+        .query_one(
+            "SELECT count(*) FROM audit_log WHERE org_id = $1 AND action = $2",
+            &[&org_a, &"security.org-kek.rotate"],
+        )
+        .await
+        .expect("read audit state after expected rollback")
+        .get(0);
+    assert_eq!(
+        rejected_audit_count, 0,
+        "failed rotation must roll back audit rows too"
+    );
+    tx.execute(
+        "DELETE FROM organization_data_key WHERE org_id = $1 AND dek_id = $2",
+        &[&org_b, &corrupt_dek_id],
+    )
+    .await
+    .expect("remove rollback-only corrupt key fixture");
+
+    let applied = egress_plane::key_rotation::rotate_org_kek(
+        &tx, &old_kek, old_kek_id, &new_kek, new_kek_id, true,
+    )
+    .await
+    .expect("apply synthetic rotation inside rollback-only transaction");
+    assert!(applied.organizations_to_update >= 2);
+    assert_eq!(applied.keys_to_rewrap, 2);
+    let org_key_ids = tx
+        .query(
+            "SELECT id, kek_id FROM org WHERE id IN ($1, $2)",
+            &[&org_a, &org_b],
+        )
+        .await
+        .expect("read rotated organization metadata");
+    assert_eq!(org_key_ids.len(), 2);
+    assert!(org_key_ids
+        .iter()
+        .all(|row| row.get::<_, String>(1) == new_kek_id));
+
+    let active_row = tx
+        .query_one(
+            "SELECT wrapped_dek, wrap_nonce, kek_id FROM organization_data_key
+             WHERE org_id = $1 AND dek_id = $2",
+            &[&org_a, &active_dek_id],
+        )
+        .await
+        .expect("read rewrapped synthetic DEK");
+    let new_wrapped: Vec<u8> = active_row.get(0);
+    let new_wrap_nonce: Vec<u8> = active_row.get(1);
+    let row_kek_id: String = active_row.get(2);
+    assert_eq!(row_kek_id, new_kek_id);
+    assert_ne!(new_wrapped, wrapped_active);
+    assert_ne!(new_wrap_nonce, wrap_nonce_active);
+    let recovered_dek = egress_plane::crypto::unwrap_org_dek(
+        &new_wrapped,
+        &new_wrap_nonce,
+        new_kek.as_bytes(),
+        &org_a_text,
+        &active_dek_id.to_string(),
+        new_kek_id,
+    )
+    .expect("new KEK must unwrap the original DEK");
+    assert_eq!(recovered_dek, active_dek);
+    let recovered_payload = egress_plane::crypto::decrypt_org_envelope(
+        &ciphertext,
+        &payload_nonce,
+        &recovered_dek,
+        &org_a_text,
+        &active_dek_id.to_string(),
+    )
+    .expect("existing tenant ciphertext must decrypt after rewrapping");
+    assert_eq!(recovered_payload, plaintext);
+
+    let audit = tx
+        .query_one(
+            "SELECT prev_hash, row_hash, detail::text FROM audit_log
+             WHERE org_id = $1 AND action = $2
+             ORDER BY ts DESC, id DESC LIMIT 1",
+            &[&org_a, &"security.org-kek.rotate"],
+        )
+        .await
+        .expect("rotation must append an audit-chain record");
+    assert_eq!(audit.get::<_, Vec<u8>>(0), vec![0u8; 32]);
+    assert_eq!(audit.get::<_, Vec<u8>>(1).len(), 32);
+    let detail: serde_json::Value =
+        serde_json::from_str(audit.get::<_, String>(2).as_str()).expect("decode audit detail");
+    assert_eq!(detail["old_kek_id"], old_kek_id);
+    assert_eq!(detail["new_kek_id"], new_kek_id);
+    assert_eq!(detail["wrapped_deks"], 2);
+
+    let repeated = egress_plane::key_rotation::rotate_org_kek(
+        &tx, &old_kek, old_kek_id, &new_kek, new_kek_id, true,
+    )
+    .await
+    .expect("rotation retry should verify current wrappers without rewrapping");
+    assert_eq!(repeated.keys_to_rewrap, 0);
+    assert_eq!(repeated.organizations_to_update, 0);
+    tx.rollback()
+        .await
+        .expect("roll back every synthetic organization, key, and audit write");
+
+    let leftovers: i64 = admin_client
+        .query_one(
+            "SELECT count(*) FROM org WHERE id IN ($1, $2)",
+            &[&org_a, &org_b],
+        )
+        .await
+        .expect("verify fixture cleanup")
+        .get(0);
+    assert_eq!(leftovers, 0, "rollback must clean the created fixture rows");
+}
+
 #[tokio::test]
 async fn test_drain_during_probe_cannot_resurrect_binding() {
     use std::sync::atomic::{AtomicBool, Ordering};
