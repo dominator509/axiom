@@ -106,6 +106,8 @@ export interface CommissionRecord {
 export interface FraudHold {
   holdId: string;
   partnerId: string;
+  /** Omitted for a partner-wide hold; otherwise limits the hold to one commission. */
+  commissionId?: string;
   reason: HoldReason;
   openedAt: string;
   note?: string;
@@ -224,7 +226,9 @@ export function canTransitionCommission(from: CommissionState, to: CommissionSta
 /** A held commission cannot be exported until the hold is resolved. */
 export function isCommissionExportable(commission: CommissionRecord, holds: FraudHold[]): boolean {
   if (commission.state !== 'approved') return false;
-  const open = holds.some((hold) => hold.partnerId === commission.partnerId && !hold.resolvedAt);
+  const open = holds.some((hold) => hold.partnerId === commission.partnerId
+    && !hold.resolvedAt
+    && (!hold.commissionId || hold.commissionId === commission.commissionId));
   return !open;
 }
 

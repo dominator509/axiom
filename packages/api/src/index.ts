@@ -1045,6 +1045,7 @@ app.use('/api/v1/platform/affiliate/partners/:partnerId', idempotency());
 app.use('/api/v1/platform/affiliate/campaigns', idempotency());
 app.use('/api/v1/platform/affiliate/attribution', idempotency());
 app.use('/api/v1/platform/affiliate/conversions/reconcile', idempotency());
+app.use('/api/v1/platform/affiliate/commissions/*', idempotency());
 app.use('/api/v1/platform/affiliate/holds/:holdId/resolve', idempotency());
 app.use('/api/v1/ui-locale', idempotency());
 

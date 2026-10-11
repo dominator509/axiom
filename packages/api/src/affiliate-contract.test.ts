@@ -228,6 +228,19 @@ describe('F-90 fraud holds and payout fences', () => {
     expect(isCommissionExportable(approved, [hold])).toBe(false);
   });
 
+  it('limits commission-specific holds to the commission under review', () => {
+    const hold: FraudHold = {
+      holdId: 'hold-specific',
+      partnerId: PARTNER_A,
+      commissionId: 'comm-1',
+      reason: 'fraud_suspected',
+      openedAt: '2026-02-04T00:00:00Z',
+    };
+    const unrelated = { ...approved, commissionId: 'comm-2' };
+    expect(isCommissionExportable(approved, [hold])).toBe(false);
+    expect(isCommissionExportable(unrelated, [hold])).toBe(true);
+  });
+
   it('allows export once the hold is resolved', () => {
     const hold: FraudHold = {
       holdId: 'hold-1',

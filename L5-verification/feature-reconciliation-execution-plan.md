@@ -316,6 +316,8 @@ deployment evidence remain open.
 - The native implementation is the selected path: immutable platform attribution events, derived commission ledger, review/hold states, a non-transfer payout export boundary, owner partner/campaign portal and audit-safe reconciliation are source-wired. Migration, billing/reconciliation, license/security/legal, browser and payout/operator gates remain open. Never reuse provider earnings `referrals` as affiliate state.
 - Acceptance gate: source/license/dependency review receipt, partner authorization and creator-data isolation tests, signed webhook/replay tests, SaaS conversion idempotency under retries, reversal/refund and payout-hold tests, disclosure/consent tests, export/deletion tests, desktop/mobile browser coverage, and an explicit human/legal review of the selected licensing model. No live payouts are claimed by source tests.
 
+- F-90 owner review controls now expose accrued commission approval and reasoned commission holds. State changes append audit-backed commission events; releasing a hold restores that commission to approved, while upholding it leaves the commission held. A commission-specific hold does not block unrelated commissions for the same partner. This remains source implementation only; it does not establish browser, legal, payout, migration, or deployed acceptance.
+
 ### 16. Patreon creator/community integration — source slice implemented; v2-only, read/sync-first
 
 - Add F-91 to the existing model-scoped connection/capability architecture without treating Patreon as an eleventh automated publisher. Reuse OAuth state/PKCE, encrypted credentials, model egress, RLS, worker queue, audit and idempotency; do not create a parallel account or permission system.
