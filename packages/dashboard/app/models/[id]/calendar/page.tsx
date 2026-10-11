@@ -12,6 +12,17 @@ import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
+function scheduledForLabel(
+  value: string | null,
+  dateTime: (value: string | Date) => string,
+  t: (key: 'calendar.notScheduled' | 'calendar.scheduleTimeUnavailable' | 'calendar.utc') => string,
+): string {
+  if (!value) return t('calendar.notScheduled');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return t('calendar.scheduleTimeUnavailable');
+  return `${dateTime(date)} (${t('calendar.utc')})`;
+}
+
 export default async function CalendarPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -150,7 +161,7 @@ export default async function CalendarPage({ params, searchParams }: {
               </span>
             </div>
             <div style={{ marginTop: 8 }}>
-              {p.scheduledFor ? `${dateTime(new Date(p.scheduledFor))} (${t('calendar.utc')})` : t('calendar.notScheduled')}
+              {scheduledForLabel(p.scheduledFor, dateTime, t)}
             </div>
             {p.error && (
               <div style={{ color: 'var(--bad)', marginTop: 6 }} className="mono">
