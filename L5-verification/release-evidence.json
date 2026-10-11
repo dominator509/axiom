@@ -1345,7 +1345,7 @@
           "Verified cleanup for created resources and immutable image digests when containers are used.",
           "Synthetic-record mobile/browser evidence and owner attestation tied to the final exact SHA."
         ],
-        "completionCondition": "Satisfy this exact acceptance requirement: A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control) and F-91 (Patreon creator/community integration) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
+        "completionCondition": "Satisfy this exact acceptance requirement: A checklist test asserts every v1 feature (F-01..F-88 in `L1.1`) resolves to a live route/worker/UI in v2. The owner extensions F-89 (localization), F-90 (FanThynks platform affiliate/referral control), F-91 (Patreon creator/community integration), and F-92 (Beacon CRM account records connector) have their own acceptance rows in the execution plan and must also resolve before the product is called feature-complete. No v1 capability may 404. This is the machine-checkable proof that \"no features were removed\" plus the new owner extensions.; record a source-bound receipt with zero failed and zero skipped acceptance checks."
       }
     },
     {
