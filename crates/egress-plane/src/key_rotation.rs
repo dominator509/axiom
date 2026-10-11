@@ -25,6 +25,7 @@ pub struct RotationSummary {
     pub organizations_to_update: usize,
     pub keys_to_rewrap: usize,
     pub organizations_already_current: usize,
+    pub organizations_with_other_kek: usize,
 }
 
 /// Verify or apply a root KEK rotation within the caller's transaction.
@@ -129,8 +130,10 @@ async fn rotate_org_kek_inner(
         let org_id: uuid::Uuid = organization.get(0);
         let org_id_text = org_id.to_string();
         let org_kek_id: String = organization.get(1);
-        if org_kek_id != old_kek_id && org_kek_id != new_kek_id {
-            return Err("an organization references an unexpected KEK identifier".into());
+        let rotating = org_kek_id == old_kek_id;
+        let already_current = org_kek_id == new_kek_id;
+        if !rotating && !already_current {
+            summary.organizations_with_other_kek += 1;
         }
 
         let key_sql = if apply {
@@ -148,11 +151,10 @@ async fn rotate_org_kek_inner(
             .map_err(|_| "could not load wrapped organization keys".to_string())?;
         let key_count = keys.len();
 
-        let rotating = org_kek_id == old_kek_id;
         if rotating {
             summary.organizations_to_update += 1;
             summary.keys_to_rewrap += key_count;
-        } else {
+        } else if already_current {
             summary.organizations_already_current += 1;
         }
 
@@ -165,6 +167,9 @@ async fn rotate_org_kek_inner(
                 return Err(
                     "an organization data key references a different KEK identifier".into(),
                 );
+            }
+            if !rotating && !already_current {
+                continue;
             }
 
             let (unwrap_key, wrap_key, target_kek_id) = if rotating {

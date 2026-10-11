@@ -187,22 +187,24 @@ async fn run() -> Result<(), String> {
             .await
             .map_err(|_| "could not commit key rotation".to_string())?;
         println!(
-            "applied: organizations={} updated={} keys_rewrapped={} already_current={}",
+            "applied: organizations={} updated={} keys_rewrapped={} already_current={} other_kek={}",
             summary.organizations_scanned,
             summary.organizations_to_update,
             summary.keys_to_rewrap,
-            summary.organizations_already_current
+            summary.organizations_already_current,
+            summary.organizations_with_other_kek
         );
     } else {
         tx.rollback()
             .await
             .map_err(|_| "could not close key-rotation preflight".to_string())?;
         println!(
-            "preflight only: organizations={} would_update={} keys_to_rewrap={} already_current={}",
+            "preflight only: organizations={} would_update={} keys_to_rewrap={} already_current={} other_kek={}",
             summary.organizations_scanned,
             summary.organizations_to_update,
             summary.keys_to_rewrap,
-            summary.organizations_already_current
+            summary.organizations_already_current,
+            summary.organizations_with_other_kek
         );
     }
     Ok(())

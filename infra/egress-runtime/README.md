@@ -107,11 +107,14 @@ For an operator rotation, stop the API, worker, and egress writer services,
 take and verify a protected backup, then rerun the command with
 `--apply --confirm-services-stopped`. The operation requires a BYPASSRLS
 database role, serializes with organization key creation, locks the affected
-tables, verifies every wrapped key before changing anything, and atomically
-rewraps the same DEKs without re-encrypting tenant ciphertext. It appends one
-hash-chained audit record per organization and reports counts only. Any
-unknown KEK ID, unreadable wrapper, database error, or audit error rolls back
-the complete transaction.
+tables, verifies every DEK wrapped by the selected old KEK before changing
+anything, and atomically rewraps those same DEKs without re-encrypting tenant
+ciphertext. Organizations already using another KEK generation are left
+untouched and counted in the result; a mismatch between an organization and
+its key-row KEK IDs aborts the complete transaction. It appends one
+hash-chained audit record per changed organization and reports counts only.
+An unreadable selected wrapper, database error, or audit error rolls back the
+complete transaction.
 
 After success, configure `EGRESS_KEK_FILE` and `EGRESS_KEK_ID` with the new values
 on every egress-plane instance before restarting services. Verify credential

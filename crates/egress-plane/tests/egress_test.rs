@@ -968,8 +968,10 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
     if org_a > org_b {
         std::mem::swap(&mut org_a, &mut org_b);
     }
+    let org_c = uuid::Uuid::new_v4();
     let org_a_text = org_a.to_string();
     let org_b_text = org_b.to_string();
+    let other_kek_id = "external-managed-kek";
     for (org_id, suffix) in [(&org_a, "a"), (&org_b, "b")] {
         tx.execute(
             "INSERT INTO org (id, name, slug, kek_id) VALUES ($1, $2, $3, $4)",
@@ -983,6 +985,34 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
         .await
         .expect("insert rollback-only organization fixture");
     }
+    tx.execute(
+        "INSERT INTO org (id, name, slug, kek_id) VALUES ($1, $2, $3, $4)",
+        &[
+            &org_c,
+            &"KEK rotation unrelated fixture",
+            &format!("kek-rotation-{}-other", org_c.simple()),
+            &other_kek_id,
+        ],
+    )
+    .await
+    .expect("insert unrelated-key organization fixture");
+    let other_dek_id = uuid::Uuid::new_v4();
+    let other_wrapped_dek = vec![0x73; 48];
+    let other_wrap_nonce = vec![0x84; 24];
+    tx.execute(
+        "INSERT INTO organization_data_key
+           (org_id, dek_id, wrapped_dek, wrap_nonce, kek_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)",
+        &[
+            &org_c,
+            &other_dek_id,
+            &other_wrapped_dek,
+            &other_wrap_nonce,
+            &other_kek_id,
+        ],
+    )
+    .await
+    .expect("insert unrelated-key wrapped DEK fixture");
 
     let active_dek_id = uuid::Uuid::new_v4();
     let history_dek_id = uuid::Uuid::new_v4();
@@ -1049,6 +1079,7 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
     assert!(preview.organizations_scanned >= 2);
     assert!(preview.organizations_to_update >= 2);
     assert!(preview.keys_to_rewrap >= 2);
+    assert!(preview.organizations_with_other_kek >= 1);
     let still_old: String = tx
         .query_one("SELECT kek_id FROM org WHERE id = $1", &[&org_a])
         .await
@@ -1079,7 +1110,10 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
     )
     .await
     .expect_err("mismatched key metadata must reject the entire rotation");
-    assert!(rejected.contains("different KEK"));
+    assert!(
+        rejected.contains("different KEK"),
+        "unexpected rejection before the injected row-metadata mismatch: {rejected}"
+    );
     let after_rejection: String = tx
         .query_one("SELECT kek_id FROM org WHERE id = $1", &[&org_a])
         .await
@@ -1122,6 +1156,7 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
     .expect("apply synthetic rotation inside rollback-only transaction");
     assert!(applied.organizations_to_update >= 2);
     assert_eq!(applied.keys_to_rewrap, 2);
+    assert!(applied.organizations_with_other_kek >= 1);
     let org_key_ids = tx
         .query(
             "SELECT id, kek_id FROM org WHERE id IN ($1, $2)",
@@ -1133,6 +1168,23 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
     assert!(org_key_ids
         .iter()
         .all(|row| row.get::<_, String>(1) == new_kek_id));
+    let other_org_kek: String = tx
+        .query_one("SELECT kek_id FROM org WHERE id = $1", &[&org_c])
+        .await
+        .expect("read unrelated organization metadata")
+        .get(0);
+    assert_eq!(other_org_kek, other_kek_id);
+    let other_key = tx
+        .query_one(
+            "SELECT wrapped_dek, wrap_nonce, kek_id FROM organization_data_key
+             WHERE org_id = $1 AND dek_id = $2",
+            &[&org_c, &other_dek_id],
+        )
+        .await
+        .expect("read unrelated wrapped key");
+    assert_eq!(other_key.get::<_, Vec<u8>>(0), other_wrapped_dek);
+    assert_eq!(other_key.get::<_, Vec<u8>>(1), other_wrap_nonce);
+    assert_eq!(other_key.get::<_, String>(2), other_kek_id);
 
     let active_row = tx
         .query_one(
@@ -1198,8 +1250,8 @@ async fn test_org_kek_rotation_is_atomic_and_preserves_payloads() {
 
     let leftovers: i64 = admin_client
         .query_one(
-            "SELECT count(*) FROM org WHERE id IN ($1, $2)",
-            &[&org_a, &org_b],
+            "SELECT count(*) FROM org WHERE id IN ($1, $2, $3)",
+            &[&org_a, &org_b, &org_c],
         )
         .await
         .expect("verify fixture cleanup")
