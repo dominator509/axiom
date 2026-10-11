@@ -116,13 +116,12 @@ fn read_database_url(path: &Path) -> Result<Zeroizing<String>, String> {
         return Err("database URL file must contain one non-empty line".into());
     }
     let config: tokio_postgres::Config = value.parse().map_err(|_| "database URL is invalid")?;
-    if config.get_dbname().is_none_or(str::is_empty)
+    if config.get_dbname().map_or(true, str::is_empty)
         || config.get_hosts().is_empty()
         || config.get_hosts().iter().any(|host| match host {
             tokio_postgres::config::Host::Tcp(host) => {
                 host != "localhost" && host != "127.0.0.1" && host != "::1"
             }
-            _ => true,
         })
     {
         return Err("database target must name a database on loopback only".into());
