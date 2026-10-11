@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CATALOGS, LocaleCatalog, formatDate, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, PLATFORM_IDS, formatDate, type Platform, type SupportedLocale } from '@axiom/core';
 import {
   getConsentRecords,
   getConsentStatus,
@@ -12,8 +12,16 @@ import {
 } from '../api/endpoints';
 import { palette } from '../theme';
 
-export const CONSENT_STATUS_PLATFORMS = ['instagram', 'x', 'reddit', 'fanvue'] as const;
+export const CONSENT_STATUS_PLATFORMS: readonly Platform[] = PLATFORM_IDS;
 const catalog = new LocaleCatalog(CATALOGS);
+
+export async function loadConsentSnapshot(modelId: string) {
+  const [records, statuses] = await Promise.all([
+    getConsentRecords(modelId),
+    Promise.all(CONSENT_STATUS_PLATFORMS.map(platform => getConsentStatus(modelId, platform))),
+  ]);
+  return { records, statuses };
+}
 
 export interface ConsentViewProps {
   locale: SupportedLocale;
@@ -191,10 +199,7 @@ export default function ConsentScreen() {
     let active = true;
     setDataLoading(true);
     setError(false);
-    void Promise.all([
-      getConsentRecords(selectedModelId),
-      Promise.all(CONSENT_STATUS_PLATFORMS.map(platform => getConsentStatus(selectedModelId, platform))),
-    ]).then(([nextRecords, nextStatuses]) => {
+    void loadConsentSnapshot(selectedModelId).then(({ records: nextRecords, statuses: nextStatuses }) => {
       if (!active) return;
       setRecords(nextRecords);
       setStatuses(nextStatuses);
