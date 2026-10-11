@@ -321,7 +321,7 @@ async fn append_rotation_audit(
         ],
     )
     .await
-    .map_err(|_| "could not append organization key audit".to_string())?;
+    .map_err(|error| format!("could not append organization key audit: {error}"))?;
     Ok(())
 }
 
