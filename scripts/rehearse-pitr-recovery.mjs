@@ -45,7 +45,7 @@ const receipt = {
   sourceSha: '',
   command: `node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha ${testedSha}`,
   node: process.versions.node,
-  environment: 'GitHub-hosted Linux runner; two network-disabled disposable PostgreSQL clusters; synthetic data and keys',
+  environment: 'GitHub-hosted Linux runner; two network-disabled disposable PostgreSQL clusters; separate synthetic media backup/restore volumes, data, and keys',
   image,
   imageId: null,
   migrationArchiveSha256: null,
@@ -58,6 +58,7 @@ const receipt = {
   cleanupVerified: false,
   limitations: [
     'No Cloudflare R2 account, bucket-lock/retention rule, external KMS/KEK, application deployment, worker, or provider was used.',
+    'Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy.',
     'The network-disabled recovery hold and unknown-job row are inspected in the restored migrated database; no post-recovery dispatch is attempted.',
     'This synthetic PITR rehearsal is partial evidence and does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.',
   ],
@@ -217,8 +218,12 @@ try {
     const restoreVolume = volume(`axiom-dr-${suffix}-restore`);
     const archiveVolume = volume(`axiom-dr-${suffix}-wal`);
     const objectsVolume = volume(`axiom-dr-${suffix}-objects`);
+    const objectBackupVolume = volume(`axiom-dr-${suffix}-object-backup`);
+    const objectRestoreVolume = volume(`axiom-dr-${suffix}-object-restore`);
+    const missingObjectsVolume = volume(`axiom-dr-${suffix}-missing-objects`);
     const corruptVolume = volume(`axiom-dr-${suffix}-corrupt-backup`);
-    for (const target of [backupVolume, restoreVolume, archiveVolume, objectsVolume, corruptVolume]) {
+    for (const target of [backupVolume, restoreVolume, archiveVolume, objectsVolume,
+      objectBackupVolume, objectRestoreVolume, corruptVolume]) {
       runHelper(['--user', '0:0', '--volume', `${target}:/owned`, image, 'chown', '-R', 'postgres:postgres', '/owned']);
     }
     docker(['run', '--detach', ...labeled([
@@ -285,6 +290,15 @@ try {
       ciphertextSha256: sha256(payload.ciphertext),
     };
     docker(['exec', '-i', '--user', 'postgres', source, 'sh', '-c', `cat > /objects/${objectName}`], { input: payload.ciphertext });
+    runHelper(['--volume', `${objectsVolume}:/source:ro`, '--volume', `${objectBackupVolume}:/backup`, image,
+      'sh', '-c', 'cp -a /source/. /backup/']);
+    const backedUpCiphertext = docker(['run', '--rm', ...labeled(['--network', 'none',
+      '--volume', `${objectBackupVolume}:/backup:ro`, image, 'sh', '-c', `cat /backup/${objectName}`])],
+    { binaryOutput: true });
+    check(`drill ${drillNumber}: media backup snapshot is separate and checksum-valid`, () => {
+      assert.notEqual(objectBackupVolume, objectsVolume);
+      assert.equal(sha256(backedUpCiphertext), envelope.ciphertextSha256);
+    });
     sql(source, `INSERT INTO dr_recovery.key_envelope(object_name, envelope)
       VALUES (${sqlLiteral(objectName)}, ${sqlLiteral(JSON.stringify(envelope))}::jsonb);
       INSERT INTO dr_recovery.marker(name) VALUES ('pitr-recoverable-marker');
@@ -306,6 +320,8 @@ try {
     const rpoMs = faultAtMs - Date.parse(targetTime);
     docker(['stop', '--time', '5', source], { timeout: 30_000 });
     check(`drill ${drillNumber}: WAL-derived RPO is at most five minutes`, () => assert.ok(rpoMs >= 0 && rpoMs <= 5 * 60_000));
+    runHelper(['--volume', `${objectBackupVolume}:/source:ro`, '--volume', `${objectRestoreVolume}:/restore`, image,
+      'sh', '-c', 'cp -a /source/. /restore/']);
 
     const targetConfig = [
       "restore_command = 'test -f /wal-archive/%f && cp /wal-archive/%f %p'",
@@ -321,11 +337,16 @@ try {
     currentStep = `drill ${drillNumber} fresh-cluster PITR restore`;
     docker(['run', '--detach', ...labeled([
       '--name', restored, '--network', 'none', '--volume', `${restoreVolume}:/var/lib/postgresql/data`,
-      '--volume', `${archiveVolume}:/wal-archive`, '--volume', `${objectsVolume}:/objects`, image,
+      '--volume', `${archiveVolume}:/wal-archive`, '--volume', `${objectRestoreVolume}:/objects`, image,
       'postgres', '-c', 'listen_addresses=localhost', '-c', 'timezone=UTC',
     ])], { timeout: 120_000 });
     await waitUntil(`${restored} readiness`, () => run('docker', ['exec', restored, 'pg_isready', '-h', '127.0.0.1', '-U', 'axiom', '-d', 'axiom_test'], { env: dockerEnv, timeout: 8000 }).status === 0, 180_000);
     await waitUntil(`${restored} PITR promotion`, () => sql(restored, 'SELECT pg_is_in_recovery()') === 'f', 180_000);
+    check(`drill ${drillNumber}: fresh cluster mounts the separately restored media volume`, () => {
+      const mounts = JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', restored]));
+      assert.ok(mounts.some(mount => mount.Name === objectRestoreVolume && mount.Destination === '/objects'));
+      assert.equal(mounts.some(mount => mount.Name === objectsVolume || mount.Name === objectBackupVolume), false);
+    });
 
     const restoredSnapshot = archiveSnapshot(restored);
     check(`drill ${drillNumber}: fresh cluster restored the original system identifier`, () => assert.equal(restoredSnapshot.systemIdentifier, baseSnapshot.systemIdentifier));
@@ -353,7 +374,7 @@ try {
     const recoveredEnvelope = JSON.parse(sql(restored,
       `SELECT envelope::text FROM dr_recovery.key_envelope WHERE object_name=${sqlLiteral(objectName)}`));
     const plaintext = verifyEncryptedObject(recoveredCiphertext, recoveredEnvelope, kek);
-    check(`drill ${drillNumber}: separately stored encrypted media and synthetic wrapped key recover`, () => {
+    check(`drill ${drillNumber}: independently backed-up encrypted media and synthetic wrapped key recover`, () => {
       assert.equal(sha256(plaintext), sha256(plainObject));
       assert.equal(sha256(recoveredCiphertext), envelope.ciphertextSha256);
     });
@@ -372,6 +393,11 @@ try {
       try { verifyEncryptedObject(changed, recoveredEnvelope, kek); return { accepted: true }; }
       catch { return { accepted: false }; }
     }, value => assert.equal(value.accepted, false));
+    const missingObjectCheck = run('docker', ['run', '--rm', ...labeled(['--network', 'none',
+      '--volume', `${missingObjectsVolume}:/objects:ro`, image, 'sh', '-c', `cat /objects/${objectName}`])],
+    { env: dockerEnv, timeout: 30_000 });
+    expectedReject(`drill ${drillNumber}: recovery rejects a missing media object`, () => missingObjectCheck,
+      value => { assert.notEqual(value.status, 0); assert.match(`${value.stdout ?? ''}${value.stderr ?? ''}`, /No such file/i); });
     expectedReject(`drill ${drillNumber}: synthetic key access rejects an unavailable KEK`, () => {
       try { verifyEncryptedObject(recoveredCiphertext, recoveredEnvelope, randomBytes(32)); return { accepted: true }; }
       catch { return { accepted: false }; }
@@ -401,6 +427,7 @@ try {
       databaseRtoMs: rtoMs,
       egress: 'disabled (Docker network=none)',
       unknownPublishOutcome: 'preserved as dead/unknown; publishing remains disabled; no dispatch attempted',
+      mediaRestore: 'separate disposable backup volume copied into a distinct fresh volume; restored object checksum verified; no R2 API or retention test',
       objectCiphertextSha256: envelope.ciphertextSha256,
       keyHandling: 'synthetic in-memory KEK only; not an external KMS test',
     });
