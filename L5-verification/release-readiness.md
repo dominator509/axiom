@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline (2026-10-11): `47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db`, after PR #164. Exact-main [CI run 38125889370](https://github.com/dominator509/axiom/actions/runs/38125889370) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
+Latest verified application baseline (2026-10-11): `11d970c1486a83dfae4e65a86915605437c5cad3`, after PR #169. Exact-main [CI run 38137713092](https://github.com/dominator509/axiom/actions/runs/38137713092) completed with 12/12 jobs passed, 0 failed, and 0 cancelled. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -9,10 +9,10 @@ historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
 22 accepted, and 32 open; the register was structurally valid but not release
 approval. At that historical baseline, the release gate remained blocked by
 stale receipts for other passed criteria and by open criteria. The latest
-effective-RLS rehearsal on main `47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db` is
-recorded below. The preceding `8f106167...` and `af62fb6` receipts remain
-historical evidence. Repeat the complete RLS matrix on the final release SHA
-after the remaining lanes. Accepted rows retain their actual tested SHAs. A
+effective-RLS rehearsal on main `11d970c1486a83dfae4e65a86915605437c5cad3` is
+recorded in the current checkpoint section below. The `47637d8...`,
+`8f106167...`, and `af62fb6` receipts remain historical evidence. Repeat the complete RLS matrix on the final release
+SHA after the remaining lanes. Accepted rows retain their actual tested SHAs. A
 post-run external register cannot redefine acceptance criteria, and this
 document does not authorize release.
 
@@ -20,7 +20,24 @@ PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
 
-## Exact-main acceptance refresh (2026-10-11)
+## Current exact-main RLS refresh (2026-10-11)
+
+Current main is `11d970c1486a83dfae4e65a86915605437c5cad3` after PR #169. Exact-main
+[CI run 38137713092](https://github.com/dominator509/axiom/actions/runs/38137713092)
+completed 12/12 jobs successfully (0 failed, 0 cancelled). The release-register
+check `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria,
+28 accepted, 23 unverified, 3 blocked, and 26 open; this is a structural check,
+not release approval.
+
+- `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` passed 20
+  assertions, 0 failed, 0 skipped, with cleanup verified in
+  [ci (test)](https://github.com/dominator509/axiom/actions/runs/38137713092/job/114464900061).
+  Raw job-log SHA-256:
+  `ce9e279ea5fcadae5282f6cb446d49d41c5fd038a9242148ab4f5f73b1df26ab`.
+  This checkpoint covers only the owned, network-disabled disposable database;
+  deployed/shared database state and the final-release-SHA replay remain open.
+
+## Earlier exact-main acceptance refresh (2026-10-11; SHA 47637d8)
 
 All receipts below target application SHA
 `47637d8a5e82cb9f7bd7ccd55f9c2c33ad4870db` and are from hosted
