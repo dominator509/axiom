@@ -59,7 +59,9 @@ describe('object storage ports', () => {
       });
       if (method === 'GET') {
         const headers = init?.headers as Record<string, string> | undefined;
-        return new Response(headers?.Range === 'bytes=1-4' ? body.subarray(1, 5) : body, { status: 200 });
+        return headers?.Range === 'bytes=1-4'
+          ? new Response(body.subarray(1, 5), { status: 206, headers: { 'content-range': `bytes 1-4/${body.length}` } })
+          : new Response(body, { status: 200 });
       }
       return new Response(null, { status: 204 });
     });
@@ -68,6 +70,7 @@ describe('object storage ports', () => {
       await storage.put({ key, scope, body, mimeType: 'image/png' });
       const result = await storage.get(key, scope, { start: 1, end: 4 });
       expect(result?.body).toEqual(body.subarray(1, 5));
+      expect((await storage.get(key, scope))?.body).toEqual(body);
       expect(calls.some(call => Object.keys(call.headers as Record<string, string>)
         .some(name => name.toLowerCase() === 'authorization'))).toBe(true);
       const rangeCall = calls.find(call => call.method === 'GET');
@@ -79,6 +82,45 @@ describe('object storage ports', () => {
       await expect(new R2ObjectStorage(config).put({ key, scope, body, mimeType: 'image/png' }))
         .rejects.toThrow('R2 PUT returned HTTP 403');
     } finally { failure.mockRestore(); }
+  });
+
+  it('rejects R2 ranged reads when the provider ignores or misstates the requested range', async () => {
+    const invalidResponses = [
+      {
+        response: () => new Response(body, { status: 200 }),
+        error: 'R2 ranged GET response did not match the requested range',
+      },
+      {
+        response: () => new Response(body.subarray(1, 5), {
+          status: 206, headers: { 'content-range': `bytes 0-3/${body.length}` },
+        }),
+        error: 'R2 ranged GET response did not match the requested range',
+      },
+      {
+        response: () => new Response(body.subarray(1, 4), {
+          status: 206, headers: { 'content-range': `bytes 1-4/${body.length}` },
+        }),
+        error: 'R2 ranged GET body length mismatch',
+      },
+    ];
+
+    for (const scenario of invalidResponses) {
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+        if (init?.method === 'HEAD') return new Response(null, {
+          status: 200,
+          headers: {
+            'content-length': String(body.length),
+            'content-type': 'image/png',
+            'x-amz-meta-axiom-sha256': hash.toString('hex'),
+          },
+        });
+        return scenario.response();
+      });
+      try {
+        await expect(new R2ObjectStorage(config).get(key, scope, { start: 1, end: 4 }))
+          .rejects.toThrow(scenario.error);
+      } finally { fetchMock.mockRestore(); }
+    }
   });
 
   it('reports not_found and unknown delete outcomes and rejects cross-tenant R2 keys', async () => {

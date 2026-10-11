@@ -213,8 +213,23 @@ export class R2ObjectStorage implements ObjectStorage {
       range: bounded ? `bytes=${bounded.start}-${bounded.end}` : undefined,
     });
     if (!response.ok) throw new Error(`R2 GET returned HTTP ${response.status}`);
+    if (bounded) {
+      const contentRange = response.headers.get('content-range');
+      const match = contentRange && /^bytes (\d+)-(\d+)\/(\d+)$/.exec(contentRange);
+      if (response.status !== 206 || !match
+        || Number(match[1]) !== bounded.start
+        || Number(match[2]) !== bounded.end
+        || Number(match[3]) !== metadata.size) {
+        throw new Error('R2 ranged GET response did not match the requested range');
+      }
+    } else if (response.status !== 200) {
+      throw new Error('R2 GET did not return the complete object');
+    }
     const body = Buffer.from(await response.arrayBuffer());
-    if (!bounded && !metadataHash(body).equals(metadata.sha256)) throw new Error('R2 object content integrity failure');
+    if (bounded && body.byteLength !== bounded.end - bounded.start + 1)
+      throw new Error('R2 ranged GET body length mismatch');
+    if (!bounded && (body.byteLength !== metadata.size || !metadataHash(body).equals(metadata.sha256)))
+      throw new Error('R2 object content integrity failure');
     return bounded ? { metadata, body, range: bounded } : { metadata, body };
   }
 
