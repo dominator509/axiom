@@ -536,6 +536,7 @@ SELECT id FROM content_bundle WHERE id = :'bundle';
 BEGIN;
 DELETE FROM content_bundle WHERE id = :'bundle' AND org_id = :'org';
 DELETE FROM consent_record WHERE id = :'consent' AND org_id = :'org' AND model_id = :'model';
+DELETE FROM consent_record WHERE model_id = :'peer_model' AND org_id = :'org';
 DELETE FROM model_profile WHERE id = :'peer_model' AND org_id = :'org';
 SELECT (SELECT count(*) FROM content_bundle WHERE id = :'bundle')::text || '|'
   || (SELECT count(*) FROM consent_record WHERE id = :'consent')::text || '|'
