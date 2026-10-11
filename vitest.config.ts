@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { defineConfig } from 'vitest/config';
+import { availableParallelism } from 'node:os';
 import path from 'path';
 import fs from 'fs';
 import type { Plugin } from 'vite';
@@ -60,6 +61,10 @@ export default defineConfig({
     // deterministic sequence so their tenant fixtures cannot deadlock each
     // other while unit tests retain normal file parallelism.
     fileParallelism: !process.env.TEST_DATABASE_URL,
+
+    // Forking once per reported CPU can starve API module initialization on
+    // high-core developer machines. Cap concurrency without skipping tests.
+    maxWorkers: Math.min(4, availableParallelism()),
 
     // Use forks pool for process-level isolation (more robust than threads)
     pool: 'forks',
