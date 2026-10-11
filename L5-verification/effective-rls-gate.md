@@ -103,6 +103,17 @@ failed/0 skipped**, `cleanup: true`; the raw job-log SHA-256 is
 rehearsal covers the disposable database only; deployed/shared database state
 and the planned final-release-SHA replay remain open.
 
+
+The current-main rehearsal ran on exact SHA
+`11d970c1486a83dfae4e65a86915605437c5cad3`: [CI run 38137713092](https://github.com/dominator509/axiom/actions/runs/38137713092),
+[test job 114464900061](https://github.com/dominator509/axiom/actions/runs/38137713092/job/114464900061).
+The exact command `node scripts/rehearse-rls-catalog.mjs --isolated-fixture`
+used Node 22.23.3 and the pinned TimescaleDB PostgreSQL 16 image. It reported
+**20 passed/0 failed/0 skipped**, `cleanup: true`; the raw job-log SHA-256 is
+`ce9e279ea5fcadae5282f6cb446d49d41c5fd038a9242148ab4f5f73b1df26ab`. This is
+an owned disposable database checkpoint; deployed/shared state and the planned
+final-release-SHA replay remain open.
+
 ## Limits
 
 Catalog flags and policy composition do not prove arbitrary policy-expression
