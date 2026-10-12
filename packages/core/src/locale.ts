@@ -900,6 +900,7 @@ export const MESSAGE_KEYS = [
   'roleplay.noSavedMemory',
   'roleplay.notConfirmed',
   'roleplay.personaDescription',
+  'roleplay.personaLoadFailed',
   'roleplay.personaEditRequires',
   'roleplay.personaFileLoaded',
   'roleplay.personaFileReadFailed',

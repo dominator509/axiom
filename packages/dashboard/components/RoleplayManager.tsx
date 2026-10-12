@@ -69,6 +69,8 @@ export default function RoleplayManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [personaLoading, setPersonaLoading] = useState(false);
+  const [personaLoadFailed, setPersonaLoadFailed] = useState(false);
 
   const actorKey = actor ? `${actor.actor.type}:${actor.actor.ref}` : '';
   const activeHandoff = context?.handoff;
@@ -110,6 +112,8 @@ export default function RoleplayManager({
 
   async function loadPersona() {
     setPersonaLoaded(false);
+    setPersonaLoading(true);
+    setPersonaLoadFailed(false);
     try {
       const response = await fetch(
         `/api/v1/models/${encodeURIComponent(modelId)}/roleplay/persona`,
@@ -141,7 +145,9 @@ export default function RoleplayManager({
       setPersonaText(body.data.content);
       setPersonaLoaded(true);
     } catch {
-      setError(t('roleplay.contextUnavailable'));
+      setPersonaLoadFailed(true);
+    } finally {
+      setPersonaLoading(false);
     }
   }
 
@@ -425,6 +431,19 @@ export default function RoleplayManager({
         <section className="card stack">
           <h3>{t('roleplay.personaTitle')}</h3>
           <p className="subtle">{t('roleplay.personaDescription')}</p>
+          {personaLoading && <p className="subtle" role="status">{t('status.loading')}</p>}
+          {personaLoadFailed && (
+            <>
+              <p className="notice error" role="alert">{t('roleplay.personaLoadFailed')}</p>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => void loadPersona()}
+              >
+                {t('action.retry')}
+              </button>
+            </>
+          )}
           <div className="stack" aria-label={t('roleplay.personaOptions')}>
             <label>
               {t('roleplay.suggestedPersonality')}

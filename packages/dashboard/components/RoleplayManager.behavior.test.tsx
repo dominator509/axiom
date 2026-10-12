@@ -34,9 +34,11 @@ vi.mock('./LocaleProvider', () => ({
       'roleplay.savePersona': 'Save new persona revision',
       'roleplay.personaSaved': 'Persona revision saved',
       'roleplay.contextUnavailable': 'Roleplay context unavailable',
+      'roleplay.personaLoadFailed': 'The saved persona could not be loaded. Retry before editing or saving.',
       'roleplay.changeUnconfirmed': 'Change unconfirmed',
       'roleplay.reloadContext': 'Reload bounded context',
       'roleplay.noActiveActor': 'No active actor',
+      'action.retry': 'Retry',
     }[key] ?? key),
   }),
 }));
@@ -50,6 +52,7 @@ type Node = ReactElement<{
   onChange?: (event: { target: { value: string } }) => void;
   onClick?: () => void;
   disabled?: boolean;
+  role?: string;
 }>;
 
 function descendants(node: unknown): Node[] {
@@ -195,4 +198,47 @@ it('loads the current persona revision without an actor and saves against that r
     content: 'Updated saved persona.',
   });
   expect(render([], true).some(node => node.type === 'p' && textContent(node.props.children) === 'Persona revision saved')).toBe(true);
+});
+
+it('offers a safe retry when loading the persona revision fails', async () => {
+  let personaReads = 0;
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const path = String(input);
+    if (path.endsWith('/roleplay/persona') && !init?.method) {
+      personaReads += 1;
+      return personaReads === 1
+        ? new Response(JSON.stringify({ error: 'temporarily unavailable' }), { status: 503 })
+        : new Response(null, { status: 404 });
+    }
+    if (path.endsWith('/roleplay/persona') && init?.method === 'PUT') {
+      const request = JSON.parse(String(init.body)) as { expectedRevision: number; content: string };
+      return new Response(JSON.stringify({ data: {
+        revision: request.expectedRevision + 1,
+        source: 'soul.md',
+        sourceRef: 'soul.md',
+        content: request.content,
+      } }), { status: 201, headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render([], true);
+  for (const effect of harness.effects.splice(0)) effect();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  const failedRead = render([], true).find(node => node.props?.role === 'alert');
+  expect(textContent(failedRead?.props.children)).toContain('Retry before editing or saving');
+  expect(personaEditor()?.props.disabled).toBe(true);
+  expect(button('Save new persona revision')?.props.disabled).toBe(true);
+  expect(button('Retry')).toBeDefined();
+
+  button('Retry')?.props.onClick?.();
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  expect(personaReads).toBe(2);
+  expect(render([], true).find(node => node.props?.role === 'alert')).toBeUndefined();
+  expect(personaEditor()?.props.disabled).toBe(false);
+  personaEditor()?.props.onChange?.({ target: { value: 'A playful, mischievous charmer.' } });
+  expect(button('Save new persona revision')?.props.disabled).toBe(false);
 });
