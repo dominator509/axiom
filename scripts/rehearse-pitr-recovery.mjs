@@ -483,18 +483,22 @@ try {
     });
     const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'https://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json'},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
     const reconciliation = JSON.parse(nodeInContainer(apiContainer, reconcileSource));
-    check(`drill ${drillNumber}: operator records synthetic provider absence without replay or dispatch`, () => {
-      assert.equal(reconciliation.status, 200);
+    check(`drill ${drillNumber}: provider absence reconciliation returns HTTP ${reconciliation.status}`, () =>
+      assert.equal(reconciliation.status, 200));
+    check(`drill ${drillNumber}: provider absence reconciliation returns the expected safe outcome`, () =>
       assert.deepEqual(reconciliation.data, {
         jobId, targetId, outcome: 'not_published', state: 'dead', replayRequired: true, dispatchStarted: false,
-      });
-      assert.equal(sql(restored, `SELECT last_error LIKE 'provider-reconciled-not-published:%'
-        FROM job WHERE id=${sqlLiteral(jobId)}`), 't');
-      assert.equal(sql(restored, `SELECT state FROM post_target WHERE id=${sqlLiteral(targetId)}`), 'pending');
-      assert.equal(sql(restored, `SELECT status FROM pre_post_run WHERE target_id=${sqlLiteral(targetId)}`), 'reconciled-not-published');
+      }));
+    check(`drill ${drillNumber}: reconciliation keeps the publish job dead and replay-required`, () =>
+      assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
+        FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true'));
+    check(`drill ${drillNumber}: reconciliation does not mark the target published`, () =>
+      assert.equal(sql(restored, `SELECT state FROM post_target WHERE id=${sqlLiteral(targetId)}`), 'pending'));
+    check(`drill ${drillNumber}: reconciliation resolves the uncertain dispatch marker`, () =>
+      assert.equal(sql(restored, `SELECT status FROM pre_post_run WHERE target_id=${sqlLiteral(targetId)}`), 'reconciled-not-published'));
+    check(`drill ${drillNumber}: reconciliation is written to the audit trail`, () =>
       assert.equal(sql(restored, `SELECT count(*) FROM audit_log WHERE org_id=${sqlLiteral(orgId)}
-        AND action='incident.publish.reconcile' AND target=${sqlLiteral(jobId)}`), '1');
-    });
+        AND action='incident.publish.reconcile' AND target=${sqlLiteral(jobId)}`), '1'));
 
     docker(['run', '--detach', ...labeled([
       '--name', workerContainer, '--network', `container:${restored}`,
