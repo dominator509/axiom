@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline before this documentation refresh (2026-10-11): `fb25f47f9eda2940e5dcdbe608e6d127c8f393b5`, after PR #174. Exact-main [CI run 38158846335](https://github.com/dominator509/axiom/actions/runs/38158846335) completed with 12/12 jobs passed, 0 failed, 0 cancelled, and 0 skipped. On this exact source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open total). `rtk sh scripts/verify.sh` also passed on this exact source: preflight, P0–P4, and all 36 markers passed (11 gate checks, 0 failed); the Linux-only `ufw` check was skipped on Windows; final output was `verify: ok`. This documentation refresh does not change application code or acceptance status. The register is valid but is not release approval; accepted criteria still require exact-final-release-SHA verification.
+Latest verified application baseline before this documentation refresh (2026-10-12): `29de9f31de799ecf68f022af20252ce20d7fda4e`, after PR #182. Exact-main [CI run 38189597974](https://github.com/dominator509/axiom/actions/runs/38189597974) completed with 12/12 jobs successful, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open); the register is valid and is not release approval. The run includes fresh RLS and browser receipts recorded below. This documentation update changes no application code or acceptance status; accepted rows still need replay against the eventual final release SHA.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -8,21 +8,48 @@ historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
 `rtk node scripts/check-release-evidence.mjs --check` reported 54 criteria,
 22 accepted, and 32 open; the register was structurally valid but not release
 approval. At that historical baseline, the release gate remained blocked by
-stale receipts for other passed criteria and by open criteria. The latest
-effective-RLS rehearsal on main `11d970c1486a83dfae4e65a86915605437c5cad3` is
-recorded in the current checkpoint section below. The `47637d8...`,
-`8f106167...`, and `af62fb6` receipts remain historical evidence. Repeat the complete RLS matrix on the final release
-SHA after the remaining lanes. Accepted rows retain their actual tested SHAs. A
-post-run external register cannot redefine acceptance criteria, and this
-document does not authorize release.
+stale receipts for other passed criteria and by open criteria. Earlier RLS
+checkpoints, including `11d970c1486a83dfae4e65a86915605437c5cad3`, are retained
+below as history. Repeat the complete RLS matrix on the final release SHA after
+the remaining lanes. Accepted rows retain their actual tested SHAs. A post-run
+external register cannot redefine acceptance criteria, and this document does
+not authorize release.
 
 PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
 
-## Latest exact-main RLS refresh (2026-10-11; SHA fb25f47)
+## Current exact-main checkpoint (2026-10-12; SHA 29de9f3)
 
-The latest effective-RLS rehearsal was run against exact main
+Exact-main [CI run 38189597974](https://github.com/dominator509/axiom/actions/runs/38189597974)
+completed 12/12 jobs successfully (0 failed, 0 cancelled, 0 skipped). The
+`ci (test)` job ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture`
+against network-disabled disposable PostgreSQL with Node 22.23.3 and the pinned
+TimescaleDB PostgreSQL 16 image. It checked the migrated forced-RLS catalog and
+application role, rollback-only RLS fault controls, tenant isolation, rollback,
+and cleanup: 20 assertions passed, 0 failed, 0 skipped. The raw job-log SHA-256
+is `7743d8082fa20c836eca1286f5cd31862c3388a75021cdaef190cc550254620f`; the
+job is [ci (test)](https://github.com/dominator509/axiom/actions/runs/38189597974/job/114619287785).
+The source-bound receipt is recorded for LBI-01, NONFUNCTIONAL-2, and SECURITY-2.
+This is disposable-database evidence only; deployed/shared database state and
+the final-release-SHA replay remain open.
+
+The same run's [browser job](https://github.com/dominator509/axiom/actions/runs/38189597974/job/114619287747)
+ran `node scripts/rehearse-browser.mjs --isolated-fixture`. The default and
+configured journeys each reported 39 passed, 0 failed, 0 skipped. The
+negative-brand control reported 4 passed, 1 expected failure, 0 skipped; the
+negative-cookie control reported 7 passed, 1 expected failure, 0 skipped. The
+journeys cover schedule navigation, synthetic 25 MiB DNG consent upload and
+publishing boundaries, persona and handoff, safe Patreon/Snapchat setup states,
+scrape validation, automation explanations, link-in-bio provider boundaries,
+and mobile Relay action labels. The browser environment is isolated; this does
+not verify the deployed test domain, live provider credentials, or native-device
+acceptance. The raw browser job-log SHA-256 is
+`a86d00b756eb4db4ca5b05c108437ca6782f6033aefd2ffdf4e73b543552e9a1`.
+
+## Previous exact-main RLS refresh (2026-10-11; SHA fb25f47)
+
+This earlier effective-RLS rehearsal was run against exact main
 `fb25f47f9eda2940e5dcdbe608e6d127c8f393b5`. Exact-main
 [CI run 38158846335](https://github.com/dominator509/axiom/actions/runs/38158846335)
 completed 12/12 jobs successfully (0 failed, 0 cancelled). Its `ci (test)` job
