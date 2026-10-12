@@ -21,6 +21,17 @@ const head = spawnSync('git', ['rev-parse', 'HEAD'], {
   cwd: root, env: safeEnv, encoding: 'utf8', timeout: 10_000, windowsHide: true,
 });
 assert.equal(head.status, 0);
+const withoutSourceImages = spawnSync(process.execPath, [rehearsal, '--isolated-fixture', '--tested-sha', head.stdout.trim()], {
+  cwd: root,
+  env: { ...safeEnv, GITHUB_RUN_ID: '12345' },
+  encoding: 'utf8',
+  timeout: 10_000,
+  windowsHide: true,
+});
+assert.equal(withoutSourceImages.status, 2);
+assert.match(withoutSourceImages.stderr, /requires the run-scoped API and worker images/);
+assert.doesNotMatch(`${withoutSourceImages.stdout}${withoutSourceImages.stderr}`, /docker (?:run|pull|info)/i);
+
 const secretSentinel = 'recovery-fixture-secret-must-not-appear';
 const withAmbientCredentials = spawnSync(process.execPath, [rehearsal, '--isolated-fixture', '--tested-sha', head.stdout.trim()], {
   cwd: root,
@@ -33,4 +44,4 @@ assert.equal(withAmbientCredentials.status, 2);
 assert.match(withAmbientCredentials.stderr, /refuses ambient database or cloud credentials/);
 assert.doesNotMatch(`${withAmbientCredentials.stdout}${withAmbientCredentials.stderr}`, /ambient\.invalid|recovery-fixture-secret/);
 
-console.log('recovery harness guards: 7 passed, 0 failed, 0 skipped; missing opt-in and ambient credential controls rejected before Docker');
+console.log('recovery harness guards: 10 passed, 0 failed, 0 skipped; missing opt-in, source-bound image, and ambient credential controls rejected before Docker');

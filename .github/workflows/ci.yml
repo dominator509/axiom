@@ -43,8 +43,9 @@ jobs:
             for (const entry of fs.readdirSync(root)) console.log(fs.readFileSync(`${root}/${entry}/receipt.json`, "utf8"));
           '
   recovery-dr:
-    # This job owns two independent physical PITR fixtures. Both clusters have
-    # Docker network=none; no ambient database, cloud credentials, or .env is used.
+    # This job owns two independent physical PITR fixtures. Restored API/worker
+    # containers share each restored cluster's Docker network=none namespace;
+    # no ambient database, cloud credentials, or .env is used.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -57,6 +58,25 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version-file: '.nvmrc'
+      - name: Build source-bound recovery API and worker images
+        env:
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          api_image="axiom-recovery-api:${GITHUB_RUN_ID}"
+          worker_image="axiom-recovery-worker:${GITHUB_RUN_ID}"
+          docker build \
+            --label "axiom.purpose=isolated-recovery-dr" \
+            --label "axiom.rehearsal-run=${GITHUB_RUN_ID}" \
+            --label "org.opencontainers.image.revision=${TESTED_SHA}" \
+            --file infra/Dockerfile.hono --tag "$api_image" .
+          docker build \
+            --label "axiom.purpose=isolated-recovery-dr" \
+            --label "axiom.rehearsal-run=${GITHUB_RUN_ID}" \
+            --label "org.opencontainers.image.revision=${TESTED_SHA}" \
+            --file infra/Dockerfile.worker --tag "$worker_image" .
+          echo "AXIOM_RECOVERY_API_IMAGE=$api_image" >> "$GITHUB_ENV"
+          echo "AXIOM_RECOVERY_WORKER_IMAGE=$worker_image" >> "$GITHUB_ENV"
       - name: Reject unsafe recovery harness execution contexts
         run: node scripts/test-recovery-harness-guards.mjs
       - name: Run two isolated physical PITR drills
