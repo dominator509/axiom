@@ -8,6 +8,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
 import PatreonScreen from './src/screens/PatreonScreen';
 import ConsentScreen from './src/screens/ConsentScreen';
+import BrandMark from './src/components/BrandMark';
 import { palette } from './src/theme';
 import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 
@@ -69,9 +70,7 @@ export default function App() {
   return (
     <View style={styles.root}>
       <View style={styles.brandBar}>
-        <View style={styles.brandMark}>
-          <Text style={styles.brandLetter}>A</Text>
-        </View>
+        <BrandMark />
         <View>
           <Text style={styles.brand}>FanThynks</Text>
           <Text style={styles.brandDetail}>{localeCatalog.t(locale, 'mobile.brandDetail')}</Text>
@@ -133,16 +132,6 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.lineSoft,
     backgroundColor: palette.canvasSoft,
   },
-  brandMark: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    backgroundColor: palette.rose,
-  },
-  brandLetter: { color: palette.roseInk, fontSize: 18, fontWeight: '800' },
   brand: { color: palette.text, fontSize: 14, fontWeight: '800', letterSpacing: 2.3 },
   brandDetail: {
     color: palette.faint,
