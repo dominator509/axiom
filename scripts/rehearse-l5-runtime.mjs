@@ -189,6 +189,14 @@ try {
     const expectedCases = repetition === 1 ? 58 : 57;
     assert.equal(report.total, expectedCases, `Runtime fixture ${repetition} must execute ${expectedCases} cases`);
     assert.equal(report.node, receipt.node, 'Runtime container must match the pinned Node release');
+    receipt.runs.push({ repetition, ...report });
+    receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
+    if (repetition === 1 && report.availability) receipt.availability = report.availability;
+    if (report.failed > 0) {
+      const failures = report.tests.filter(test => !test.passed).map(({ name, error }) => ({ name, error }));
+      throw new Error(`Runtime fixture ${repetition} failed cases: ${JSON.stringify(failures)}`);
+    }
+    if (result.status !== 0) throw new Error('Runtime process failed outside its test report');
     if (repetition === 1) {
       const availability = report.availability;
       assert.ok(availability, 'The source-bound availability canary receipt is required');
@@ -202,13 +210,9 @@ try {
       assert.equal(availability.providerAvailability.failedResponses, 0);
       assert.equal(availability.providerAvailability.externalProviderMeasured, false);
       assert.ok(availability.availabilityPercent >= 99.5);
-      receipt.availability = availability;
     } else {
       assert.equal(report.availability, null, 'The load canary runs once, avoiding a duplicate measurement');
     }
-    receipt.runs.push({ repetition, ...report });
-    receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
-    if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');
     const dump = docker(['exec', db, 'pg_dump', '-U', 'axiom', '-d', 'axiom_test', '--data-only', '--table=public.platform_connection', '--inserts']).stdout;
     assert.equal(dump.includes(providerAccessToken), false, 'Provider access token must not appear in the database dump');
     assert.equal(dump.includes(providerRefreshToken), false, 'Provider refresh token must not appear in the database dump');

@@ -1015,9 +1015,15 @@ for (const kind of Object.keys(defaultExecutors)) {
       }
       const provider = await localDiscordProvider(models.map(model => model.fixture));
       try {
-        const work = models.flatMap(model => model.jobs.map(job => ({ fixture: model.fixture, job })));
+        for (const [index, model] of models.entries()) {
+          assert.equal(model.jobs.length, targetsPerModel, `Canary model ${index + 1} must have ${targetsPerModel} publish jobs`);
+        }
+        // Keep each concurrent wave representative of the fleet: one target
+        // per model, rather than twenty simultaneous jobs for one model.
+        const work = Array.from({ length: targetsPerModel }, (_, targetIndex) =>
+          models.map(model => ({ fixture: model.fixture, job: model.jobs[targetIndex] }))).flat();
         const denominator = modelCount * targetsPerModel;
-        assert.equal(work.length, denominator);
+        assert.equal(work.length, denominator, 'Canary work queue must include every model target');
         const startedAt = new Date().toISOString();
         const clockStart = performance.now();
         const outcomes = [];
