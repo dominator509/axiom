@@ -42,12 +42,16 @@ vi.mock('@axiom/db', () => harness);
 
 import { affiliateClaimRouter, platformAffiliateRouter, publicPlatformAffiliateRouter } from './platform-affiliate.js';
 
-function app() {
+function app(cacheRequestBody = false) {
   const server = new Hono<AppBindings>();
   server.use('*', async (c, next) => {
     c.set('userId', 'owner-user');
     c.set('orgId', '55555555-5555-4555-8555-555555555555');
     c.set('role', 'owner');
+    if (cacheRequestBody && c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+      const bytes = await c.req.raw.arrayBuffer();
+      c.req.bodyCache.arrayBuffer = Promise.resolve(bytes);
+    }
     await next();
   });
   server.route('/', platformAffiliateRouter);
@@ -72,8 +76,8 @@ function claimApp(userId = 'creator-user') {
   return server;
 }
 
-function jsonRequest(path: string, body: unknown, method = 'POST') {
-  return app().request(path, {
+function jsonRequest(path: string, body: unknown, method = 'POST', cacheRequestBody = false) {
+  return app(cacheRequestBody).request(path, {
     method,
     headers: { 'content-type': 'application/json', 'Idempotency-Key': 'test-key' },
     body: JSON.stringify(body),
@@ -140,7 +144,7 @@ describe('platform affiliate API', () => {
     expect(harness.db.transaction).not.toHaveBeenCalled();
   });
 
-  it('creates a partner and records the platform audit event', async () => {
+  it('parses an idempotency-cached partner body and records the platform audit event', async () => {
     harness.state.results = [
       [{ id: programId, slug: 'fanthynks' }],
       [{ id: partnerId, programId, displayName: 'Partner', email: 'partner@example.com', status: 'active' }],
@@ -152,7 +156,7 @@ describe('platform affiliate API', () => {
       termsVersion: 'v1',
       status: 'active',
       disclosureAccepted: true,
-    });
+    }, 'POST', true);
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ data: { id: partnerId, status: 'active' } });
     expect(harness.state.inserts[0]).toMatchObject({

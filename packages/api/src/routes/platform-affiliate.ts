@@ -189,6 +189,18 @@ affiliateClaimRouter.post('/claim', async (c) => {
 });
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
+  // The idempotency middleware reads the bounded raw body to compute its
+  // request fingerprint and keeps a copy in Hono's body cache. Read that copy
+  // when present; the original request stream has already been consumed.
+  const cachedBody = c.req.bodyCache.arrayBuffer as
+    | ArrayBuffer
+    | Promise<ArrayBuffer>
+    | undefined;
+  if (cachedBody) {
+    const bytes = await cachedBody;
+    if (bytes.byteLength > 64 * 1024) throw new RequestBodyTooLargeError(64 * 1024);
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  }
   return readBoundedJson(c.req.raw, 64 * 1024);
 }
 
