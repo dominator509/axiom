@@ -1270,16 +1270,26 @@ ORDER BY created_at DESC LIMIT 1;
 
         const exportPath = `/api/v1/platform/affiliate/partners/${partnerId}/export`;
         const exportResponse = await context.request.get(exportPath);
-        expectAffiliateStatus(exportPath, exportResponse.status(), 200,
-          await exportResponse.json().catch(() => null));
+        const exportPayload = await exportResponse.json().catch(() => null);
+        expectAffiliateStatus(exportPath, exportResponse.status(), 200, exportPayload);
+        expect(exportPayload).toMatchObject({
+          data: { partner: { partnerId, status: 'revoked' } },
+          deletion: { mode: 'revoke', preservesAuditAttribution: true },
+        });
         failureContext = { awaitingAffiliateDownload: 'partner export JSON' };
         const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
         await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
         const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
-        failureContext = null;
         expect(new URL(exportDownload.url()).pathname).toBe(exportPath);
         expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
-        const exportedPartner = JSON.parse(readFileSync(await exportDownload.path(), 'utf8'));
+        const exportFilePath = join(dir, 'partner-export.json');
+        failureContext = { awaitingAffiliateDownloadSave: 'partner export JSON' };
+        await Promise.race([
+          exportDownload.saveAs(exportFilePath),
+          delay(15_000).then(() => { throw new Error('Timed out saving partner export download'); }),
+        ]);
+        failureContext = null;
+        const exportedPartner = JSON.parse(readFileSync(exportFilePath, 'utf8'));
         expect(exportedPartner).toMatchObject({
           data: { partner: { partnerId, status: 'revoked' } },
           deletion: { mode: 'revoke', preservesAuditAttribution: true },
