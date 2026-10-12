@@ -213,9 +213,10 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, body, key: randomUUID() });
-  const expectAffiliateStatus = (path, received, expected, payload = null) => {
+  const expectAffiliateStatus = (path, received, expected, payload = null, requestShape = null) => {
     const detail = typeof payload?.detail === 'string' ? safeDiagnostic(new Error(payload.detail)) : null;
-    const context = { path, expectedStatus: expected, receivedStatus: received, ...(detail ? { detail } : {}) };
+    const context = { path, expectedStatus: expected, receivedStatus: received,
+      ...(detail ? { detail } : {}), ...(requestShape ? { requestShape } : {}) };
     if (received !== expected) {
       failureContext = context;
       probes.push({ kind: 'affiliate-response-failure', ...context });
@@ -1135,6 +1136,8 @@ COMMIT;
         diagnosticRedactions.add(partnerEmail);
         await partnerForm.locator('input[name="displayName"]').fill(partnerName);
         await partnerForm.locator('input[name="email"]').fill(partnerEmail);
+        const displayedTermsVersion = await partnerForm.locator('input[name="termsVersion"]').inputValue();
+        expect(displayedTermsVersion.trim().length).toBeGreaterThan(0);
         await partnerForm.locator('select[name="partnerStatus"]').selectOption('active');
         const createPartner = partnerForm.locator('button[type="submit"]');
         await expect(createPartner).toBeDisabled();
@@ -1146,7 +1149,18 @@ COMMIT;
         await createPartner.click();
         const partnerResponse = await partnerResponsePromise;
         const partnerPayload = await partnerResponse.json().catch(() => null);
-        expectAffiliateStatus('/api/v1/platform/affiliate/partners', partnerResponse.status(), 201, partnerPayload);
+        const submittedPartner = partnerResponse.request().postDataJSON() ?? {};
+        const partnerRequestShape = {
+          fields: Object.keys(submittedPartner).sort(),
+          displayNameMatches: submittedPartner.displayName === partnerName,
+          emailPresent: typeof submittedPartner.email === 'string' && submittedPartner.email.length > 0,
+          emailMatchesSynthetic: submittedPartner.email === partnerEmail,
+          termsVersion: typeof submittedPartner.termsVersion === 'string' ? submittedPartner.termsVersion : null,
+          status: submittedPartner.status ?? null,
+          disclosureAccepted: submittedPartner.disclosureAccepted ?? null,
+        };
+        expectAffiliateStatus('/api/v1/platform/affiliate/partners', partnerResponse.status(), 201,
+          partnerPayload, partnerRequestShape);
         const partnerId = partnerPayload.data.id;
         expect(partnerPayload.data).toMatchObject({ displayName: partnerName, email: partnerEmail, status: 'active' });
 
