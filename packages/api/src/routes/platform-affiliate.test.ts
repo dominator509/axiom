@@ -18,6 +18,7 @@ const harness = vi.hoisted(() => {
           Promise.resolve(state.results.length > 0 ? state.results.shift() : state.result).then(resolve, reject);
         };
       }
+      if (property === 'execute') return () => Promise.resolve({ rows: [] });
       if (property === 'values' || property === 'set') {
         return (value: unknown) => {
           if (property === 'values') state.inserts.push(value);
