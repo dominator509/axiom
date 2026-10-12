@@ -1370,11 +1370,11 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Run the source-bound scale matrix once on the candidate SHA. The matrix covers post-approval dispatch only; generation batches, concurrent approval API load, host resources, provider cache, latency across all product paths, and budget acceptance remain to be measured.",
+      "nextStep": "Run the expanded source-bound scale matrix once on the candidate SHA. It submits four real prompt-engine API batches per model, completes their durable text ToS scans, approves and schedules through the API, then dispatches 20 targets per model through the real worker. Keep this row unverified until the hosted receipt is recorded. Provider-backed LLM enrichment/cache rates, host resources, other product-path latency, and budget acceptance remain separate evidence needs.",
       "evidence": [],
       "verification": {
-        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. Its availability canary seeds all approved synthetic targets for each 1, 5, 10, and 20-model scale before dispatch, then drains them through the real worker claim/process path and records durable outcomes, queue wait from burst start, latency distributions, throughput, and synthetic-provider results. This does not measure model generation, concurrent approval API requests, host resource peaks, provider cache, or external provider availability.",
-        "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
+        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. Its availability canary sends four concurrent POST /api/v1/models/:modelId/generate requests per model with LLM enrichment explicitly disabled, processes each durable text ToS scan with the scoped worker, approves bundles and creates future targets through the API, then advances only those disposable target/job timestamps and drains 20 targets per model through the real worker claim/process path. It records generation, scan, approval, schedule, queue-wait, dispatch latency, throughput, and synthetic-provider outcomes at 1, 5, 10, and 20 models. It does not measure provider-backed LLM inference/cache, host resource peaks, mobile TTI, media transcode, or external provider availability.",
+        "environment": "Owned isolated PostgreSQL and API/worker runtime, synthetic consent and local Discord fixture, 1/5/10/20 models; no real provider credentials, external destinations, or paid quotas.",
         "dependencies": [
           1,
           2,

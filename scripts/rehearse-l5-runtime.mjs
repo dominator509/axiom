@@ -212,12 +212,38 @@ try {
       assert.deepEqual(actualScales, expectedScales, 'The availability matrix must cover every agreed model scale');
       assert.equal(availability.totalMeasuredTargets, 720);
       assert.equal(availability.queueBurst.allApprovedTargetsQueuedBeforeDispatch, true);
-      assert.equal(availability.queueBurst.approvalApiConcurrencyMeasured, false);
-      assert.equal(availability.generationBatchesMeasured, false);
+      assert.equal(availability.queueBurst.approvalApiBurstExercised, true);
+      assert.equal(availability.queueBurst.generationApiBurstExercised, true);
+      assert.equal(availability.generationBatchesMeasured, true);
       for (const scale of availability.scaleRuns) {
+        const expectedGenerationRequests = scale.models * 4;
+        assert.equal(scale.generationBatchesPerModel, 4);
+        assert.equal(scale.generation.requestCount, expectedGenerationRequests);
+        assert.equal(scale.generation.generatedBundles, expectedGenerationRequests);
+        assert.equal(scale.generation.promptVariants, expectedGenerationRequests * 5);
+        assert.equal(scale.generation.concurrentRequestsSubmitted, expectedGenerationRequests);
+        assert.equal(scale.generation.llmEnrichmentRequested, false);
+        assert.equal(scale.tosScan.generatedBundles, expectedGenerationRequests);
+        assert.equal(scale.tosScan.completedJobs, expectedGenerationRequests);
+        assert.equal(scale.tosScan.verdict, 'pass');
+        assert.equal(scale.approvalAndSchedule.approvedBundles, expectedGenerationRequests);
+        assert.equal(scale.approvalAndSchedule.approvalRequests, expectedGenerationRequests);
+        assert.equal(scale.approvalAndSchedule.concurrentApprovalRequestsSubmitted, expectedGenerationRequests);
+        assert.equal(scale.approvalAndSchedule.scheduleRequests, scale.models * 16);
+        assert.equal(scale.approvalAndSchedule.scheduledTargets, scale.denominator);
+        assert.equal(scale.approvalAndSchedule.scheduledTargetsPerModel, 20);
+        assert.equal(scale.approvalAndSchedule.isolatedClockAdvance.targetsAdvanced, scale.denominator);
+        assert.equal(scale.approvalAndSchedule.isolatedClockAdvance.publishJobsAdvanced, scale.denominator);
         assert.equal(scale.completedJobs, scale.denominator);
         assert.equal(scale.durablePublishedTargets, scale.denominator);
         assert.equal(scale.failedTargets, 0);
+        assert.ok(Number.isFinite(scale.workloadWindow.durationMs) && scale.workloadWindow.durationMs > 0);
+        assert.ok(Number.isFinite(scale.generation.requestLatencyMs.p95) && scale.generation.requestLatencyMs.p95 >= 0);
+        assert.ok(Number.isFinite(scale.tosScan.workerLatencyMs.p95) && scale.tosScan.workerLatencyMs.p95 >= 0);
+        assert.ok(Number.isFinite(scale.approvalAndSchedule.approvalLatencyMs.p95)
+          && scale.approvalAndSchedule.approvalLatencyMs.p95 >= 0);
+        assert.ok(Number.isFinite(scale.approvalAndSchedule.scheduleLatencyMs.p95)
+          && scale.approvalAndSchedule.scheduleLatencyMs.p95 >= 0);
         assert.ok(Number.isFinite(scale.window.durationMs) && scale.window.durationMs > 0);
         assert.ok(Number.isFinite(scale.queueWaitFromBurstStartMs.p95) && scale.queueWaitFromBurstStartMs.p95 >= 0);
         assert.ok(Number.isFinite(scale.throughputTargetsPerSecond) && scale.throughputTargetsPerSecond > 0);
