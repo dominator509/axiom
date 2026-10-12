@@ -84,8 +84,19 @@ router.get('/models/:modelId/team-notes', async c => {
 });
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
-  try { return await readBoundedJson(c.req.raw, 64 * 1024); }
-  catch (error) { if (error instanceof RequestBodyTooLargeError) throw error; return {}; }
+  try {
+    // The idempotency middleware consumes the raw request stream before this
+    // route and preserves a bounded copy for downstream readers.
+    const cachedBody = c.req.bodyCache.arrayBuffer as ArrayBuffer | Promise<ArrayBuffer> | undefined;
+    const source = cachedBody
+      ? new Request(c.req.url, {
+          method: c.req.method,
+          headers: c.req.raw.headers,
+          body: await cachedBody,
+        })
+      : c.req.raw;
+    return await readBoundedJson(source, 64 * 1024);
+  } catch (error) { if (error instanceof RequestBodyTooLargeError) throw error; return {}; }
 }
 
 function windowValid(startsAt: string, endsAt: string): boolean {

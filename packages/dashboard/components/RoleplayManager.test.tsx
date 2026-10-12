@@ -31,6 +31,10 @@ it('explains how an actor becomes active in every supported locale', () => {
     expect(html).toContain(CATALOGS[locale]['roleplay.noActiveActorHelp'].replaceAll('&', '&amp;'));
     expect(html).toContain('href="/models/model/team"');
   }
+  expect(CATALOGS.en['roleplay.noActiveActorHelp']).toContain('this list comes from assigned shifts');
+  expect(CATALOGS.en['roleplay.noActiveActorHelp']).toContain('enable Roleplay edit access under Agents');
+  expect(CATALOGS.en['roleplay.noActiveActorHelp']).toContain('select Start shift');
+  expect(CATALOGS.en['roleplay.noActiveActorHelp']).toContain('include the current time');
 });
 
 it('formats roleplay revisions and character counts through the selected locale', () => {

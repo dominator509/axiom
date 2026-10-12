@@ -21,6 +21,19 @@ function noteRequest(payload?: unknown) {
   return payload === undefined ? app.request(`/models/model/team-notes?postId=${postId}`)
     : app.request('/models/model/team-notes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
 }
+function cachedTeamShiftRequest(payload: unknown) {
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => {
+    c.set('orgId', 'org'); c.set('userId', 'operator'); c.set('role', 'manager');
+    const bytes = await c.req.raw.arrayBuffer();
+    c.req.bodyCache.arrayBuffer = Promise.resolve(bytes) as unknown as ArrayBuffer;
+    await next();
+  });
+  app.route('/', teamOperationsRouter);
+  return app.request('/models/model/team-shifts', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+  });
+}
 it('rejects an unowned post before writing a note', async () => {
   mockState.results = [[], [{ id: 'model' }], []];
   expect((await noteRequest({ targetType: 'post', targetId: postId, body: 'Handoff' })).status).toBe(404);
@@ -36,6 +49,21 @@ it.each([{ targetType: 'post', body: 'Missing target' }, { targetType: 'anything
 });
 it('returns no notes for an unavailable post', async () => {
   mockState.results = [[], []]; expect((await noteRequest()).status).toBe(404);
+});
+it('creates a team shift from the body cache after idempotency consumes the request stream', async () => {
+  const startsAt = '2030-01-01T00:00:00.000Z';
+  const endsAt = '2030-01-01T01:00:00.000Z';
+  mockState.results = [[], [{ id: 'model' }], [{ id: 'permission' }], [{
+    id: 'shift-1', modelId: 'model', orgId: 'org', assigneeType: 'llm', assigneeAgentRef: 'fixture-agent',
+    assigneeUserId: null, queue: 'inbox', startsAt: new Date(startsAt), endsAt: new Date(endsAt), status: 'scheduled', note: 'Synthetic shift',
+  }]];
+  const response = await cachedTeamShiftRequest({
+    assigneeType: 'llm', assigneeAgentRef: 'fixture-agent', queue: 'inbox', startsAt, endsAt, note: 'Synthetic shift',
+  });
+  expect(response.status).toBe(201);
+  expect(mockState.insertValues).toContainEqual(expect.objectContaining({
+    orgId: 'org', modelId: 'model', assigneeType: 'llm', assigneeAgentRef: 'fixture-agent', queue: 'inbox', note: 'Synthetic shift',
+  }));
 });
 it('exposes bounded team pagination metadata and rejects malformed cursors', async () => {
   const app = new Hono<AppBindings>();
