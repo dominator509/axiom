@@ -1269,16 +1269,15 @@ ORDER BY created_at DESC LIMIT 1;
         expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
 
         const exportPath = `/api/v1/platform/affiliate/partners/${partnerId}/export`;
-        failureContext = { awaitingAffiliateResponse: 'partner export GET' };
-        const exportResponsePromise = page.waitForResponse(response =>
-          new URL(response.url()).pathname === exportPath && response.request().method() === 'GET');
-        const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
-        await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
-        const exportResponse = await exportResponsePromise;
-        failureContext = null;
+        const exportResponse = await context.request.get(exportPath);
         expectAffiliateStatus(exportPath, exportResponse.status(), 200,
           await exportResponse.json().catch(() => null));
+        failureContext = { awaitingAffiliateDownload: 'partner export JSON' };
+        const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
+        await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
         const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
+        failureContext = null;
+        expect(new URL(exportDownload.url()).pathname).toBe(exportPath);
         expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
         const exportedPartner = JSON.parse(readFileSync(await exportDownload.path(), 'utf8'));
         expect(exportedPartner).toMatchObject({
