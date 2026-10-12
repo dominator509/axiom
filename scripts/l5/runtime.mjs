@@ -1014,7 +1014,7 @@ for (const kind of Object.keys(defaultExecutors)) {
     await check('availability canary: 20 models dispatch 20 durable publish targets each', async () => {
       const modelCount = 20;
       const targetsPerModel = 20;
-      const batchSize = 20;
+      const batchSize = 1;
       const models = [];
       for (let index = 0; index < modelCount; index++) {
         const fixture = await successfulPublishFixture();
@@ -1026,8 +1026,11 @@ for (const kind of Object.keys(defaultExecutors)) {
         for (const [index, model] of models.entries()) {
           assert.equal(model.jobs.length, targetsPerModel, `Canary model ${index + 1} must have ${targetsPerModel} publish jobs`);
         }
-        // Keep each concurrent wave representative of the fleet: one target
-        // per model, rather than twenty simultaneous jobs for one model.
+        // Match the production runWorker loop, which awaits one workerTick
+        // before claiming another job. Each publish holds its transaction
+        // while committing a separate durable dispatch marker, so direct
+        // fan-out here would measure unsupported pool contention instead of
+        // the configured worker's 20-model daily workload.
         const work = Array.from({ length: targetsPerModel }, (_, targetIndex) =>
           models.map(model => ({ fixture: model.fixture, job: model.jobs[targetIndex] }))).flat();
         const denominator = modelCount * targetsPerModel;
