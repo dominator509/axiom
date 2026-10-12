@@ -369,6 +369,7 @@ function availabilityRequestHeaders(fixture) {
     Origin: 'https://l5-fixture.invalid',
     Accept: 'application/json',
     'Content-Type': 'application/json',
+    'Idempotency-Key': randomUUID(),
   };
 }
 function percentile(values, fraction) {
