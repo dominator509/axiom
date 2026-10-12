@@ -451,7 +451,7 @@ try {
       '--health-interval', '1s', '--health-timeout', '5s', '--health-start-period', '2s', '--health-retries', '5',
       '--env', 'NODE_ENV=production', '--env', 'AXIOM_ENV=production', '--env', `DATABASE_URL=${databaseUrl}`,
       '--env', `BETTER_AUTH_SECRET=${authSecret}`, '--env', `RELAY_SECRET=${relaySecret}`,
-      '--env', 'BETTER_AUTH_URL=http://127.0.0.1:3001',
+      '--env', 'BETTER_AUTH_URL=https://127.0.0.1:3001',
       '--env', 'API_HOST=0.0.0.0', '--env', 'API_PORT=3001', '--env', 'AXIOM_SERVICE_NAME=recovery-api',
       apiImage,
     ])]);
@@ -468,7 +468,7 @@ try {
 
     const operatorEmail = `recovery-${randomUUID()}@fixture.invalid`;
     const operatorPassword = randomBytes(32).toString('base64url');
-    const signupSource = `const response=await fetch('http://127.0.0.1:3001/api/auth/sign-up/email',{method:'POST',headers:{Origin:'http://127.0.0.1:3001','Content-Type':'application/json'},body:JSON.stringify({email:${JSON.stringify(operatorEmail)},password:${JSON.stringify(operatorPassword)},name:'Synthetic recovery operator'})}); const body=await response.json(); const cookie=response.headers.getSetCookie().map(value=>value.split(';',1)[0]).join('; '); console.log(JSON.stringify({status:response.status,userId:body.user?.id??null,cookie}));`;
+    const signupSource = `const response=await fetch('http://127.0.0.1:3001/api/auth/sign-up/email',{method:'POST',headers:{Origin:'https://127.0.0.1:3001','Content-Type':'application/json'},body:JSON.stringify({email:${JSON.stringify(operatorEmail)},password:${JSON.stringify(operatorPassword)},name:'Synthetic recovery operator'})}); const body=await response.json(); const cookie=response.headers.getSetCookie().map(value=>value.split(';',1)[0]).join('; '); console.log(JSON.stringify({status:response.status,userId:body.user?.id??null,cookie}));`;
     const operator = JSON.parse(nodeInContainer(apiContainer, signupSource));
     check(`drill ${drillNumber}: restored API issues a synthetic operator session`, () => {
       assert.equal(operator.status, 200);
@@ -481,7 +481,7 @@ try {
       assert.equal(sql(restored, `SELECT count(*) FROM auth_user WHERE id=${sqlLiteral(operator.userId)}
         AND org_id=${sqlLiteral(orgId)} AND role='operator'`), '1');
     });
-    const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'http://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json'},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
+    const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'https://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json'},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
     const reconciliation = JSON.parse(nodeInContainer(apiContainer, reconcileSource));
     check(`drill ${drillNumber}: operator records synthetic provider absence without replay or dispatch`, () => {
       assert.equal(reconciliation.status, 200);
