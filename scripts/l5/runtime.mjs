@@ -28,7 +28,7 @@ for (const [key, user] of [['DATABASE_URL', 'axiom_app'], ['L5_OWNER_DATABASE_UR
 const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
-const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0 };
+const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0, availability: null };
 let credentialApiFixture = null;
 function safeFixtureError(error) {
   const message = String(error ?? '');
@@ -348,8 +348,41 @@ async function successfulPublishFixture({ includeConsent = true, startReady = fa
     ]);
   });
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
-  return { org, model, bundle, target, job: result.rows[0], connection, idemKey,
+  return { org, model, bundle, target, asset, job: result.rows[0], connection, idemKey,
     mediaUrl: 'https://media.example.invalid/assets/fixture.png' };
+}
+async function appendAvailabilityTargets(fixture, targetCount) {
+  const additions = Array.from({ length: targetCount - 1 }, () => ({
+    bundle: randomUUID(), target: randomUUID(), job: randomUUID(), idemKey: randomBytes(32),
+  }));
+  await scoped(fixture.org, async tx => {
+    await tx.insert(schema.contentBundle).values(additions.map(row => ({
+      id: row.bundle, orgId: fixture.org, modelId: fixture.model, assetId: fixture.asset,
+      state: 'approved', captions: { discord: 'Synthetic availability canary.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'discord', score: 0, verdict: 'pass' }] },
+    })));
+    await tx.insert(schema.postTarget).values(additions.map(row => ({
+      id: row.target, orgId: fixture.org, bundleId: row.bundle, platform: 'discord',
+      connectionId: fixture.connection, state: 'pending', idemKey: row.idemKey,
+    })));
+    // A passing report is not durable scan completion. The publisher requires
+    // a completed ToS handoff for every canary bundle before provider dispatch.
+    await tx.insert(schema.job).values([
+      ...additions.map(row => ({
+        id: randomUUID(), orgId: fixture.org, queue: 'media', kind: 'tos.scan', state: 'done',
+        payload: { bundleId: row.bundle }, attempts: 0, maxAttempts: 1,
+      })),
+      ...additions.map(row => ({
+        id: row.job, orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: row.target }, attempts: 0, maxAttempts: 1,
+        runAfter: new Date(Date.now() - 60_000), lockedBy: 'l5-availability-worker', lockedAt: new Date(),
+      })),
+    ]);
+  });
+  const jobs = await scoped(fixture.org, tx => tx.execute(sql`
+    SELECT * FROM job WHERE org_id=${fixture.org} AND kind='publish.target' ORDER BY created_at, id
+  `));
+  return { jobs: jobs.rows };
 }
 async function manualSnapchatPublishFixture() {
   const { org, model } = await tenant();
@@ -438,12 +471,17 @@ async function manualSnapchatPublishFixture() {
 }
 async function localDiscordProvider(fixture, { holdResponse = false,
   webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN } = {}) {
+  const fixtures = Array.isArray(fixture) ? fixture : [fixture];
   const deliveries = [];
+  let requestCount = 0;
+  let successfulResponses = 0;
+  let failedResponses = 0;
   let resolveAccepted;
   let releaseHeldResponse;
   const accepted = new Promise(resolve => { resolveAccepted = resolve; });
   const heldResponse = new Promise(resolve => { releaseHeldResponse = resolve; });
   const server = createServer(async (request, response) => {
+    requestCount++;
     try {
       assert.equal(request.method, 'POST');
       assert.equal(request.url, '/publish');
@@ -454,7 +492,9 @@ async function localDiscordProvider(fixture, { holdResponse = false,
       if (holdResponse) await heldResponse;
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ id: `fixture-message-${deliveries.length}`, type: 0, channel_id: '123456789012345678' }));
+      successfulResponses++;
     } catch {
+      failedResponses++;
       response.writeHead(500);
       response.end();
     }
@@ -480,14 +520,15 @@ async function localDiscordProvider(fixture, { holdResponse = false,
     return fetch(`http://127.0.0.1:${address.port}/publish`, { ...init, redirect: 'error' });
   };
   const resolver = async (_tx, orgId, modelId, target) => {
-    assert.equal(orgId, fixture.org);
-    assert.equal(modelId, fixture.model);
     assert.equal(target.platform, 'discord');
-    assert.equal(target.connectionId, fixture.connection);
-    return { connection: { id: fixture.connection }, connector: createConnector('discord', auth, transport) };
+    const owner = fixtures.find(candidate => candidate.org === orgId
+      && candidate.model === modelId && candidate.connection === target.connectionId);
+    assert.ok(owner, 'Provider resolver must stay scoped to a canary model and connection');
+    return { connection: { id: owner.connection }, connector: createConnector('discord', auth, transport) };
   };
   return {
     deliveries,
+    metrics: () => ({ requests: requestCount, successfulResponses, failedResponses }),
     accepted,
     transportPort: address.port,
     resolver,
@@ -969,6 +1010,94 @@ for (const kind of Object.keys(defaultExecutors)) {
       await provider.close();
     }
   });
+  if (process.env.AXIOM_L5_AVAILABILITY === 'enabled') {
+    await check('availability canary: 20 models dispatch 20 durable publish targets each', async () => {
+      const modelCount = 20;
+      const targetsPerModel = 20;
+      const batchSize = 1;
+      const models = [];
+      for (let index = 0; index < modelCount; index++) {
+        const fixture = await successfulPublishFixture();
+        const seeded = await appendAvailabilityTargets(fixture, targetsPerModel);
+        models.push({ fixture, ...seeded });
+      }
+      const provider = await localDiscordProvider(models.map(model => model.fixture));
+      try {
+        for (const [index, model] of models.entries()) {
+          assert.equal(model.jobs.length, targetsPerModel, `Canary model ${index + 1} must have ${targetsPerModel} publish jobs`);
+        }
+        // Match the production runWorker loop, which awaits one workerTick
+        // before claiming another job. Each publish holds its transaction
+        // while committing a separate durable dispatch marker, so direct
+        // fan-out here would measure unsupported pool contention instead of
+        // the configured worker's 20-model daily workload.
+        const work = Array.from({ length: targetsPerModel }, (_, targetIndex) =>
+          models.map(model => ({ fixture: model.fixture, job: model.jobs[targetIndex] }))).flat();
+        const denominator = modelCount * targetsPerModel;
+        assert.equal(work.length, denominator, 'Canary work queue must include every model target');
+        const startedAt = new Date().toISOString();
+        const clockStart = performance.now();
+        const outcomes = [];
+        const latenciesMs = [];
+        const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
+        for (let offset = 0; offset < work.length; offset += batchSize) {
+          const batch = work.slice(offset, offset + batchSize);
+          const samples = await Promise.all(batch.map(async ({ job }) => {
+            const requestStart = performance.now();
+            const outcome = await processJob(job, executors, job.locked_by ?? 'l5-availability-worker', {});
+            return { outcome, latencyMs: performance.now() - requestStart };
+          }));
+          outcomes.push(...samples.map(sample => sample.outcome));
+          latenciesMs.push(...samples.map(sample => sample.latencyMs));
+        }
+        const endedAt = new Date().toISOString();
+        const durationMs = performance.now() - clockStart;
+        const persistedTargets = (await Promise.all(models.map(model => scoped(model.fixture.org, tx =>
+          tx.select({ state: schema.postTarget.state, remoteId: schema.postTarget.remoteId })
+            .from(schema.postTarget).where(eq(schema.postTarget.orgId, model.fixture.org)))))).flat();
+        const published = persistedTargets.filter(target => target.state === 'published' && Boolean(target.remoteId)).length;
+        const sortedLatencies = [...latenciesMs].sort((left, right) => left - right);
+        const percentile = value => sortedLatencies[Math.max(0, Math.ceil(value * sortedLatencies.length) - 1)] ?? 0;
+        const completed = outcomes.filter(outcome => outcome === 'done').length;
+        const availabilityPercent = (published / denominator) * 100;
+        const providerMetrics = provider.metrics();
+        report.availability = {
+          window: { startedAt, endedAt, durationMs: Number(durationMs.toFixed(2)) },
+          models: modelCount,
+          targetsPerModel: targetsPerModel,
+          dispatchBatchSize: batchSize,
+          denominator,
+          completedJobs: completed,
+          durablePublishedTargets: published,
+          failedTargets: denominator - published,
+          availabilityPercent: Number(availabilityPercent.toFixed(2)),
+          dispatchLatencyMs: {
+            p50: Number(percentile(0.50).toFixed(2)),
+            p95: Number(percentile(0.95).toFixed(2)),
+            p99: Number(percentile(0.99).toFixed(2)),
+            max: Number((sortedLatencies.at(-1) ?? 0).toFixed(2)),
+          },
+          throughputTargetsPerSecond: Number((published / (durationMs / 1000)).toFixed(2)),
+          providerAvailability: {
+            provider: 'synthetic local Discord fixture',
+            ...providerMetrics,
+            availabilityPercent: providerMetrics.requests > 0
+              ? Number(((providerMetrics.successfulResponses / providerMetrics.requests) * 100).toFixed(2))
+              : null,
+            externalProviderMeasured: false,
+          },
+          limitations: 'Preapproved synthetic content, isolated PostgreSQL, and an in-process provider fixture; measures dispatch and durable outcomes only, not generation, live-provider uptime, or production availability.',
+        };
+        assert.equal(completed, denominator, 'Every canary worker job must finish');
+        assert.equal(published, denominator, 'Every canary target must have a durable published result');
+        assert.equal(provider.deliveries.length, denominator, 'The synthetic provider must confirm each canary request');
+        assert.ok(availabilityPercent >= 99.5, 'Core publishing canary must meet the 99.5% target');
+        assert.ok(percentile(0.95) < 2_000, 'Publish dispatch p95 must remain under 2 seconds');
+      } finally {
+        await provider.close();
+      }
+    });
+  }
   await check('publish.target: accepted provider outcome survives a persistence fault and blocks blind retry', async () => {
     const fixture = await successfulPublishFixture();
     const provider = await localDiscordProvider(fixture);

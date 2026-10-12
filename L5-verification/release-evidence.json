@@ -1397,10 +1397,10 @@
       "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Measure core-path availability in the owned canary/load run; report the denominator, actual sample window, and provider availability separately. No fixed observation duration is required.",
+      "nextStep": "Run the source-bound 400-target canary across 20 synthetic models and preserve its denominator, measured window, durable outcomes, and dispatch latency. Then measure permitted provider uptime separately; the local synthetic provider metric cannot close external provider availability. No fixed observation duration is required.",
       "evidence": [],
       "verification": {
-        "test": "Measure core publishing canary availability during the agreed canary/load run; compute from the documented denominator, report the actual sample window and provider uptime separately, and compare the result with the ≥99.5% target. No minimum duration is a release gate.",
+        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture; its first network-disabled PostgreSQL fixture dispatches 400 approved targets across 20 synthetic models through the worker and reports the denominator, actual sample window, durable outcomes, p95 latency, and synthetic provider responses separately. Measure permitted live-provider uptime separately; compare core-path availability with the ≥99.5% target. No minimum duration is a release gate.",
         "environment": "Owned isolated canary/load environment with synthetic requests and fault injection; existing free quotas only when provider availability is measured separately.",
         "dependencies": [
           1,

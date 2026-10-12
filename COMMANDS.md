@@ -17,6 +17,7 @@
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --team-operations` — post-note ownership/RLS/pagination and shift concurrency in a disposable PostgreSQL database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --playbook-history` — real PostgreSQL guideline snapshot/concurrent-save/tenant history checks in a disposable database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval` — real pgvector retrieval, evidence filtering and model/tenant sharing isolation in a disposable database
+- `node scripts/rehearse-l5-runtime.mjs --isolated-fixture` — real worker/publishing/audit acceptance in isolated Docker/PostgreSQL; includes one 20-model, 400-target availability measurement using only a local synthetic provider fixture, records durable outcomes and dispatch latency, and removes labeled disposable resources
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --variant-performance` — real API/PostgreSQL variant-performance query acceptance in a fresh disposable database; no provider or live workspace operations
 - `node scripts/test-phase-gates.mjs` — isolated regressions for exact phase tokens and missing prerequisite phases; no live ledger or marker changes
 - `node scripts/test-step-markers.mjs` — isolated marker lifecycle regressions for run/skip, explicit refresh, manifest/input checksum drift, path escape and cleanup; synthetic temporary files only
