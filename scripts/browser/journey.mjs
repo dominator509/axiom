@@ -1202,7 +1202,6 @@ COMMIT;
         });
         expectAffiliateStatus('/api/v1/platform/affiliate/conversions/reconcile', conversion.status, 201, conversion.data);
         const conversionId = conversion.data.data.id;
-        const commissionId = conversion.data.commission.id;
 
         await page.reload();
         const reportButton = page.getByRole('button', { name: 'View report' });
@@ -1236,6 +1235,13 @@ COMMIT;
         expectAffiliateStatus(new URL(releaseResponse.url()).pathname, releaseResponse.status(), 200, releasePayload);
         await expect(holdsSection).toContainText('No open holds.');
 
+        const releasedCommissionEventId = fixtureSql(`
+SELECT id::text FROM affiliate_commission_event
+WHERE conversion_id = :'conversion_id' AND kind = 'approved' AND reason = 'hold_released'
+ORDER BY created_at DESC LIMIT 1;
+`, { conversion_id: conversionId });
+        expect(releasedCommissionEventId).toMatch(/^[a-f0-9-]{36}$/i);
+
         await page.reload();
         const partnerRow = page.getByRole('row').filter({ hasText: partnerEmail });
         const payoutResponsePromise = page.waitForResponse(response =>
@@ -1248,7 +1254,7 @@ COMMIT;
         const payoutDownload = await requireAffiliateDownload(await payoutDownloadPromise);
         expect(payoutResponse.headers()['x-fanthynks-payout-transfer']).toBe('none');
         expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
-        expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(String(commissionId));
+        expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(releasedCommissionEventId);
 
         const revoked = page.waitForResponse(response =>
           new URL(response.url()).pathname === `/api/v1/platform/affiliate/partners/${partnerId}`
