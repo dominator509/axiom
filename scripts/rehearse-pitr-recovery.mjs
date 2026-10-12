@@ -481,7 +481,8 @@ try {
       assert.equal(sql(restored, `SELECT count(*) FROM auth_user WHERE id=${sqlLiteral(operator.userId)}
         AND org_id=${sqlLiteral(orgId)} AND role='operator'`), '1');
     });
-    const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'https://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json'},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
+    const reconciliationIdempotencyKey = randomUUID();
+    const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'https://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json','Idempotency-Key':${JSON.stringify(reconciliationIdempotencyKey)}},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
     const reconciliation = JSON.parse(nodeInContainer(apiContainer, reconcileSource));
     check(`drill ${drillNumber}: provider absence reconciliation returns HTTP ${reconciliation.status}`, () =>
       assert.equal(reconciliation.status, 200));
