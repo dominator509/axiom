@@ -184,6 +184,20 @@ async function waitUntil(description, operation, timeoutMs = 120_000) {
   }
   throw new Error(`Timed out waiting for ${description}`);
 }
+async function waitForContainerHealth(container, timeoutMs, secrets = []) {
+  try {
+    await waitUntil(`${container} health check`, () =>
+      docker(['inspect', '--format', '{{.State.Health.Status}}', container]) === 'healthy', timeoutMs);
+  } catch {
+    const state = run('docker', ['inspect', '--format',
+      '{{.State.Status}}|{{.State.ExitCode}}|{{.State.Health.Status}}|{{range .State.Health.Log}}{{.ExitCode}}:{{.Output}}{{end}}', container],
+    { env: dockerEnv });
+    const logs = run('docker', ['logs', '--tail', '40', container], { env: dockerEnv });
+    let diagnostic = safeDiagnostic(`${state.stdout ?? ''} ${logs.stdout ?? ''} ${logs.stderr ?? ''}`);
+    for (const secret of secrets) if (secret) diagnostic = diagnostic.replaceAll(secret, '[redacted-synthetic-secret]');
+    throw new Error(`Timed out waiting for ${container} health${diagnostic ? `: ${diagnostic}` : ''}`);
+  }
+}
 function archiveSnapshot(container) {
   const migrationRows = sql(container,
     "SELECT migration_name || ':' || checksum_sha256 FROM public.axiom_schema_migrations ORDER BY migration_name");
@@ -441,8 +455,7 @@ try {
       '--env', 'API_HOST=0.0.0.0', '--env', 'API_PORT=3001', '--env', 'AXIOM_SERVICE_NAME=recovery-api',
       apiImage,
     ])]);
-    await waitUntil(`${apiContainer} health check`, () =>
-      docker(['inspect', '--format', '{{.State.Health.Status}}', apiContainer]) === 'healthy', 180_000);
+    await waitForContainerHealth(apiContainer, 180_000, [authSecret, relaySecret]);
     check(`drill ${drillNumber}: restored API starts healthy against the PITR database`, () => {
       assert.equal(docker(['inspect', '--format', '{{.State.Status}}', apiContainer]), 'running');
       assert.equal(nodeInContainer(apiContainer,
@@ -491,8 +504,7 @@ try {
       '--env', `WORKER_ID=recovery-${shortId}`, '--env', 'WORKER_POLL_INTERVAL_MS=250',
       workerImage,
     ])]);
-    await waitUntil(`${workerContainer} health check`, () =>
-      docker(['inspect', '--format', '{{.State.Health.Status}}', workerContainer]) === 'healthy', 120_000);
+    await waitForContainerHealth(workerContainer, 120_000, [relaySecret]);
     const restoredNetworkMode = docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', restored]);
     const restoredId = docker(['inspect', '--format', '{{.Id}}', restored]);
     const sharedNamespaceModes = new Set([`container:${restored}`, `container:${restoredId}`]);
