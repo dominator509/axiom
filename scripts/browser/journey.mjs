@@ -213,6 +213,16 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, body, key: randomUUID() });
+  const expectAffiliateStatus = (path, received, expected, payload = null) => {
+    const detail = typeof payload?.detail === 'string' ? safeDiagnostic(new Error(payload.detail)) : null;
+    const context = { path, expectedStatus: expected, receivedStatus: received, ...(detail ? { detail } : {}) };
+    if (received !== expected) {
+      failureContext = context;
+      probes.push({ kind: 'affiliate-response-failure', ...context });
+    }
+    expect(received, JSON.stringify(context)).toBe(expected);
+    failureContext = null;
+  };
   const fixtureSql = (input, variables = {}) => {
     const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
       ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
@@ -1126,8 +1136,8 @@ COMMIT;
           && response.request().method() === 'POST');
         await createPartner.click();
         const partnerResponse = await partnerResponsePromise;
-        expect(partnerResponse.status()).toBe(201);
-        const partnerPayload = await partnerResponse.json();
+        const partnerPayload = await partnerResponse.json().catch(() => null);
+        expectAffiliateStatus('/api/v1/platform/affiliate/partners', partnerResponse.status(), 201, partnerPayload);
         const partnerId = partnerPayload.data.id;
         expect(partnerPayload.data).toMatchObject({ displayName: partnerName, email: partnerEmail, status: 'active' });
 
@@ -1143,8 +1153,8 @@ COMMIT;
           && response.request().method() === 'POST');
         await campaignForm.locator('button[type="submit"]').click();
         const campaignResponse = await campaignResponsePromise;
-        expect(campaignResponse.status()).toBe(201);
-        const campaignPayload = await campaignResponse.json();
+        const campaignPayload = await campaignResponse.json().catch(() => null);
+        expectAffiliateStatus('/api/v1/platform/affiliate/campaigns', campaignResponse.status(), 201, campaignPayload);
         const campaignId = campaignPayload.data.id;
         const referralToken = campaignPayload.data.referralToken;
         expect(campaignPayload.data).toMatchObject({ partnerId, name: campaignName, status: 'active' });
@@ -1158,7 +1168,7 @@ COMMIT;
             eventKey: `browser-f90-${kind}-${randomUUID()}`,
             ...(kind === 'identity_stitch' ? { creatorUserId: creatorId } : { visitorHash: createHash('sha256').update(randomUUID()).digest('hex') }),
           });
-          expect(attribution.status).toBe(201);
+          expectAffiliateStatus('/api/v1/platform/affiliate/attribution', attribution.status, 201, attribution.data);
         }
         const conversion = await affiliateRequest('/api/v1/platform/affiliate/conversions/reconcile', {
           campaignId,
@@ -1167,7 +1177,7 @@ COMMIT;
           billingEventKey: `browser-f90-billing-${randomUUID()}`,
           creatorUserId: creatorId,
         });
-        expect(conversion.status).toBe(201);
+        expectAffiliateStatus('/api/v1/platform/affiliate/conversions/reconcile', conversion.status, 201, conversion.data);
         const conversionId = conversion.data.data.id;
         const commissionId = conversion.data.commission.id;
 
@@ -1186,7 +1196,9 @@ COMMIT;
           new URL(response.url()).pathname === `/api/v1/platform/affiliate/commissions/${conversionId}/hold`
           && response.request().method() === 'POST');
         await commissionRow.getByRole('button', { name: 'Place on hold' }).click();
-        expect((await held).status()).toBe(201);
+        const holdResponse = await held;
+        const holdPayload = await holdResponse.json().catch(() => null);
+        expectAffiliateStatus(`/api/v1/platform/affiliate/commissions/${conversionId}/hold`, holdResponse.status(), 201, holdPayload);
 
         const holdsSection = page.locator('section[aria-labelledby="holds-heading"]');
         const holdRow = holdsSection.getByRole('row').filter({ hasText: partnerName });
@@ -1196,7 +1208,9 @@ COMMIT;
           && new URL(response.url()).pathname.endsWith('/resolve')
           && response.request().method() === 'POST');
         await holdRow.getByRole('button', { name: 'Release' }).click();
-        expect((await released).status()).toBe(200);
+        const releaseResponse = await released;
+        const releasePayload = await releaseResponse.json().catch(() => null);
+        expectAffiliateStatus(new URL(releaseResponse.url()).pathname, releaseResponse.status(), 200, releasePayload);
         await expect(holdsSection).toContainText('No open holds.');
 
         await page.reload();
@@ -1208,7 +1222,7 @@ COMMIT;
         await partnerRow.getByRole('link', { name: 'Payout CSV' }).click();
         const payoutResponse = await payoutResponsePromise;
         const payoutDownload = await payoutDownloadPromise;
-        expect(payoutResponse.status()).toBe(200);
+        expectAffiliateStatus('/api/v1/platform/affiliate/payouts/export', payoutResponse.status(), 200);
         expect(payoutResponse.headers()['x-fanthynks-payout-transfer']).toBe('none');
         expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
         expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(String(commissionId));
@@ -1218,7 +1232,8 @@ COMMIT;
           && response.request().method() === 'PATCH');
         await partnerRow.getByRole('button', { name: 'Revoke access' }).click();
         const revokeResponse = await revoked;
-        expect(revokeResponse.status()).toBe(200);
+        expectAffiliateStatus(`/api/v1/platform/affiliate/partners/${partnerId}`, revokeResponse.status(), 200,
+          await revokeResponse.json().catch(() => null));
         await expect(partnerRow).toContainText('revoked');
         expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
 
