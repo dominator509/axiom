@@ -171,7 +171,8 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
   if (cookie) {
     headers.set('Cookie', cookie);
   }
-  if (options.body !== undefined && !headers.has('Content-Type')) {
+  const multipart = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !multipart && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -197,7 +198,11 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
       res = await fetch(url, {
         method,
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body: options.body === undefined
+          ? undefined
+          : multipart
+            ? options.body as FormData
+            : JSON.stringify(options.body),
         signal: attemptSignal.signal,
       });
       break;

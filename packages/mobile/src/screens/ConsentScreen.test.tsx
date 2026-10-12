@@ -1,7 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog, PLATFORM_IDS } from '@axiom/core';
+import { CATALOGS, CONSENT_CATALOGS, interpolate, LocaleCatalog, PLATFORM_IDS } from '@axiom/core';
 import type { MobileConsentRecord, MobileConsentStatus, MobileModelProfile } from '../api/endpoints';
+import type { ConsentRecordDraft } from './ConsentScreen';
 
 vi.mock('../api/endpoints', () => ({
   getConsentRecords: vi.fn(async () => []),
@@ -18,7 +19,7 @@ vi.mock('../api/endpoints', () => ({
 }));
 
 import { getConsentRecords, getConsentStatus } from '../api/endpoints';
-import ConsentScreen, { ConsentView, consentRecordState, loadConsentSnapshot, type ConsentViewProps } from './ConsentScreen';
+import ConsentScreen, { ConsentView, canManageConsent, consentDraftError, consentRecordState, loadConsentSnapshot, type ConsentViewProps } from './ConsentScreen';
 
 const catalog = new LocaleCatalog(CATALOGS);
 const model: MobileModelProfile = {
@@ -31,10 +32,17 @@ const record: MobileConsentRecord = {
 };
 const blocked: MobileConsentStatus = { platform: 'instagram', ok: false, missing: ['2257'] };
 const noop = () => undefined;
+const draft: ConsentRecordDraft = {
+  platform: 'instagram', docKind: 'model_release', subjectRef: 'synthetic-subject',
+  validFrom: '2026-01-01', validTo: '', expiresAt: '',
+};
+const consentT = (locale: ConsentViewProps['locale'], key: keyof typeof CONSENT_CATALOGS.en) => interpolate(CONSENT_CATALOGS[locale][key]);
 
 const baseProps: ConsentViewProps = {
-  locale: 'en', models: [model], selectedModelId: model.id, records: [record], statuses: [blocked],
-  modelsLoading: false, dataLoading: false, error: false, onSelectModel: noop, onRetry: noop,
+  locale: 'en', canManage: true, models: [model], selectedModelId: model.id, records: [record], statuses: [blocked],
+  modelsLoading: false, dataLoading: false, error: false, draft, hasSelectedDocument: true, uploadPending: false,
+  uploading: false, uploadError: null, uploadMessage: null, onSelectModel: noop, onRetry: noop,
+  onDraftChange: noop, onPickDocument: noop, onUpload: noop,
 };
 
 function renderView(overrides: Partial<ConsentViewProps> = {}, locale: ConsentViewProps['locale'] = 'en') {
@@ -42,8 +50,29 @@ function renderView(overrides: Partial<ConsentViewProps> = {}, locale: ConsentVi
 }
 
 it('mounts with a real loading state while assigned models are being read', () => {
-  const html = renderToStaticMarkup(<ConsentScreen />);
+  const html = renderToStaticMarkup(<ConsentScreen user={{ id: 'user-1', email: 'operator@example.test', name: null, role: 'operator', orgId: 'org-1' }} />);
   expect(html).toContain(catalog.t('en', 'mobile.consent.loadingModels'));
+});
+
+it('exposes document upload only to consent managers and localizes the DNG form', () => {
+  expect(canManageConsent('owner')).toBe(true);
+  expect(canManageConsent('manager')).toBe(true);
+  expect(canManageConsent('operator')).toBe(true);
+  expect(canManageConsent('content_creator')).toBe(false);
+  const html = renderView({}, 'de');
+  expect(html).toContain(consentT('de', 'consent.addMetadata'));
+  expect(html).toContain(consentT('de', 'consent.uploadDocument'));
+  expect(html).toContain(catalog.t('de', 'mobile.consent.documentSelected'));
+  expect(html).toContain(catalog.t('de', 'mobile.consent.privacyNote'));
+  const readOnly = renderView({ canManage: false });
+  expect(readOnly).not.toContain(consentT('en', 'consent.addMetadata'));
+});
+
+it('validates consent metadata before an upload can be submitted', () => {
+  const document = { uri: 'file:///license.dng', name: 'license.dng', mimeType: 'application/octet-stream', size: 10 };
+  expect(consentDraftError(draft, document)).toBeNull();
+  expect(consentDraftError({ ...draft, validTo: '2025-12-31' }, document)).toBe('consent.invalidRange');
+  expect(consentDraftError(draft, null)).toBe('consent.invalidDocument');
 });
 
 it('loads publish eligibility for every shared platform using the selected model scope', async () => {

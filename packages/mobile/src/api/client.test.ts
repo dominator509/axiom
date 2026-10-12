@@ -120,6 +120,25 @@ describe('apiFetch', () => {
     expect(getStoredCookie()).toContain('axiom_session=sess-1');
   });
 
+  it('sends multipart requests unchanged so the fetch runtime can set the boundary', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { hasDocument: true } }, 201));
+    const form = new FormData();
+    form.append('platform', 'instagram');
+    form.append('document', new Blob(['synthetic document']), 'license.dng');
+
+    await apiFetch<unknown>('/api/v1/models/model-1/consent-records', {
+      method: 'POST',
+      body: form,
+      idempotencyKey: 'consent-upload-1',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(init.body).toBe(form);
+    expect(headers.get('Content-Type')).toBeNull();
+    expect(headers.get('Idempotency-Key')).toBe('consent-upload-1');
+  });
+
   it('sends the captured cookie on subsequent requests', async () => {
     setStoredCookie('axiom_session=sess-9; Path=/');
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: [] }));
