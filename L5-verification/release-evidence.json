@@ -1369,9 +1369,37 @@
       "requirement": "- Load: 4 generation batches and 20 publish targets per model per day, up to 20 models; measure sustained and burst load against the latency limits in `L1.2` and `L4`.",
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
-      "status": "unverified",
-      "nextStep": "Run the expanded source-bound scale matrix once on the candidate SHA. It submits four real prompt-engine API batches per model with LLM enrichment off, creates one publishable bundle per model through the API using the synthetic fixture image, completes durable text and pinned-local-vision ToS scans, approves and schedules through the API, then dispatches 20 targets per model through the real worker. The isolated harness must delete each fixture-only media object and confirm cleanup. Keep this row unverified until the hosted receipt is recorded. Provider-backed LLM enrichment/cache rates, media generation, host resources, other product-path latency, and budget acceptance remain separate evidence needs.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this workload on the final release SHA. The 20-model synthetic burst recorded 26.34s p95 queue wait from burst start; the tested per-job worker dispatch p95 was 111.30ms. This does not establish the separate Relay card-delivery p95 or any external-provider, host-resource, mobile, transcode, retrieval, cache, or cost target.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "4a1a485ce4fe9946e7a686909e90f58e576cd321",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; owned network-disabled Docker/PostgreSQL fixtures with the pinned local vision model, synthetic consent/media, and local Discord provider fixture; no real provider credentials or paid quotas.",
+          "scope": "127 checks passed, 0 failed, 0 skipped. Scale runs at 1, 5, 10, and 20 models each submitted 4 generation batches/model and 20 publish targets/model: 720/720 durable published targets across denominators 20/100/200/400. Per-job dispatch p95 was 29.65/44.39/64.85/111.30ms; queue-wait p95 from burst start was 388.25/3152.52/8553.42/26335.68ms. At 20 models, 80 generation requests created 80 bundles and 400 prompt variants; 100 ToS jobs completed and all 400 provider-fixture responses succeeded. Fixture media cleanup verified. Model SHA-256 2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93; source archive SHA-256 01d811f180fd21aa3e60ee29b4254999edb8ac5227dc4b2b220f56822da941a7.",
+          "limitations": "The dispatch p95 measures one real workerTick through the synthetic provider response and passed the L1.2 <2s assertion. Queue wait is separately reported from burst start and reached 26.34s at 20 models; no queue-age SLA is asserted by this rehearsal. The local Discord fixture is not Relay card delivery and externalProviderMeasured=false. This does not prove Relay card-delivery p95, external-provider uptime, provider-backed LLM/cache behavior, model-backed media generation, host resource peaks, mobile TTI, media transcode, retrieval latency, or infrastructure cost.",
+          "observedAt": "2026-10-12T22:32:15Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38316165556",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38316165556/job/115033183812",
+          "logSha256": "e33b4e9d14288b263d10ab3203192cfb1f8b6f3829575942aa5b931c8d6683b0",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:60794953d91036deb2cab405d583b1ec4c2a3a1ff0e2e8eb430f65a2476cbcbc",
+            "sha256:351856a45752880016412154d1de1aaacf84a12fa28de59d8beb728dde822dc7",
+            "sha256:1ed43bc62584fedfc9c73685650b2d5fcf45528a39769ab3986216d601d53aea",
+            "sha256:2bd266f2b6977ec9b7f6a6aa6500b50e5694edfc16514f04492927f6c858dac1",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. Its availability canary sends four concurrent POST /api/v1/models/:modelId/generate requests per model with LLM enrichment explicitly disabled, creates one saved-media bundle per model through POST /api/v1/bundles using the synthetic fixture.png, completes all prompt and image ToS scans with the scoped worker and pinned local vision model, approves each media-backed bundle and creates future targets through the API, then advances only those disposable target/job timestamps and drains 20 targets per model through the real worker claim/process path. It records generation, media-bundle creation, scan, approval, schedule, queue-wait, dispatch latency, throughput, and synthetic-provider outcomes at 1, 5, 10, and 20 models. It deletes the fixture-only media objects and requires the cleanup assertion to pass. It does not measure provider-backed LLM inference/cache, media generation, host resource peaks, mobile TTI, media transcode, or external provider availability.",
         "environment": "Owned isolated PostgreSQL and API/worker runtime, synthetic consent, fixture.png and pinned local vision scanner, local Discord fixture, 1/5/10/20 models; no real provider credentials, external destinations, or paid quotas.",
@@ -1397,8 +1425,36 @@
       "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Record the scale-matrix core-path availability, denominator, actual sample windows, durable outcomes, and dispatch latency. Then measure permitted real-provider availability separately; the synthetic provider fixture cannot close that external measure. No fixed observation duration is required.",
-      "evidence": [],
+      "nextStep": "The hosted matrix records 720/720 durable synthetic outcomes and per-scale sample windows at 1/5/10/20 models. Measure permitted real-provider availability separately before closing this criterion; the synthetic fixture cannot establish external-provider availability. No fixed observation duration is required.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-NFR-2",
+          "sha": "4a1a485ce4fe9946e7a686909e90f58e576cd321",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; owned network-disabled Docker/PostgreSQL fixtures with the pinned local vision model, synthetic consent/media, and local Discord provider fixture; no real provider credentials or paid quotas.",
+          "scope": "The 1/5/10/20-model windows had denominators 20/100/200/400, 20/100/200/400 durable published targets, and 100% internal availability at each scale (720/720 overall). Sample windows UTC: 1 model 22:28:45.526-22:28:45.949 (422.81ms); 5 models 22:29:10.127-22:29:13.402 (3275.40ms); 10 models 22:29:51.170-22:29:59.957 (8786.93ms); 20 models 22:31:15.222-22:31:42.022 (26799.71ms). The synthetic local Discord fixture returned 720/720 successful responses and is explicitly marked externalProviderMeasured=false. Queue-wait and per-job dispatch latency distributions are in the receipt; fixture cleanup verified.",
+          "limitations": "Short isolated synthetic canary only; no live-provider uptime, production availability, external destination, production/shared database, or owner infrastructure was measured. The sample windows are workload trials, not a 30-day observation; the 30-day gate has been waived and no minimum duration is required.",
+          "observedAt": "2026-10-12T22:32:15Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38316165556",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38316165556/job/115033183812",
+          "logSha256": "e33b4e9d14288b263d10ab3203192cfb1f8b6f3829575942aa5b931c8d6683b0",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:60794953d91036deb2cab405d583b1ec4c2a3a1ff0e2e8eb430f65a2476cbcbc",
+            "sha256:351856a45752880016412154d1de1aaacf84a12fa28de59d8beb728dde822dc7",
+            "sha256:1ed43bc62584fedfc9c73685650b2d5fcf45528a39769ab3986216d601d53aea",
+            "sha256:2bd266f2b6977ec9b7f6a6aa6500b50e5694edfc16514f04492927f6c858dac1",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. The network-disabled PostgreSQL rehearsal runs 1, 5, 10, and 20 synthetic-model scales with 20 approved targets per model, including a 400-target 20-model phase; it reports each phase window, denominator, durable outcomes, queue wait from burst start, p95 dispatch latency, and synthetic provider responses separately. Measure permitted live-provider uptime separately and compare the internal core-path result with the >=99.5% target. No minimum duration is a release gate.",
         "environment": "Owned isolated canary/load environment with synthetic requests and fault injection; existing free quotas only when provider availability is measured separately.",
