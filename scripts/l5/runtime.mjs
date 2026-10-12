@@ -582,7 +582,7 @@ async function approveAndScheduleAvailabilityTargets(models, targetCountPerModel
       body: JSON.stringify({
         platforms: ['discord'],
         connectionIds: { discord: fixture.connection },
-        slot: new Date(scheduleBaseMs + slotIndex * slotIntervalMinutes * 60_000).toISOString(),
+        slot: new Date(scheduleBaseMs).toISOString(),
       }),
     });
     const responseText = await response.text();
