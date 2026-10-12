@@ -357,7 +357,7 @@ describe('platform affiliate API', () => {
     };
     const resolvedHold = { ...hold, state: 'resolved', resolvedByUserId: 'owner-user', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
     const approved = { ...held, id: 'commission-released', kind: 'approved', eventKey: 'commission:commission-held:approved' };
-    harness.state.results = [[hold], [held], [held], [approved], [], [resolvedHold], []];
+    harness.state.results = [[hold], [{ conversionId }], [hold], [held], [held], [approved], [resolvedHold], []];
 
     const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'released' });
 
@@ -375,7 +375,7 @@ describe('platform affiliate API', () => {
       state: 'open', createdAt: new Date('2026-01-02T00:00:00.000Z'),
     };
     const resolvedHold = { ...hold, state: 'resolved', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
-    harness.state.results = [[hold], [resolvedHold], []];
+    harness.state.results = [[hold], [{ conversionId }], [hold], [resolvedHold], []];
 
     const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'upheld' });
 
