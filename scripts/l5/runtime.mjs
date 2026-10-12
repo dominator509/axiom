@@ -110,11 +110,24 @@ function publishReconciliationApp(fixture) {
 async function credentialOperatorCookie(org) {
   const email = `l5-${randomUUID()}@fixture.invalid`;
   const password = randomBytes(32).toString('base64url');
-  const signup = await apiApp.request(new Request('https://l5-fixture.invalid/api/auth/sign-up/email', {
-    method: 'POST',
-    headers: { Origin: 'https://l5-fixture.invalid', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, name: 'L5 credential fixture operator' }),
-  }));
+  // Preserve the public auth limit; setup follows its Retry-After budget.
+  const deadline = Date.now() + 30_000;
+  let signup;
+  for (let retry = 0; ; retry++) {
+    signup = await apiApp.request(new Request('https://l5-fixture.invalid/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { Origin: 'https://l5-fixture.invalid', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name: 'L5 credential fixture operator' }),
+    }));
+    if (signup.status !== 429) break;
+    const retryAfterSeconds = Number(signup.headers.get('Retry-After'));
+    assert.ok(Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds > 0 && retryAfterSeconds <= 30,
+      'Rate-limited fixture signup must provide a bounded Retry-After value');
+    const delayMs = retryAfterSeconds * 1_000 + 100;
+    assert.ok(retry < 20 && Date.now() + delayMs <= deadline,
+      'Rate-limited fixture signup must succeed within its bounded retry window');
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
   const signupText = await signup.text();
   assert.equal(signup.status, 200, 'Real Better Auth signup must establish the fixture session');
   const identity = JSON.parse(signupText);
