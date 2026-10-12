@@ -911,9 +911,10 @@ table {
   border-collapse: collapse;
 }
 
-table td:last-child > .btn {
+table td:last-child .btn {
   flex: 0 0 auto;
   min-width: max-content;
+  max-width: none;
   white-space: nowrap;
 }
 th,
