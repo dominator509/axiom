@@ -1256,22 +1256,26 @@ ORDER BY created_at DESC LIMIT 1;
         expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
         expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(releasedCommissionEventId);
 
+        failureContext = { awaitingAffiliateResponse: 'partner revocation PATCH' };
         const revoked = page.waitForResponse(response =>
           new URL(response.url()).pathname === `/api/v1/platform/affiliate/partners/${partnerId}`
           && response.request().method() === 'PATCH');
         await partnerRow.getByRole('button', { name: 'Revoke access' }).click();
         const revokeResponse = await revoked;
+        failureContext = null;
         expectAffiliateStatus(`/api/v1/platform/affiliate/partners/${partnerId}`, revokeResponse.status(), 200,
           await revokeResponse.json().catch(() => null));
         await expect(partnerRow).toContainText('revoked');
         expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
 
         const exportPath = `/api/v1/platform/affiliate/partners/${partnerId}/export`;
+        failureContext = { awaitingAffiliateResponse: 'partner export GET' };
         const exportResponsePromise = page.waitForResponse(response =>
           new URL(response.url()).pathname === exportPath && response.request().method() === 'GET');
         const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
         await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
         const exportResponse = await exportResponsePromise;
+        failureContext = null;
         expectAffiliateStatus(exportPath, exportResponse.status(), 200,
           await exportResponse.json().catch(() => null));
         const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
