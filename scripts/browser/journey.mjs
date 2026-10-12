@@ -223,6 +223,15 @@ COMMIT;
     expect(received, JSON.stringify(context)).toBe(expected);
     failureContext = null;
   };
+  const waitForAffiliateDownload = label => page.waitForEvent('download', { timeout: 10_000 })
+    .then(download => ({ download }), error => ({ error, label }));
+  const requireAffiliateDownload = async result => {
+    if (result.error) {
+      failureContext = { download: result.label, error: safeDiagnostic(result.error) };
+      throw new Error(`Timed out waiting for ${result.label} download`);
+    }
+    return result.download;
+  };
   const fixtureSql = (input, variables = {}) => {
     const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
       ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
@@ -1218,11 +1227,11 @@ COMMIT;
         const payoutResponsePromise = page.waitForResponse(response =>
           new URL(response.url()).pathname === '/api/v1/platform/affiliate/payouts/export'
           && response.request().method() === 'GET');
-        const payoutDownloadPromise = page.waitForEvent('download');
+        const payoutDownloadPromise = waitForAffiliateDownload('payout CSV');
         await partnerRow.getByRole('link', { name: 'Payout CSV' }).click();
         const payoutResponse = await payoutResponsePromise;
-        const payoutDownload = await payoutDownloadPromise;
         expectAffiliateStatus('/api/v1/platform/affiliate/payouts/export', payoutResponse.status(), 200);
+        const payoutDownload = await requireAffiliateDownload(await payoutDownloadPromise);
         expect(payoutResponse.headers()['x-fanthynks-payout-transfer']).toBe('none');
         expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
         expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(String(commissionId));
@@ -1237,9 +1246,15 @@ COMMIT;
         await expect(partnerRow).toContainText('revoked');
         expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
 
-        const exportDownloadPromise = page.waitForEvent('download');
+        const exportPath = `/api/v1/platform/affiliate/partners/${partnerId}/export`;
+        const exportResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === exportPath && response.request().method() === 'GET');
+        const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
         await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
-        const exportDownload = await exportDownloadPromise;
+        const exportResponse = await exportResponsePromise;
+        expectAffiliateStatus(exportPath, exportResponse.status(), 200,
+          await exportResponse.json().catch(() => null));
+        const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
         expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
         const exportedPartner = JSON.parse(readFileSync(await exportDownload.path(), 'utf8'));
         expect(exportedPartner).toMatchObject({
