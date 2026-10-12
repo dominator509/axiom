@@ -201,6 +201,18 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, method, body, key: randomUUID() });
+  const affiliateRequest = async (path, body) => page.evaluate(async args => {
+    const response = await fetch(args.path, {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json', 'Idempotency-Key': args.key },
+      body: JSON.stringify(args.body),
+    });
+    let data;
+    try { data = await response.json(); } catch { data = null; }
+    return { status: response.status, data };
+  }, { path, body, key: randomUUID() });
   const fixtureSql = (input, variables = {}) => {
     const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
       ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
@@ -1074,6 +1086,164 @@ COMMIT;
   await check('owner-only control denied', async () => {
     expect(await status('/api/v1/killswitch')).toBe(403);
   });
+  await check('non-owner is denied the platform affiliate dashboard and API', async () => {
+    await page.goto('/settings');
+    const localeForm = page.locator('form').first();
+    await localeForm.locator('select').selectOption('en');
+    const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/ui-locale'
+      && response.request().method() === 'PATCH');
+    await localeForm.locator('button[type="submit"]').click();
+    expect((await saved).status()).toBe(200);
+    await page.goto('/affiliate');
+    await expect(page.getByRole('heading', { name: 'Affiliate program access' })).toBeVisible();
+    expect(await status('/api/v1/platform/affiliate/program')).toBe(403);
+  });
+  if (mode === 'default') {
+    await check('owner completes synthetic affiliate onboarding, reporting, review, export and revocation', async () => {
+      const promoted = fixtureSql(`
+BEGIN;
+UPDATE auth_user SET role = 'owner' WHERE email = :'email' AND role = 'operator';
+SELECT count(*)::text FROM auth_user WHERE email = :'email' AND role = 'owner';
+COMMIT;
+`, { email });
+      expect(promoted).toBe('1');
+      try {
+        await page.goto('/affiliate');
+        await expect(page.getByRole('heading', { name: 'Affiliate program' })).toBeVisible();
+        const partnerForm = page.locator('form[aria-label="Create partner"]');
+        const partnerName = 'F90 Browser Partner';
+        const partnerEmail = `f90-${randomUUID()}@example.invalid`;
+        diagnosticRedactions.add(partnerEmail);
+        await partnerForm.locator('input[name="displayName"]').fill(partnerName);
+        await partnerForm.locator('input[name="email"]').fill(partnerEmail);
+        await partnerForm.locator('select[name="partnerStatus"]').selectOption('active');
+        const createPartner = partnerForm.locator('button[type="submit"]');
+        await expect(createPartner).toBeDisabled();
+        await partnerForm.locator('input[name="disclosureAccepted"]').check();
+        await expect(createPartner).toBeEnabled();
+        const partnerResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/partners'
+          && response.request().method() === 'POST');
+        await createPartner.click();
+        const partnerResponse = await partnerResponsePromise;
+        expect(partnerResponse.status()).toBe(201);
+        const partnerPayload = await partnerResponse.json();
+        const partnerId = partnerPayload.data.id;
+        expect(partnerPayload.data).toMatchObject({ displayName: partnerName, email: partnerEmail, status: 'active' });
+
+        const campaignName = 'F90 Synthetic Launch';
+        const campaignSlug = `f90-${randomUUID().slice(0, 8)}`;
+        const campaignForm = page.locator('form[aria-label="Create a campaign"]');
+        await campaignForm.locator('select[name="partnerId"]').selectOption(partnerId);
+        await campaignForm.locator('input[name="campaignName"]').fill(campaignName);
+        await campaignForm.locator('input[name="campaignSlug"]').fill(campaignSlug);
+        await campaignForm.locator('select[name="campaignStatus"]').selectOption('active');
+        const campaignResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/campaigns'
+          && response.request().method() === 'POST');
+        await campaignForm.locator('button[type="submit"]').click();
+        const campaignResponse = await campaignResponsePromise;
+        expect(campaignResponse.status()).toBe(201);
+        const campaignPayload = await campaignResponse.json();
+        const campaignId = campaignPayload.data.id;
+        const referralToken = campaignPayload.data.referralToken;
+        expect(campaignPayload.data).toMatchObject({ partnerId, name: campaignName, status: 'active' });
+
+        const creatorId = fixtureSql('SELECT id FROM auth_user WHERE email = :\'pending_email\' LIMIT 1;', { pending_email: pendingEmail });
+        expect(creatorId).toMatch(/^[^\r\n]+$/);
+        for (const kind of ['click', 'visit', 'identity_stitch']) {
+          const attribution = await affiliateRequest('/api/v1/platform/affiliate/attribution', {
+            campaignId,
+            kind,
+            eventKey: `browser-f90-${kind}-${randomUUID()}`,
+            ...(kind === 'identity_stitch' ? { creatorUserId: creatorId } : { visitorHash: createHash('sha256').update(randomUUID()).digest('hex') }),
+          });
+          expect(attribution.status).toBe(201);
+        }
+        const conversion = await affiliateRequest('/api/v1/platform/affiliate/conversions/reconcile', {
+          campaignId,
+          kind: 'subscription_started',
+          amountCents: 10000,
+          billingEventKey: `browser-f90-billing-${randomUUID()}`,
+          creatorUserId: creatorId,
+        });
+        expect(conversion.status).toBe(201);
+        const conversionId = conversion.data.data.id;
+        const commissionId = conversion.data.commission.id;
+
+        await page.reload();
+        const reportButton = page.getByRole('button', { name: 'View report' });
+        await expect(reportButton).toBeVisible();
+        await reportButton.click();
+        const report = page.locator('[aria-live="polite"].card');
+        await expect(report).toContainText('1 / 1');
+        await expect(report).toContainText('1');
+
+        const commissionSection = page.locator('section[aria-labelledby="commissions-heading"]');
+        const commissionRow = commissionSection.getByRole('row').filter({ hasText: campaignName });
+        await commissionRow.locator(`select[name="holdReason.${conversionId}"]`).selectOption('chargeback');
+        const held = page.waitForResponse(response =>
+          new URL(response.url()).pathname === `/api/v1/platform/affiliate/commissions/${conversionId}/hold`
+          && response.request().method() === 'POST');
+        await commissionRow.getByRole('button', { name: 'Place on hold' }).click();
+        expect((await held).status()).toBe(201);
+
+        const holdsSection = page.locator('section[aria-labelledby="holds-heading"]');
+        const holdRow = holdsSection.getByRole('row').filter({ hasText: partnerName });
+        await expect(holdRow).toContainText('Chargeback');
+        const released = page.waitForResponse(response =>
+          new URL(response.url()).pathname.startsWith('/api/v1/platform/affiliate/holds/')
+          && new URL(response.url()).pathname.endsWith('/resolve')
+          && response.request().method() === 'POST');
+        await holdRow.getByRole('button', { name: 'Release' }).click();
+        expect((await released).status()).toBe(200);
+        await expect(holdsSection).toContainText('No open holds.');
+
+        await page.reload();
+        const partnerRow = page.getByRole('row').filter({ hasText: partnerEmail });
+        const payoutResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/payouts/export'
+          && response.request().method() === 'GET');
+        const payoutDownloadPromise = page.waitForEvent('download');
+        await partnerRow.getByRole('link', { name: 'Payout CSV' }).click();
+        const payoutResponse = await payoutResponsePromise;
+        const payoutDownload = await payoutDownloadPromise;
+        expect(payoutResponse.status()).toBe(200);
+        expect(payoutResponse.headers()['x-fanthynks-payout-transfer']).toBe('none');
+        expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
+        expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(String(commissionId));
+
+        const revoked = page.waitForResponse(response =>
+          new URL(response.url()).pathname === `/api/v1/platform/affiliate/partners/${partnerId}`
+          && response.request().method() === 'PATCH');
+        await partnerRow.getByRole('button', { name: 'Revoke access' }).click();
+        const revokeResponse = await revoked;
+        expect(revokeResponse.status()).toBe(200);
+        await expect(partnerRow).toContainText('revoked');
+        expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
+
+        const exportDownloadPromise = page.waitForEvent('download');
+        await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
+        const exportDownload = await exportDownloadPromise;
+        expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
+        const exportedPartner = JSON.parse(readFileSync(await exportDownload.path(), 'utf8'));
+        expect(exportedPartner).toMatchObject({
+          data: { partner: { partnerId, status: 'revoked' } },
+          deletion: { mode: 'revoke', preservesAuditAttribution: true },
+        });
+      } finally {
+        const restored = fixtureSql(`
+BEGIN;
+UPDATE auth_user SET role = 'operator' WHERE email = :'email' AND role = 'owner';
+SELECT count(*)::text FROM auth_user WHERE email = :'email' AND role = 'operator';
+COMMIT;
+`, { email });
+        if (restored !== '1') throw new Error('Disposable owner role restoration was not verified');
+      }
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+    });
+  }
   await check('configured navigation and literal text', async () => {
     const brandWordmarks = page.locator('.brand-wordmark');
     failureContext = {
