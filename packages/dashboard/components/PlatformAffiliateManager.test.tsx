@@ -183,7 +183,7 @@ it('offers owner-only partner data export and audited revocation controls', asyn
   const tree = render(current);
   const exportLink = find(tree, node => node.type === 'a'
     && node.props.href === '/api/v1/platform/affiliate/partners/partner-1/export');
-  expect(exportLink?.props.download).toBe('fanthynks-partner-partner-1.json');
+  expect(exportLink?.props.href).toBe('/api/v1/platform/affiliate/partners/partner-1/export');
 
   const revoke = find(tree, node => node.type === 'button'
     && textContent(node.props.children) === 'Revoke access');

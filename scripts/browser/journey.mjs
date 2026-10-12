@@ -1303,6 +1303,7 @@ ORDER BY created_at DESC LIMIT 1;
         const exportResponse = await context.request.get(exportPath);
         const exportPayload = await exportResponse.json().catch(() => null);
         expectAffiliateStatus(exportPath, exportResponse.status(), 200, exportPayload);
+        expect(exportResponse.headers()['content-disposition']).toBe(`attachment; filename="fanthynks-partner-${partnerId}.json"`);
         expect(exportPayload).toMatchObject({
           data: { partner: { partnerId, status: 'revoked' } },
           deletion: { mode: 'revoke', preservesAuditAttribution: true },
