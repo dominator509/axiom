@@ -152,7 +152,8 @@ const observePage = observedPage => {
     // evict it from Chromium's resource buffer. Retain only a boolean.
     // Chromium follows redirects instead of rendering their response bodies as
     // documents; the final destination response is observed separately.
-    if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
+    const attachment = /^\s*attachment(?:\s*;|$)/i.test(response.headers()['content-disposition'] ?? '');
+    if (!attachment && ['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
       const resource = { path: safePath(response.url()), status: response.status(), kind };
       deliveredBodies.push(response.body().then(body => {
         if (routeResponse && kind === 'document') {
@@ -1370,7 +1371,10 @@ ORDER BY created_at DESC LIMIT 1;
             };
             throw error;
           }
-          const exportedPartner = JSON.parse(readFileSync(exportFilePath, 'utf8'));
+          const exportBytes = readFileSync(exportFilePath);
+          expect(secretMarker).not.toBeNull();
+          expect(exportBytes.includes(secretMarker)).toBe(false);
+          const exportedPartner = JSON.parse(exportBytes.toString('utf8'));
           expect(exportedPartner).toMatchObject({
             data: { partner: { partnerId, status: 'revoked' } },
             deletion: { mode: 'revoke', preservesAuditAttribution: true },
