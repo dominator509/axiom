@@ -581,14 +581,6 @@ router.post('/conversions/reconcile', async (c) => {
     if (parsed.data.kind === 'subscription_refunded' && !parsed.data.sourceBillingEventKey) {
       return { status: 409 as const, error: 'refund requires a source billing event key' };
     }
-    const [existing] = await tx.select().from(schema.affiliateConversion)
-      .where(eq(schema.affiliateConversion.billingEventKey, parsed.data.billingEventKey)).limit(1).for('update');
-    if (existing) {
-      if (existing.campaignId !== campaign.id || existing.kind !== parsed.data.kind || existing.amountCents !== parsed.data.amountCents) {
-        return { status: 409 as const, error: 'billing event key is already bound to a different conversion' };
-      }
-      return { status: 200 as const, data: existing, duplicate: true };
-    }
     if (parsed.data.kind === 'subscription_refunded' && parsed.data.sourceBillingEventKey) {
       const [source] = await tx.select({
         id: schema.affiliateConversion.id,
@@ -612,8 +604,20 @@ router.post('/conversions/reconcile', async (c) => {
       amountCents: parsed.data.amountCents,
       billingEventKey: parsed.data.billingEventKey,
       occurredAt: parseDate(parsed.data.occurredAt),
-    }).returning();
-    if (!conversion) return { status: 500 as const, error: 'conversion was not created' };
+    }).onConflictDoNothing({ target: schema.affiliateConversion.billingEventKey }).returning();
+    if (!conversion) {
+      // The billing key is the durable dedupe boundary. A unique conflict also
+      // handles concurrent reconciliations without SELECT FOR UPDATE, which
+      // would require UPDATE permission on this append-only table.
+      const [existing] = await tx.select().from(schema.affiliateConversion)
+        .where(eq(schema.affiliateConversion.billingEventKey, parsed.data.billingEventKey)).limit(1);
+      if (!existing) return { status: 500 as const, error: 'conversion duplicate could not be confirmed' };
+      if (
+        existing.campaignId !== campaign.id || existing.creatorUserId !== parsed.data.creatorUserId ||
+        existing.kind !== parsed.data.kind || existing.amountCents !== parsed.data.amountCents
+      ) return { status: 409 as const, error: 'billing event key is already bound to a different conversion' };
+      return { status: 200 as const, data: existing, duplicate: true };
+    }
     const amount = commissionCents(parsed.data.amountCents, campaign.commissionBps);
     const commissionKind = parsed.data.kind === 'subscription_refunded' ? 'reversed' as const : 'accrued' as const;
     const [commission] = await tx.insert(schema.affiliateCommissionEvent).values({

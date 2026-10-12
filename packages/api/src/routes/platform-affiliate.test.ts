@@ -192,7 +192,6 @@ describe('platform affiliate API', () => {
       [{ id: programId, status: 'active' }],
       [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
       [{ id: 'identity-event-1' }],
-      [],
       [{ id: conversionId, campaignId, partnerId, kind: 'subscription_started', amountCents: 10000 }],
       [{ id: 'commission-1', conversionId, kind: 'accrued', amountCents: 2000 }],
       [],
@@ -216,6 +215,36 @@ describe('platform affiliate API', () => {
       amountCents: 2000,
       kind: 'accrued',
     });
+  });
+
+  it('returns an existing billing-key conversion without locking or duplicating its commission', async () => {
+    const existing = {
+      id: conversionId,
+      campaignId,
+      creatorUserId: 'creator-user',
+      kind: 'subscription_started',
+      amountCents: 10000,
+    };
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, status: 'active', commissionBps: 2000 }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: 'identity-event-1' }],
+      [],
+      [existing],
+    ];
+    const response = await jsonRequest('/conversions/reconcile', {
+      campaignId,
+      kind: 'subscription_started',
+      amountCents: 10000,
+      billingEventKey: 'billing-event-existing',
+      creatorUserId: 'creator-user',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: conversionId }, duplicate: true });
+    expect(harness.state.inserts).toHaveLength(1);
+    expect(harness.state.inserts[0]).toMatchObject({ billingEventKey: 'billing-event-existing' });
   });
 
   it('refuses a conversion that has no prior referral identity stitch', async () => {
