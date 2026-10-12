@@ -23,6 +23,15 @@ if (forbiddenEnvironmentNames.length > 0) {
 
 const testedSha = process.argv[4];
 assert.match(testedSha, /^[0-9a-f]{40}$/i, 'A full tested commit SHA is required');
+const recoveryRunId = process.env.GITHUB_RUN_ID?.trim();
+const apiImage = process.env.AXIOM_RECOVERY_API_IMAGE?.trim();
+const workerImage = process.env.AXIOM_RECOVERY_WORKER_IMAGE?.trim();
+if (!/^\d+$/.test(recoveryRunId ?? '')
+  || apiImage !== `axiom-recovery-api:${recoveryRunId}`
+  || workerImage !== `axiom-recovery-worker:${recoveryRunId}`) {
+  console.error('Recovery rehearsal requires the run-scoped API and worker images built by recovery-dr CI');
+  process.exit(2);
+}
 const pinnedNode = readFileSync(join(root, '.nvmrc'), 'utf8').trim();
 assert.equal(process.versions.node, pinnedNode, 'Use the repository-pinned Node version');
 assert.equal(process.platform, 'linux', 'Recovery Docker rehearsal is supported only on isolated Linux runners');
@@ -45,9 +54,13 @@ const receipt = {
   sourceSha: '',
   command: `node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha ${testedSha}`,
   node: process.versions.node,
-  environment: 'GitHub-hosted Linux runner; two network-disabled disposable PostgreSQL clusters; separate synthetic media backup/restore volumes, data, and keys',
+  environment: 'GitHub-hosted Linux runner; two network-disabled disposable PostgreSQL clusters; source-labeled API/worker images; separate synthetic media backup/restore volumes, data, and keys',
   image,
   imageId: null,
+  apiImage,
+  apiImageId: null,
+  workerImage,
+  workerImageId: null,
   migrationArchiveSha256: null,
   drills: [],
   assertions: [],
@@ -57,10 +70,10 @@ const receipt = {
   expectedRejections: 0,
   cleanupVerified: false,
   limitations: [
-    'No Cloudflare R2 account, bucket-lock/retention rule, external KMS/KEK, application deployment, worker, or provider was used.',
+    'No dashboard, reverse proxy, production deployment, Cloudflare R2 account/retention rule, external KMS/KEK, or real provider was used.',
     'Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy.',
-    'The network-disabled recovery hold and unknown-job row are inspected in the restored migrated database; no post-recovery dispatch is attempted.',
-    'This synthetic PITR rehearsal is partial evidence and does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.',
+    'The operator reconciliation uses a synthetic provider-readback assertion; it does not contact a provider or establish external provider reconciliation.',
+    'This isolated recovery rehearsal is partial evidence and does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.',
   ],
 };
 
@@ -153,6 +166,9 @@ function sql(container, statement) {
   return docker(['exec', container, 'psql', '-X', '-q', '-U', 'axiom',
     '-d', 'axiom_test', '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', statement]);
 }
+function nodeInContainer(container, source) {
+  return docker(['exec', container, 'node', '--input-type=module', '-e', source]);
+}
 function volume(name) {
   docker(['volume', 'create', '--label', purposeLabel, '--label', `${labelKey}=${labelValue}`, name]);
   return name;
@@ -167,6 +183,20 @@ async function waitUntil(description, operation, timeoutMs = 120_000) {
     await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));
   }
   throw new Error(`Timed out waiting for ${description}`);
+}
+async function waitForContainerHealth(container, timeoutMs, secrets = []) {
+  try {
+    await waitUntil(`${container} health check`, () =>
+      docker(['inspect', '--format', '{{.State.Health.Status}}', container]) === 'healthy', timeoutMs);
+  } catch {
+    const state = run('docker', ['inspect', '--format',
+      '{{.State.Status}}|{{.State.ExitCode}}|{{.State.Health.Status}}|{{range .State.Health.Log}}{{.ExitCode}}:{{.Output}}{{end}}', container],
+    { env: dockerEnv });
+    const logs = run('docker', ['logs', '--tail', '40', container], { env: dockerEnv });
+    let diagnostic = safeDiagnostic(`${state.stdout ?? ''} ${logs.stdout ?? ''} ${logs.stderr ?? ''}`);
+    for (const secret of secrets) if (secret) diagnostic = diagnostic.replaceAll(secret, '[redacted-synthetic-secret]');
+    throw new Error(`Timed out waiting for ${container} health${diagnostic ? `: ${diagnostic}` : ''}`);
+  }
 }
 function archiveSnapshot(container) {
   const migrationRows = sql(container,
@@ -197,6 +227,22 @@ try {
   const dockerInfo = docker(['info', '--format', '{{.OSType}}']);
   check('Docker daemon uses Linux containers', () => assert.equal(dockerInfo, 'linux'));
   dockerReady = true;
+  for (const [label, ref, outputKey] of [
+    ['API', apiImage, 'apiImageId'],
+    ['worker', workerImage, 'workerImageId'],
+  ]) {
+    const imageId = docker(['image', 'inspect', '--format', '{{.Id}}', ref]);
+    const imagePurpose = docker(['image', 'inspect', '--format', '{{index .Config.Labels "axiom.purpose"}}', ref]);
+    const imageRun = docker(['image', 'inspect', '--format', '{{index .Config.Labels "axiom.rehearsal-run"}}', ref]);
+    const imageRevision = docker(['image', 'inspect', '--format', '{{index .Config.Labels "org.opencontainers.image.revision"}}', ref]);
+    check(`${label} image is immutable and source/run-bound`, () => {
+      assert.match(imageId, /^sha256:[a-f0-9]{64}$/);
+      assert.equal(imagePurpose, 'isolated-recovery-dr');
+      assert.equal(imageRun, recoveryRunId);
+      assert.equal(imageRevision, testedSha);
+    });
+    receipt[outputKey] = imageId;
+  }
   currentStep = 'pinned PostgreSQL image pull';
   docker(['pull', image], { timeout: 300_000 });
   receipt.imageId = docker(['image', 'inspect', '--format', '{{.Id}}', image]);
@@ -253,15 +299,26 @@ try {
     check(`drill ${drillNumber}: repository migrations applied and rerun safely`, () => assert.ok(migrationCount > 0));
 
     const orgId = randomUUID();
+    const modelId = randomUUID();
+    const bundleId = randomUUID();
+    const targetId = randomUUID();
     const jobId = randomUUID();
+    const idempotencyKey = randomBytes(32).toString('hex');
     const objectName = `encrypted-media-${drillNumber}-${shortId}.bin`;
     sql(source, `CREATE SCHEMA dr_recovery;
       CREATE TABLE dr_recovery.marker (name text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT clock_timestamp());
       CREATE TABLE dr_recovery.key_envelope (object_name text PRIMARY KEY, envelope jsonb NOT NULL);
       INSERT INTO dr_recovery.marker(name) VALUES ('base-backup-anchor');
       INSERT INTO org (id, name, slug) VALUES (${sqlLiteral(orgId)}, 'Synthetic DR fixture', ${sqlLiteral(`dr-${suffix}`)});
+      INSERT INTO model_profile (id, org_id, display_name, handle)
+        VALUES (${sqlLiteral(modelId)}, ${sqlLiteral(orgId)}, 'Synthetic recovery talent', ${sqlLiteral(`dr-${suffix}`)});
       INSERT INTO org_settings (org_id, publishing_enabled, kill_switch_reason, kill_switch_actor, kill_switch_at)
-        VALUES (${sqlLiteral(orgId)}, false, 'restore rehearsal hold', 'recovery-dr-fixture', now());`);
+        VALUES (${sqlLiteral(orgId)}, false, 'restore rehearsal hold', 'recovery-dr-fixture', now());
+      INSERT INTO content_bundle (id, org_id, model_id, captions, hashtags, state)
+        VALUES (${sqlLiteral(bundleId)}, ${sqlLiteral(orgId)}, ${sqlLiteral(modelId)},
+          '{"discord":"Synthetic recovery fixture"}'::jsonb, '[]'::jsonb, 'approved');
+      INSERT INTO post_target (id, org_id, bundle_id, platform, state, idem_key)
+        VALUES (${sqlLiteral(targetId)}, ${sqlLiteral(orgId)}, ${sqlLiteral(bundleId)}, 'discord', 'pending', decode(${sqlLiteral(idempotencyKey)}, 'hex'));`);
 
     docker(['exec', '--user', 'postgres', source, 'sh', '-c', 'printf "\\nlocal replication axiom trust\\n" >> "$PGDATA/pg_hba.conf" && pg_ctl -D "$PGDATA" reload']);
     docker(['exec', '--user', 'postgres', source, 'pg_basebackup', '-h', '/var/run/postgresql', '-U', 'axiom',
@@ -304,7 +361,11 @@ try {
       INSERT INTO dr_recovery.marker(name) VALUES ('pitr-recoverable-marker');
       INSERT INTO job (id, org_id, queue, kind, state, attempts, max_attempts, last_error)
         VALUES (${sqlLiteral(jobId)}, ${sqlLiteral(orgId)}, 'publish', 'publish.target', 'dead', 1, 8,
-          'external-side-effect-unknown: injected recovery interruption');`);
+          'external-side-effect-unknown: injected recovery interruption');
+      UPDATE job SET payload=jsonb_build_object('targetId', ${sqlLiteral(targetId)}::text) WHERE id=${sqlLiteral(jobId)};
+      INSERT INTO pre_post_run (org_id, model_id, target_id, script, status, input, started_at)
+        VALUES (${sqlLiteral(orgId)}, ${sqlLiteral(modelId)}, ${sqlLiteral(targetId)}, 'publish.dispatch', 'pending',
+          jsonb_build_object('platform','discord','idempotencyKey',${sqlLiteral(idempotencyKey)}), now());`);
     const targetTime = sql(source, "SELECT clock_timestamp()::text");
     check(`drill ${drillNumber}: PITR target timestamp is parseable`, () => assert.ok(Number.isFinite(Date.parse(targetTime))));
     sql(source, "INSERT INTO dr_recovery.marker(name) VALUES ('after-pitr-target')");
@@ -378,10 +439,95 @@ try {
       assert.equal(sha256(plaintext), sha256(plainObject));
       assert.equal(sha256(recoveredCiphertext), envelope.ciphertextSha256);
     });
+
+    const apiContainer = `axiom-dr-${suffix}-api`;
+    const workerContainer = `axiom-dr-${suffix}-worker`;
+    const databaseUrl = 'postgresql://axiom_app@127.0.0.1:5432/axiom_test';
+    const authSecret = randomBytes(48).toString('base64url');
+    const relaySecret = randomBytes(48).toString('base64url');
+    currentStep = `drill ${drillNumber} restored application and worker startup`;
+    docker(['run', '--detach', ...labeled([
+      '--name', apiContainer, '--network', `container:${restored}`,
+      '--health-interval', '1s', '--health-timeout', '5s', '--health-start-period', '2s', '--health-retries', '5',
+      '--env', 'NODE_ENV=production', '--env', 'AXIOM_ENV=production', '--env', `DATABASE_URL=${databaseUrl}`,
+      '--env', `BETTER_AUTH_SECRET=${authSecret}`, '--env', `RELAY_SECRET=${relaySecret}`,
+      '--env', 'BETTER_AUTH_URL=https://127.0.0.1:3001',
+      '--env', 'API_HOST=0.0.0.0', '--env', 'API_PORT=3001', '--env', 'AXIOM_SERVICE_NAME=recovery-api',
+      apiImage,
+    ])]);
+    await waitForContainerHealth(apiContainer, 180_000, [authSecret, relaySecret]);
+    check(`drill ${drillNumber}: restored API starts healthy against the PITR database`, () => {
+      assert.equal(docker(['inspect', '--format', '{{.State.Status}}', apiContainer]), 'running');
+      assert.equal(nodeInContainer(apiContainer,
+        "const r=await fetch('http://127.0.0.1:3001/api/v1/health'); console.log(r.status)").trim(), '200');
+    });
+    const unauthenticatedStatus = Number(nodeInContainer(apiContainer,
+      "const r=await fetch('http://127.0.0.1:3001/api/v1/incidents'); console.log(r.status)"));
+    check(`drill ${drillNumber}: restored API keeps incident reads behind authentication`, () =>
+      assert.equal(unauthenticatedStatus, 401));
+
+    const operatorEmail = `recovery-${randomUUID()}@fixture.invalid`;
+    const operatorPassword = randomBytes(32).toString('base64url');
+    const signupSource = `const response=await fetch('http://127.0.0.1:3001/api/auth/sign-up/email',{method:'POST',headers:{Origin:'https://127.0.0.1:3001','Content-Type':'application/json'},body:JSON.stringify({email:${JSON.stringify(operatorEmail)},password:${JSON.stringify(operatorPassword)},name:'Synthetic recovery operator'})}); const body=await response.json(); const cookie=response.headers.getSetCookie().map(value=>value.split(';',1)[0]).join('; '); console.log(JSON.stringify({status:response.status,userId:body.user?.id??null,cookie}));`;
+    const operator = JSON.parse(nodeInContainer(apiContainer, signupSource));
+    check(`drill ${drillNumber}: restored API issues a synthetic operator session`, () => {
+      assert.equal(operator.status, 200);
+      assert.equal(typeof operator.userId, 'string');
+      assert.match(operator.cookie, /session_token=/);
+    });
+    sql(restored, `UPDATE auth_user SET org_id=${sqlLiteral(orgId)}, role='operator'
+      WHERE id=${sqlLiteral(operator.userId)}`);
+    check(`drill ${drillNumber}: synthetic operator is assigned only to the recovery tenant`, () => {
+      assert.equal(sql(restored, `SELECT count(*) FROM auth_user WHERE id=${sqlLiteral(operator.userId)}
+        AND org_id=${sqlLiteral(orgId)} AND role='operator'`), '1');
+    });
+    const reconciliationIdempotencyKey = randomUUID();
+    const reconcileSource = `const response=await fetch(${JSON.stringify(`http://127.0.0.1:3001/api/v1/incidents/${jobId}/reconcile`)},{method:'POST',headers:{Origin:'https://127.0.0.1:3001',Cookie:${JSON.stringify(operator.cookie)},'Content-Type':'application/json','Idempotency-Key':${JSON.stringify(reconciliationIdempotencyKey)}},body:JSON.stringify({outcome:'not_published',confirmed:true})}); const body=await response.json(); console.log(JSON.stringify({status:response.status,data:body.data??null}));`;
+    const reconciliation = JSON.parse(nodeInContainer(apiContainer, reconcileSource));
+    check(`drill ${drillNumber}: provider absence reconciliation returns HTTP ${reconciliation.status}`, () =>
+      assert.equal(reconciliation.status, 200));
+    check(`drill ${drillNumber}: provider absence reconciliation returns the expected safe outcome`, () =>
+      assert.deepEqual(reconciliation.data, {
+        jobId, targetId, outcome: 'not_published', state: 'dead', replayRequired: true, dispatchStarted: false,
+      }));
+    check(`drill ${drillNumber}: reconciliation keeps the publish job dead and replay-required`, () =>
+      assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
+        FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true'));
+    check(`drill ${drillNumber}: reconciliation does not mark the target published`, () =>
+      assert.equal(sql(restored, `SELECT state FROM post_target WHERE id=${sqlLiteral(targetId)}`), 'pending'));
+    check(`drill ${drillNumber}: reconciliation resolves the uncertain dispatch marker`, () =>
+      assert.equal(sql(restored, `SELECT status FROM pre_post_run WHERE target_id=${sqlLiteral(targetId)}`), 'reconciled-not-published'));
+    check(`drill ${drillNumber}: reconciliation is written to the audit trail`, () =>
+      assert.equal(sql(restored, `SELECT count(*) FROM audit_log WHERE org_id=${sqlLiteral(orgId)}
+        AND action='incident.publish.reconcile' AND target=${sqlLiteral(jobId)}`), '1'));
+
+    docker(['run', '--detach', ...labeled([
+      '--name', workerContainer, '--network', `container:${restored}`,
+      '--health-interval', '1s', '--health-timeout', '5s', '--health-start-period', '2s', '--health-retries', '5',
+      '--env', 'NODE_ENV=production', '--env', 'AXIOM_ENV=production', '--env', `DATABASE_URL=${databaseUrl}`,
+      '--env', 'MEDIA_PLANE_URL=http://127.0.0.1:8100', '--env', `RELAY_SECRET=${relaySecret}`,
+      '--env', `WORKER_ID=recovery-${shortId}`, '--env', 'WORKER_POLL_INTERVAL_MS=250',
+      workerImage,
+    ])]);
+    await waitForContainerHealth(workerContainer, 120_000, [relaySecret]);
+    const restoredNetworkMode = docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', restored]);
+    const restoredId = docker(['inspect', '--format', '{{.Id}}', restored]);
+    const sharedNamespaceModes = new Set([`container:${restored}`, `container:${restoredId}`]);
+    check(`drill ${drillNumber}: recovered API and worker share only the egress-disabled database namespace`, () => {
+      assert.equal(restoredNetworkMode, 'none');
+      assert.ok(sharedNamespaceModes.has(docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', apiContainer])));
+      assert.ok(sharedNamespaceModes.has(docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', workerContainer])));
+      assert.equal(docker(['inspect', '--format', '{{.State.Status}}', workerContainer]), 'running');
+    });
+    check(`drill ${drillNumber}: worker restart does not claim or replay the reconciled interrupted job`, () => {
+      assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
+        FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true');
+      assert.equal(sql(restored, `SELECT count(*) FROM job WHERE org_id=${sqlLiteral(orgId)} AND state='ready'
+        AND kind IN ('publish.target','relay.card')`), '0');
+    });
+
     const rtoMs = Date.now() - faultAtMs;
-    check(`drill ${drillNumber}: database PITR duration is at most sixty minutes`, () => assert.ok(rtoMs <= 60 * 60_000));
-    const networkMode = docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', restored]);
-    check(`drill ${drillNumber}: recovered cluster has egress disabled`, () => assert.equal(networkMode, 'none'));
+    check(`drill ${drillNumber}: database, API, and worker recovery is at most sixty minutes`, () => assert.ok(rtoMs <= 60 * 60_000));
 
     expectedReject(`drill ${drillNumber}: recovered object integrity rejects incomplete bytes`, () => {
       try { verifyEncryptedObject(Buffer.alloc(0), recoveredEnvelope, kek); return { accepted: true }; }
@@ -424,9 +570,11 @@ try {
       archivedWalSegments: archivedWalCount,
       targetTime,
       rpoMs,
-      databaseRtoMs: rtoMs,
+      databaseApiWorkerRtoMs: rtoMs,
       egress: 'disabled (Docker network=none)',
-      unknownPublishOutcome: 'preserved as dead/unknown; publishing remains disabled; no dispatch attempted',
+      restoredApi: 'healthy; unauthenticated incident read rejected; synthetic operator session issued',
+      restoredWorker: 'healthy; shared only the restored PostgreSQL network=none namespace',
+      unknownPublishOutcome: 'synthetic operator recorded not-published; job remains dead and replay-required; no dispatch attempted',
       mediaRestore: 'separate disposable backup volume copied into a distinct fresh volume; restored object checksum verified; no R2 API or retention test',
       objectCiphertextSha256: envelope.ciphertextSha256,
       keyHandling: 'synthetic in-memory KEK only; not an external KMS test',
@@ -442,6 +590,7 @@ try {
   }
 } finally {
   let dockerResourcesClean = false;
+  let imageResourcesClean = false;
   let clientConfigClean = false;
   try {
     if (dockerReady) {
@@ -457,10 +606,22 @@ try {
         if (labels !== labelValue) throw new Error('Refusing to remove a volume with a different rehearsal label');
         docker(['volume', 'rm', target]);
       }
+      for (const [ref, expectedImage] of [[apiImage, 'axiom-recovery-api'], [workerImage, 'axiom-recovery-worker']]) {
+        const labels = docker(['image', 'inspect', '--format',
+          '{{index .Config.Labels "axiom.purpose"}}|{{index .Config.Labels "axiom.rehearsal-run"}}|{{index .Config.Labels "org.opencontainers.image.revision"}}', ref]);
+        if (labels !== `isolated-recovery-dr|${recoveryRunId}|${testedSha}` || !ref.startsWith(`${expectedImage}:`)) {
+          throw new Error('Refusing to remove a recovery image without matching run/source labels');
+        }
+        docker(['image', 'rm', ref]);
+      }
       const remainingContainers = docker(['ps', '-aq', '--filter', `label=${labelKey}=${labelValue}`]);
       const remainingVolumes = docker(['volume', 'ls', '-q', '--filter', `label=${labelKey}=${labelValue}`]);
+      const remainingImages = docker(['image', 'ls', '-aq', '--filter', `label=axiom.rehearsal-run=${recoveryRunId}`,
+        '--filter', 'label=axiom.purpose=isolated-recovery-dr']);
+      imageResourcesClean = remainingImages === ''
+        && [apiImage, workerImage].every(ref => run('docker', ['image', 'inspect', ref], { env: dockerEnv }).status !== 0);
       dockerResourcesClean = remainingContainers === '' && remainingVolumes === '';
-      if (!dockerResourcesClean) failure ??= 'Owned Docker resource cleanup could not be verified';
+      if (!dockerResourcesClean || !imageResourcesClean) failure ??= 'Owned Docker resource cleanup could not be verified';
     }
   } catch {
     dockerResourcesClean = false;
@@ -472,7 +633,7 @@ try {
     clientConfigClean = true;
   }
   catch { failure ??= 'Temporary Docker client configuration cleanup could not be verified'; }
-  receipt.cleanupVerified = dockerResourcesClean && clientConfigClean;
+  receipt.cleanupVerified = dockerResourcesClean && imageResourcesClean && clientConfigClean;
   receipt.failure = failure;
   writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
   console.log(JSON.stringify(receipt));
