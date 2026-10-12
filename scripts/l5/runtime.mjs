@@ -365,11 +365,19 @@ async function appendAvailabilityTargets(fixture, targetCount) {
       id: row.target, orgId: fixture.org, bundleId: row.bundle, platform: 'discord',
       connectionId: fixture.connection, state: 'pending', idemKey: row.idemKey,
     })));
-    await tx.insert(schema.job).values(additions.map(row => ({
-      id: row.job, orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
-      payload: { targetId: row.target }, attempts: 0, maxAttempts: 1,
-      runAfter: new Date(Date.now() - 60_000), lockedBy: 'l5-availability-worker', lockedAt: new Date(),
-    })));
+    // A passing report is not durable scan completion. The publisher requires
+    // a completed ToS handoff for every canary bundle before provider dispatch.
+    await tx.insert(schema.job).values([
+      ...additions.map(row => ({
+        id: randomUUID(), orgId: fixture.org, queue: 'media', kind: 'tos.scan', state: 'done',
+        payload: { bundleId: row.bundle }, attempts: 0, maxAttempts: 1,
+      })),
+      ...additions.map(row => ({
+        id: row.job, orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
+        payload: { targetId: row.target }, attempts: 0, maxAttempts: 1,
+        runAfter: new Date(Date.now() - 60_000), lockedBy: 'l5-availability-worker', lockedAt: new Date(),
+      })),
+    ]);
   });
   const jobs = await scoped(fixture.org, tx => tx.execute(sql`
     SELECT * FROM job WHERE org_id=${fixture.org} AND kind='publish.target' ORDER BY created_at, id
