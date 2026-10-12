@@ -18,6 +18,7 @@ const harness = vi.hoisted(() => {
           Promise.resolve(state.results.length > 0 ? state.results.shift() : state.result).then(resolve, reject);
         };
       }
+      if (property === 'execute') return () => Promise.resolve({ rows: [] });
       if (property === 'values' || property === 'set') {
         return (value: unknown) => {
           if (property === 'values') state.inserts.push(value);
@@ -42,12 +43,16 @@ vi.mock('@axiom/db', () => harness);
 
 import { affiliateClaimRouter, platformAffiliateRouter, publicPlatformAffiliateRouter } from './platform-affiliate.js';
 
-function app() {
+function app(cacheRequestBody = false) {
   const server = new Hono<AppBindings>();
   server.use('*', async (c, next) => {
     c.set('userId', 'owner-user');
     c.set('orgId', '55555555-5555-4555-8555-555555555555');
     c.set('role', 'owner');
+    if (cacheRequestBody && c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+      const bytes = await c.req.raw.arrayBuffer();
+      c.req.bodyCache.arrayBuffer = bytes;
+    }
     await next();
   });
   server.route('/', platformAffiliateRouter);
@@ -72,8 +77,8 @@ function claimApp(userId = 'creator-user') {
   return server;
 }
 
-function jsonRequest(path: string, body: unknown, method = 'POST') {
-  return app().request(path, {
+function jsonRequest(path: string, body: unknown, method = 'POST', cacheRequestBody = false) {
+  return app(cacheRequestBody).request(path, {
     method,
     headers: { 'content-type': 'application/json', 'Idempotency-Key': 'test-key' },
     body: JSON.stringify(body),
@@ -140,7 +145,7 @@ describe('platform affiliate API', () => {
     expect(harness.db.transaction).not.toHaveBeenCalled();
   });
 
-  it('creates a partner and records the platform audit event', async () => {
+  it('parses an idempotency-cached partner body and records the platform audit event', async () => {
     harness.state.results = [
       [{ id: programId, slug: 'fanthynks' }],
       [{ id: partnerId, programId, displayName: 'Partner', email: 'partner@example.com', status: 'active' }],
@@ -152,7 +157,7 @@ describe('platform affiliate API', () => {
       termsVersion: 'v1',
       status: 'active',
       disclosureAccepted: true,
-    });
+    }, 'POST', true);
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ data: { id: partnerId, status: 'active' } });
     expect(harness.state.inserts[0]).toMatchObject({
@@ -171,7 +176,13 @@ describe('platform affiliate API', () => {
     ];
     const response = await app().request(`/partners/${partnerId}/export`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    expect(response.headers.get('content-disposition'))
+      .toBe(`attachment; filename="fanthynks-partner-${partnerId}.json"`);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    const responseText = await response.text();
+    expect(Number(response.headers.get('content-length'))).toBe(new TextEncoder().encode(responseText).byteLength);
+    expect(JSON.parse(responseText)).toMatchObject({
       data: {
         partner: { partnerId, email: 'partner@example.com', status: 'active' },
         campaigns: [{ campaignId, partnerId, slug: 'launch' }],
@@ -188,7 +199,6 @@ describe('platform affiliate API', () => {
       [{ id: programId, status: 'active' }],
       [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
       [{ id: 'identity-event-1' }],
-      [],
       [{ id: conversionId, campaignId, partnerId, kind: 'subscription_started', amountCents: 10000 }],
       [{ id: 'commission-1', conversionId, kind: 'accrued', amountCents: 2000 }],
       [],
@@ -212,6 +222,36 @@ describe('platform affiliate API', () => {
       amountCents: 2000,
       kind: 'accrued',
     });
+  });
+
+  it('returns an existing billing-key conversion without locking or duplicating its commission', async () => {
+    const existing = {
+      id: conversionId,
+      campaignId,
+      creatorUserId: 'creator-user',
+      kind: 'subscription_started',
+      amountCents: 10000,
+    };
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, status: 'active', commissionBps: 2000 }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: 'identity-event-1' }],
+      [],
+      [existing],
+    ];
+    const response = await jsonRequest('/conversions/reconcile', {
+      campaignId,
+      kind: 'subscription_started',
+      amountCents: 10000,
+      billingEventKey: 'billing-event-existing',
+      creatorUserId: 'creator-user',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: conversionId }, duplicate: true });
+    expect(harness.state.inserts).toHaveLength(1);
+    expect(harness.state.inserts[0]).toMatchObject({ billingEventKey: 'billing-event-existing' });
   });
 
   it('refuses a conversion that has no prior referral identity stitch', async () => {
@@ -323,7 +363,7 @@ describe('platform affiliate API', () => {
     };
     const resolvedHold = { ...hold, state: 'resolved', resolvedByUserId: 'owner-user', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
     const approved = { ...held, id: 'commission-released', kind: 'approved', eventKey: 'commission:commission-held:approved' };
-    harness.state.results = [[hold], [held], [held], [approved], [], [resolvedHold], []];
+    harness.state.results = [[hold], [{ conversionId }], [hold], [held], [held], [approved], [], [resolvedHold], []];
 
     const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'released' });
 
@@ -341,7 +381,7 @@ describe('platform affiliate API', () => {
       state: 'open', createdAt: new Date('2026-01-02T00:00:00.000Z'),
     };
     const resolvedHold = { ...hold, state: 'resolved', resolvedAt: new Date('2026-01-03T00:00:00.000Z') };
-    harness.state.results = [[hold], [resolvedHold], []];
+    harness.state.results = [[hold], [{ conversionId }], [hold], [resolvedHold], []];
 
     const response = await jsonRequest('/holds/hold-1/resolve', { resolution: 'upheld' });
 

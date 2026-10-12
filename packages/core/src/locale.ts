@@ -571,6 +571,8 @@ export const MESSAGE_KEYS = [
   'affiliate.suspend',
   'affiliate.reactivate',
   'affiliate.payoutCsv',
+  'affiliate.revokeAccess',
+  'affiliate.exportPartnerData',
   'affiliate.referralLinks',
   'affiliate.campaignsHeading',
   'affiliate.noCampaigns',

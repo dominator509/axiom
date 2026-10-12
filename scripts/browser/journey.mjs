@@ -24,10 +24,40 @@ const cert = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-node
   '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1',
   '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem')], { stdio: 'ignore' });
 if (cert.status !== 0) throw new Error('Fixture certificate creation failed');
+const proxyTransferDiagnostics = [];
 const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (incoming, outgoing) => {
+  const incomingPath = new URL(incoming.url, origin).pathname;
+  const exportTrace = incoming.method === 'GET'
+    && /^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/i.test(incomingPath)
+    ? {
+        path: safePath(incomingPath), method: incoming.method,
+        fetchMode: incoming.headers['sec-fetch-mode'] ?? null,
+        fetchDestination: incoming.headers['sec-fetch-dest'] ?? null,
+        upstreamBytes: 0,
+      }
+    : null;
+  if (exportTrace) proxyTransferDiagnostics.push(exportTrace);
   const upstream = http.request({ hostname: '127.0.0.1', port: 3000, path: incoming.url, method: incoming.method,
     headers: { ...incoming.headers, 'x-forwarded-proto': 'https', 'x-forwarded-host': '127.0.0.1:3443' } }, response => {
     const headers = { ...response.headers };
+    if (exportTrace) {
+      exportTrace.status = response.statusCode ?? null;
+      exportTrace.headers = Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
+        .filter(header => headers[header] !== undefined)
+        .map(header => [header, header === 'content-disposition'
+          ? String(headers[header]).replace(/[a-f0-9-]{36}/gi, '<fixture-id>')
+          : String(headers[header])]));
+      response.on('data', chunk => { exportTrace.upstreamBytes += chunk.length; });
+      response.on('end', () => { exportTrace.upstreamComplete = response.complete; });
+      response.on('aborted', () => { exportTrace.upstreamAborted = true; });
+      response.on('error', error => { exportTrace.upstreamError = safeDiagnostic(error); });
+      outgoing.on('finish', () => { exportTrace.clientWriteFinished = true; });
+      outgoing.on('close', () => {
+        exportTrace.clientSocketClosed = true;
+        exportTrace.clientWriteFinished = outgoing.writableFinished;
+      });
+      outgoing.on('error', error => { exportTrace.clientError = safeDiagnostic(error); });
+    }
     // Negative control belongs to this test-only proxy, never to application code.
     if (mode === 'negative-cookie') delete headers['set-cookie'];
     outgoing.writeHead(response.statusCode, headers);
@@ -43,6 +73,7 @@ const redirects = [];
 const browserErrors = [];
 const pageResponses = [];
 const pendingRouteBodySummaries = [];
+const affiliateDownloadDiagnostics = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -121,7 +152,8 @@ const observePage = observedPage => {
     // evict it from Chromium's resource buffer. Retain only a boolean.
     // Chromium follows redirects instead of rendering their response bodies as
     // documents; the final destination response is observed separately.
-    if (['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
+    const attachment = /^\s*attachment(?:\s*;|$)/i.test(response.headers()['content-disposition'] ?? '');
+    if (!attachment && ['document', 'script'].includes(kind) && (response.status() < 300 || response.status() >= 400)) {
       const resource = { path: safePath(response.url()), status: response.status(), kind };
       deliveredBodies.push(response.body().then(body => {
         if (routeResponse && kind === 'document') {
@@ -201,6 +233,38 @@ COMMIT;
     try { data = await response.json(); } catch { data = null; }
     return { status: response.status, data };
   }, { path, method, body, key: randomUUID() });
+  const affiliateRequest = async (path, body) => page.evaluate(async args => {
+    const response = await fetch(args.path, {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json', 'Idempotency-Key': args.key },
+      body: JSON.stringify(args.body),
+    });
+    let data;
+    try { data = await response.json(); } catch { data = null; }
+    return { status: response.status, data };
+  }, { path, body, key: randomUUID() });
+  const expectAffiliateStatus = (path, received, expected, payload = null, requestShape = null) => {
+    const detail = typeof payload?.detail === 'string' ? safeDiagnostic(new Error(payload.detail)) : null;
+    const context = { path, expectedStatus: expected, receivedStatus: received,
+      ...(detail ? { detail } : {}), ...(requestShape ? { requestShape } : {}) };
+    if (received !== expected) {
+      failureContext = context;
+      probes.push({ kind: 'affiliate-response-failure', ...context });
+    }
+    expect(received, JSON.stringify(context)).toBe(expected);
+    failureContext = null;
+  };
+  const waitForAffiliateDownload = label => page.waitForEvent('download', { timeout: 10_000 })
+    .then(download => ({ download }), error => ({ error, label }));
+  const requireAffiliateDownload = async result => {
+    if (result.error) {
+      failureContext = { download: result.label, error: safeDiagnostic(result.error) };
+      throw new Error(`Timed out waiting for ${result.label} download`);
+    }
+    return result.download;
+  };
   const fixtureSql = (input, variables = {}) => {
     const result = spawnSync('psql', ['-X', '-q', '-t', '-A', '-d', database.href, '-v', 'ON_ERROR_STOP=1',
       ...Object.entries(variables).flatMap(([name, value]) => ['-v', `${name}=${value}`])],
@@ -1074,6 +1138,264 @@ COMMIT;
   await check('owner-only control denied', async () => {
     expect(await status('/api/v1/killswitch')).toBe(403);
   });
+  await check('non-owner is denied the platform affiliate dashboard and API', async () => {
+    await page.goto('/settings');
+    const localeForm = page.locator('form').first();
+    await localeForm.locator('select').selectOption('en');
+    const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/ui-locale'
+      && response.request().method() === 'PATCH');
+    await localeForm.locator('button[type="submit"]').click();
+    expect((await saved).status()).toBe(200);
+    await page.goto('/affiliate');
+    await expect(page.getByRole('heading', { name: 'Affiliate program access' })).toBeVisible();
+    expect(await status('/api/v1/platform/affiliate/program')).toBe(403);
+  });
+  if (mode === 'default') {
+    await check('owner completes synthetic affiliate onboarding, reporting, review, export and revocation', async () => {
+      const promoted = fixtureSql(`
+BEGIN;
+UPDATE auth_user SET role = 'owner' WHERE email = :'email' AND role = 'operator';
+SELECT count(*)::text FROM auth_user WHERE email = :'email' AND role = 'owner';
+COMMIT;
+`, { email });
+      expect(promoted).toBe('1');
+      try {
+        await page.goto('/affiliate');
+        await expect(page.getByRole('heading', { name: 'Affiliate program' })).toBeVisible();
+        const partnerForm = page.locator('form[aria-label="Create partner"]');
+        const partnerName = 'F90 Browser Partner';
+        const partnerEmail = `f90-${randomUUID()}@example.invalid`;
+        diagnosticRedactions.add(partnerEmail);
+        await partnerForm.locator('input[name="displayName"]').fill(partnerName);
+        await partnerForm.locator('input[name="email"]').fill(partnerEmail);
+        const displayedTermsVersion = await partnerForm.locator('input[name="termsVersion"]').inputValue();
+        expect(displayedTermsVersion.trim().length).toBeGreaterThan(0);
+        await partnerForm.locator('select[name="partnerStatus"]').selectOption('active');
+        const createPartner = partnerForm.locator('button[type="submit"]');
+        await expect(createPartner).toBeDisabled();
+        await partnerForm.locator('input[name="disclosureAccepted"]').check();
+        await expect(createPartner).toBeEnabled();
+        const partnerResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/partners'
+          && response.request().method() === 'POST');
+        await createPartner.click();
+        const partnerResponse = await partnerResponsePromise;
+        const partnerPayload = await partnerResponse.json().catch(() => null);
+        const submittedPartner = partnerResponse.request().postDataJSON() ?? {};
+        const partnerRequestShape = {
+          fields: Object.keys(submittedPartner).sort(),
+          displayNameMatches: submittedPartner.displayName === partnerName,
+          emailPresent: typeof submittedPartner.email === 'string' && submittedPartner.email.length > 0,
+          emailMatchesSynthetic: submittedPartner.email === partnerEmail,
+          termsVersion: typeof submittedPartner.termsVersion === 'string' ? submittedPartner.termsVersion : null,
+          status: submittedPartner.status ?? null,
+          disclosureAccepted: submittedPartner.disclosureAccepted ?? null,
+        };
+        expectAffiliateStatus('/api/v1/platform/affiliate/partners', partnerResponse.status(), 201,
+          partnerPayload, partnerRequestShape);
+        const partnerId = partnerPayload.data.id;
+        expect(partnerPayload.data).toMatchObject({ displayName: partnerName, email: partnerEmail, status: 'active' });
+
+        const campaignName = 'F90 Synthetic Launch';
+        const campaignSlug = `f90-${randomUUID().slice(0, 8)}`;
+        const campaignForm = page.locator('form[aria-label="Create a campaign"]');
+        await campaignForm.locator('select[name="partnerId"]').selectOption(partnerId);
+        await campaignForm.locator('input[name="campaignName"]').fill(campaignName);
+        await campaignForm.locator('input[name="campaignSlug"]').fill(campaignSlug);
+        await campaignForm.locator('select[name="campaignStatus"]').selectOption('active');
+        const campaignResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/campaigns'
+          && response.request().method() === 'POST');
+        await campaignForm.locator('button[type="submit"]').click();
+        const campaignResponse = await campaignResponsePromise;
+        const campaignPayload = await campaignResponse.json().catch(() => null);
+        expectAffiliateStatus('/api/v1/platform/affiliate/campaigns', campaignResponse.status(), 201, campaignPayload);
+        const campaignId = campaignPayload.data.id;
+        const referralToken = campaignPayload.data.referralToken;
+        expect(campaignPayload.data).toMatchObject({ partnerId, name: campaignName, status: 'active' });
+
+        const creatorId = fixtureSql('SELECT id FROM auth_user WHERE email = :\'pending_email\' LIMIT 1;', { pending_email: pendingEmail });
+        expect(creatorId).toMatch(/^[^\r\n]+$/);
+        for (const kind of ['click', 'visit', 'identity_stitch']) {
+          const attribution = await affiliateRequest('/api/v1/platform/affiliate/attribution', {
+            campaignId,
+            kind,
+            eventKey: `browser-f90-${kind}-${randomUUID()}`,
+            ...(kind === 'identity_stitch' ? { creatorUserId: creatorId } : { visitorHash: createHash('sha256').update(randomUUID()).digest('hex') }),
+          });
+          expectAffiliateStatus('/api/v1/platform/affiliate/attribution', attribution.status, 201, attribution.data);
+        }
+        const conversion = await affiliateRequest('/api/v1/platform/affiliate/conversions/reconcile', {
+          campaignId,
+          kind: 'subscription_started',
+          amountCents: 10000,
+          billingEventKey: `browser-f90-billing-${randomUUID()}`,
+          creatorUserId: creatorId,
+        });
+        expectAffiliateStatus('/api/v1/platform/affiliate/conversions/reconcile', conversion.status, 201, conversion.data);
+        const conversionId = conversion.data.data.id;
+
+        await page.reload();
+        const reportButton = page.getByRole('button', { name: 'View report' });
+        await expect(reportButton).toBeVisible();
+        await reportButton.click();
+        const report = page.locator('[aria-live="polite"].card');
+        await expect(report).toContainText('1 / 1');
+        await expect(report).toContainText('1');
+
+        const commissionSection = page.locator('section[aria-labelledby="commissions-heading"]');
+        const commissionRow = commissionSection.getByRole('row').filter({ hasText: campaignName });
+        await commissionRow.locator(`select[name="holdReason.${conversionId}"]`).selectOption('chargeback');
+        const held = page.waitForResponse(response =>
+          new URL(response.url()).pathname === `/api/v1/platform/affiliate/commissions/${conversionId}/hold`
+          && response.request().method() === 'POST');
+        await commissionRow.getByRole('button', { name: 'Place on hold' }).click();
+        const holdResponse = await held;
+        const holdPayload = await holdResponse.json().catch(() => null);
+        expectAffiliateStatus(`/api/v1/platform/affiliate/commissions/${conversionId}/hold`, holdResponse.status(), 201, holdPayload);
+
+        const holdsSection = page.locator('section[aria-labelledby="holds-heading"]');
+        const holdRow = holdsSection.getByRole('row').filter({ hasText: partnerName });
+        await expect(holdRow).toContainText('Chargeback');
+        const released = page.waitForResponse(response =>
+          new URL(response.url()).pathname.startsWith('/api/v1/platform/affiliate/holds/')
+          && new URL(response.url()).pathname.endsWith('/resolve')
+          && response.request().method() === 'POST');
+        await holdRow.getByRole('button', { name: 'Release' }).click();
+        const releaseResponse = await released;
+        const releasePayload = await releaseResponse.json().catch(() => null);
+        expectAffiliateStatus(new URL(releaseResponse.url()).pathname, releaseResponse.status(), 200, releasePayload);
+        await expect(holdsSection).toContainText('No open holds.');
+
+        const releasedCommissionEventId = fixtureSql(`
+SELECT id::text FROM affiliate_commission_event
+WHERE conversion_id = :'conversion_id' AND kind = 'approved' AND reason = 'hold_released'
+ORDER BY created_at DESC LIMIT 1;
+`, { conversion_id: conversionId });
+        expect(releasedCommissionEventId).toMatch(/^[a-f0-9-]{36}$/i);
+
+        await page.reload();
+        const partnerRow = page.getByRole('row').filter({ hasText: partnerEmail });
+        const payoutResponsePromise = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/v1/platform/affiliate/payouts/export'
+          && response.request().method() === 'GET');
+        const payoutDownloadPromise = waitForAffiliateDownload('payout CSV');
+        await partnerRow.getByRole('link', { name: 'Payout CSV' }).click();
+        const payoutResponse = await payoutResponsePromise;
+        expectAffiliateStatus('/api/v1/platform/affiliate/payouts/export', payoutResponse.status(), 200);
+        const payoutDownload = await requireAffiliateDownload(await payoutDownloadPromise);
+        expect(payoutResponse.headers()['x-fanthynks-payout-transfer']).toBe('none');
+        expect(payoutDownload.suggestedFilename()).toMatch(/^fanthynks-affiliate-.+\.csv$/);
+        expect(readFileSync(await payoutDownload.path(), 'utf8')).toContain(releasedCommissionEventId);
+
+        failureContext = { awaitingAffiliateResponse: 'partner revocation PATCH' };
+        const revoked = page.waitForResponse(response =>
+          new URL(response.url()).pathname === `/api/v1/platform/affiliate/partners/${partnerId}`
+          && response.request().method() === 'PATCH');
+        await partnerRow.getByRole('button', { name: 'Revoke access' }).click();
+        const revokeResponse = await revoked;
+        failureContext = null;
+        expectAffiliateStatus(`/api/v1/platform/affiliate/partners/${partnerId}`, revokeResponse.status(), 200,
+          await revokeResponse.json().catch(() => null));
+        await expect(partnerRow).toContainText('revoked');
+        expect((await context.request.get(`/affiliate/r/${referralToken}`, { maxRedirects: 0 })).status()).toBe(404);
+
+        const exportPath = `/api/v1/platform/affiliate/partners/${partnerId}/export`;
+        const exportResponse = await context.request.get(exportPath);
+        const exportPayload = await exportResponse.json().catch(() => null);
+        expectAffiliateStatus(exportPath, exportResponse.status(), 200, exportPayload);
+        expect(exportResponse.headers()['content-disposition']).toBe(`attachment; filename="fanthynks-partner-${partnerId}.json"`);
+        expect(exportPayload).toMatchObject({
+          data: { partner: { partnerId, status: 'revoked' } },
+          deletion: { mode: 'revoke', preservesAuditAttribution: true },
+        });
+        const proxyTraceStart = proxyTransferDiagnostics.length;
+        const exportCdp = await context.newCDPSession(page);
+        const exportRequestIds = new Set();
+        await exportCdp.send('Network.enable');
+        exportCdp.on('Network.requestWillBeSent', event => {
+          if (new URL(event.request.url).pathname !== exportPath) return;
+          exportRequestIds.add(event.requestId);
+          affiliateDownloadDiagnostics.push({
+            event: 'request', path: safePath(event.request.url), method: event.request.method, resourceType: event.type,
+          });
+        });
+        exportCdp.on('Network.responseReceived', event => {
+          if (!exportRequestIds.has(event.requestId)) return;
+          const headers = event.response.headers ?? {};
+          affiliateDownloadDiagnostics.push({
+            event: 'response', path: safePath(event.response.url), status: event.response.status,
+            protocol: event.response.protocol, mimeType: event.response.mimeType,
+            headers: Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
+              .filter(name => headers[name] !== undefined)
+              .map(name => [name, name === 'content-disposition'
+                ? String(headers[name]).replace(/[a-f0-9-]{36}/g, '<fixture-id>')
+                : String(headers[name])])),
+          });
+        });
+        exportCdp.on('Network.loadingFinished', event => {
+          if (exportRequestIds.has(event.requestId)) {
+            affiliateDownloadDiagnostics.push({ event: 'loading-finished', encodedDataLength: event.encodedDataLength });
+          }
+        });
+        exportCdp.on('Network.loadingFailed', event => {
+          if (exportRequestIds.has(event.requestId)) {
+            affiliateDownloadDiagnostics.push({
+              event: 'loading-failed', error: safeDiagnostic(new Error(event.errorText)),
+              canceled: event.canceled, blockedReason: event.blockedReason ?? null,
+            });
+          }
+        });
+        try {
+          failureContext = { awaitingAffiliateDownload: 'partner export JSON' };
+          const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
+          await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
+          const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
+          expect(new URL(exportDownload.url()).pathname).toBe(exportPath);
+          expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
+          const exportFilePath = join(dir, 'partner-export.json');
+          failureContext = { awaitingAffiliateDownloadSave: 'partner export JSON' };
+          try {
+            await Promise.race([
+              exportDownload.saveAs(exportFilePath),
+              delay(15_000).then(() => { throw new Error('Timed out saving partner export download'); }),
+            ]);
+          } catch (error) {
+            const downloadFailure = await exportDownload.failure().catch(failureError => safeDiagnostic(failureError));
+            await delay(100);
+            failureContext = {
+              awaitingAffiliateDownloadSave: 'partner export JSON', downloadFailure,
+              browserPageClosed: page.isClosed(), browserContextPageCount: context.pages().length,
+              networkEvents: [...affiliateDownloadDiagnostics],
+              proxyTransfer: proxyTransferDiagnostics.slice(proxyTraceStart),
+            };
+            throw error;
+          }
+          const exportBytes = readFileSync(exportFilePath);
+          expect(secretMarker).not.toBeNull();
+          expect(exportBytes.includes(secretMarker)).toBe(false);
+          const exportedPartner = JSON.parse(exportBytes.toString('utf8'));
+          expect(exportedPartner).toMatchObject({
+            data: { partner: { partnerId, status: 'revoked' } },
+            deletion: { mode: 'revoke', preservesAuditAttribution: true },
+          });
+        } finally {
+          await exportCdp.detach().catch(() => {});
+        }
+        failureContext = null;
+      } finally {
+        const restored = fixtureSql(`
+BEGIN;
+UPDATE auth_user SET role = 'operator' WHERE email = :'email' AND role = 'owner';
+SELECT count(*)::text FROM auth_user WHERE email = :'email' AND role = 'operator';
+COMMIT;
+`, { email });
+        if (restored !== '1') throw new Error('Disposable owner role restoration was not verified');
+      }
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+    });
+  }
   await check('configured navigation and literal text', async () => {
     const brandWordmarks = page.locator('.brand-wordmark');
     failureContext = {
@@ -1142,7 +1464,7 @@ COMMIT;
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
       failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects,
-      pageResponses, browserErrors }));
+      pageResponses, affiliateDownloadDiagnostics, browserErrors }));
     process.exitCode = 1;
   }
 } finally {

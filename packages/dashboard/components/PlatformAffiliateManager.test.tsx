@@ -174,6 +174,38 @@ it('creates campaigns only from disclosed partners and renders report and payout
   expect(find(tree, node => node.type === 'button' && node.props.children === 'View report')).toBeDefined();
 });
 
+it('offers owner-only partner data export and audited revocation controls', async () => {
+  const suspendedPartner = { ...partner, status: 'suspended' };
+  const current: AffiliateProgramSnapshot = { ...snapshot, partners: [suspendedPartner] };
+  vi.mocked(fetch).mockResolvedValue(Response.json({ data: current }));
+  hooks.send.mockResolvedValue(Response.json({ data: { ...suspendedPartner, status: 'revoked' } }));
+
+  const tree = render(current);
+  const exportLink = find(tree, node => node.type === 'a'
+    && node.props.href === '/api/v1/platform/affiliate/partners/partner-1/export');
+  expect(exportLink?.props.href).toBe('/api/v1/platform/affiliate/partners/partner-1/export');
+
+  const revoke = find(tree, node => node.type === 'button'
+    && textContent(node.props.children) === 'Revoke access');
+  expect(revoke).toBeDefined();
+  (revoke!.props.onClick as () => void)();
+  await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
+  expect(hooks.send.mock.calls[0][0]).toBe('/api/v1/platform/affiliate/partners/partner-1');
+  expect(hooks.send.mock.calls[0][1].method).toBe('PATCH');
+  expect(JSON.parse(hooks.send.mock.calls[0][1].body)).toEqual({ status: 'revoked' });
+  expect(hooks.send.mock.calls[0][2]).toMatchObject({ idempotencyKey: 'affiliate-intent-1', retries: 0 });
+
+  hooks.slots = [];
+  hooks.index = 0;
+  const revokedTree = render({ ...current, partners: [{ ...suspendedPartner, status: 'revoked' }] });
+  expect(find(revokedTree, node => node.type === 'a'
+    && node.props.href === '/api/v1/platform/affiliate/partners/partner-1/export')).toBeDefined();
+  expect(find(revokedTree, node => node.type === 'button'
+    && textContent(node.props.children) === 'Revoke access')).toBeUndefined();
+  expect(find(revokedTree, node => node.type === 'a'
+    && String(node.props.href).includes('/payouts/export?partnerId=partner-1'))).toBeUndefined();
+});
+
 it('approves an accrued commission through the idempotent owner action', async () => {
   const reviewSnapshot: AffiliateProgramSnapshot = { ...snapshot, partners: [partner], campaigns: [campaign], commissions: [commission] };
   vi.mocked(fetch).mockResolvedValue(Response.json({ data: reviewSnapshot }));
