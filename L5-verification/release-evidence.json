@@ -1370,10 +1370,10 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Record measured load, provider token-cache telemetry, latency and cost against the documented budgets.",
+      "nextStep": "Run the source-bound scale matrix once on the candidate SHA. The matrix covers post-approval dispatch only; generation batches, concurrent approval API load, host resources, provider cache, latency across all product paths, and budget acceptance remain to be measured.",
       "evidence": [],
       "verification": {
-        "test": "Run workload at 1/5/10/20 models and the agreed daily batch/target rate; record resource use, latency, errors, and real provider token-cache telemetry.",
+        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. Its availability canary seeds all approved synthetic targets for each 1, 5, 10, and 20-model scale before dispatch, then drains them through the real worker claim/process path and records durable outcomes, queue wait from burst start, latency distributions, throughput, and synthetic-provider results. This does not measure model generation, concurrent approval API requests, host resource peaks, provider cache, or external provider availability.",
         "environment": "Owned isolated load environment at 1, 5, 10, and 20 models; existing free quotas only; actual provider cache telemetry required for that claim.",
         "dependencies": [
           1,
@@ -1397,10 +1397,10 @@
       "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Run the source-bound 400-target canary across 20 synthetic models and preserve its denominator, measured window, durable outcomes, and dispatch latency. Then measure permitted provider uptime separately; the local synthetic provider metric cannot close external provider availability. No fixed observation duration is required.",
+      "nextStep": "Record the scale-matrix core-path availability, denominator, actual sample windows, durable outcomes, and dispatch latency. Then measure permitted real-provider availability separately; the synthetic provider fixture cannot close that external measure. No fixed observation duration is required.",
       "evidence": [],
       "verification": {
-        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture; its first network-disabled PostgreSQL fixture dispatches 400 approved targets across 20 synthetic models through the worker and reports the denominator, actual sample window, durable outcomes, p95 latency, and synthetic provider responses separately. Measure permitted live-provider uptime separately; compare core-path availability with the ≥99.5% target. No minimum duration is a release gate.",
+        "test": "Run node scripts/rehearse-l5-runtime.mjs --isolated-fixture. The network-disabled PostgreSQL rehearsal runs 1, 5, 10, and 20 synthetic-model scales with 20 approved targets per model, including a 400-target 20-model phase; it reports each phase window, denominator, durable outcomes, queue wait from burst start, p95 dispatch latency, and synthetic provider responses separately. Measure permitted live-provider uptime separately and compare the internal core-path result with the >=99.5% target. No minimum duration is a release gate.",
         "environment": "Owned isolated canary/load environment with synthetic requests and fault injection; existing free quotas only when provider availability is measured separately.",
         "dependencies": [
           1,

@@ -373,9 +373,9 @@ async function appendAvailabilityTargets(fixture, targetCount) {
         payload: { bundleId: row.bundle }, attempts: 0, maxAttempts: 1,
       })),
       ...additions.map(row => ({
-        id: row.job, orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'running',
+        id: row.job, orgId: fixture.org, queue: 'publish', kind: 'publish.target', state: 'ready',
         payload: { targetId: row.target }, attempts: 0, maxAttempts: 1,
-        runAfter: new Date(Date.now() - 60_000), lockedBy: 'l5-availability-worker', lockedAt: new Date(),
+        runAfter: new Date(Date.now() - 60_000), lockedBy: null, lockedAt: null,
       })),
     ]);
   });
@@ -1011,91 +1011,125 @@ for (const kind of Object.keys(defaultExecutors)) {
     }
   });
   if (process.env.AXIOM_L5_AVAILABILITY === 'enabled') {
-    await check('availability canary: 20 models dispatch 20 durable publish targets each', async () => {
-      const modelCount = 20;
+    await check('availability canary: 1, 5, 10 and 20 models each dispatch 20 durable publish targets', async () => {
+      const modelScales = [1, 5, 10, 20];
       const targetsPerModel = 20;
-      const batchSize = 1;
-      const models = [];
-      for (let index = 0; index < modelCount; index++) {
-        const fixture = await successfulPublishFixture();
-        const seeded = await appendAvailabilityTargets(fixture, targetsPerModel);
-        models.push({ fixture, ...seeded });
-      }
-      const provider = await localDiscordProvider(models.map(model => model.fixture));
-      try {
-        for (const [index, model] of models.entries()) {
-          assert.equal(model.jobs.length, targetsPerModel, `Canary model ${index + 1} must have ${targetsPerModel} publish jobs`);
+      const scaleRuns = [];
+
+      for (const modelCount of modelScales) {
+        const models = [];
+        for (let index = 0; index < modelCount; index++) {
+          const fixture = await successfulPublishFixture({ startReady: true });
+          const seeded = await appendAvailabilityTargets(fixture, targetsPerModel);
+          models.push({ fixture, ...seeded });
         }
-        // Match the production runWorker loop, which awaits one workerTick
-        // before claiming another job. Each publish holds its transaction
-        // while committing a separate durable dispatch marker, so direct
-        // fan-out here would measure unsupported pool contention instead of
-        // the configured worker's 20-model daily workload.
-        const work = Array.from({ length: targetsPerModel }, (_, targetIndex) =>
-          models.map(model => ({ fixture: model.fixture, job: model.jobs[targetIndex] }))).flat();
-        const denominator = modelCount * targetsPerModel;
-        assert.equal(work.length, denominator, 'Canary work queue must include every model target');
-        const startedAt = new Date().toISOString();
-        const clockStart = performance.now();
-        const outcomes = [];
-        const latenciesMs = [];
-        const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
-        for (let offset = 0; offset < work.length; offset += batchSize) {
-          const batch = work.slice(offset, offset + batchSize);
-          const samples = await Promise.all(batch.map(async ({ job }) => {
+        const provider = await localDiscordProvider(models.map(model => model.fixture));
+        try {
+          for (const [index, model] of models.entries()) {
+            assert.equal(model.jobs.length, targetsPerModel,
+              'Scale ' + modelCount + ': model ' + (index + 1) + ' must have ' + targetsPerModel + ' ready publish jobs');
+          }
+
+          // Every model's approved work is queued before dispatch begins. The
+          // single worker drains this burst through the real claim/process path.
+          const work = Array.from({ length: targetsPerModel }, () => models.map(model => ({ model }))).flat();
+          const denominator = modelCount * targetsPerModel;
+          assert.equal(work.length, denominator, 'Scale ' + modelCount + ' must include every queued model target');
+
+          const queuedAt = performance.now();
+          const startedAt = new Date().toISOString();
+          const clockStart = performance.now();
+          const latenciesMs = [];
+          const queueWaitsMs = [];
+          let completed = 0;
+          const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
+
+          for (const { model } of work) {
             const requestStart = performance.now();
-            const outcome = await processJob(job, executors, job.locked_by ?? 'l5-availability-worker', {});
-            return { outcome, latencyMs: performance.now() - requestStart };
-          }));
-          outcomes.push(...samples.map(sample => sample.outcome));
-          latenciesMs.push(...samples.map(sample => sample.latencyMs));
+            queueWaitsMs.push(requestStart - queuedAt);
+            const stats = await workerTick({
+              workerId: 'l5-availability-worker',
+              egressScope: { modelId: model.fixture.model },
+              executors,
+            });
+            latenciesMs.push(performance.now() - requestStart);
+            assert.equal(stats.claimed, 1, 'Scale ' + modelCount + ' worker must claim one queued job per target');
+            assert.equal(stats.done, 1, 'Scale ' + modelCount + ' worker must durably finish each target');
+            completed += stats.done;
+          }
+
+          const endedAt = new Date().toISOString();
+          const durationMs = performance.now() - clockStart;
+          const persistedTargets = (await Promise.all(models.map(model => scoped(model.fixture.org, tx =>
+            tx.select({ state: schema.postTarget.state, remoteId: schema.postTarget.remoteId })
+              .from(schema.postTarget).where(eq(schema.postTarget.orgId, model.fixture.org)))))).flat();
+          const published = persistedTargets.filter(target => target.state === 'published' && Boolean(target.remoteId)).length;
+          const sortedLatencies = [...latenciesMs].sort((left, right) => left - right);
+          const sortedQueueWaits = [...queueWaitsMs].sort((left, right) => left - right);
+          const percentile = (values, fraction) =>
+            values[Math.max(0, Math.ceil(fraction * values.length) - 1)] ?? 0;
+          const availabilityPercent = (published / denominator) * 100;
+          const providerMetrics = provider.metrics();
+          const scale = {
+            window: { startedAt, endedAt, durationMs: Number(durationMs.toFixed(2)) },
+            models: modelCount,
+            targetsPerModel,
+            denominator,
+            queuedTargets: work.length,
+            completedJobs: completed,
+            durablePublishedTargets: published,
+            failedTargets: denominator - published,
+            availabilityPercent: Number(availabilityPercent.toFixed(2)),
+            queueWaitFromBurstStartMs: {
+              p50: Number(percentile(sortedQueueWaits, 0.50).toFixed(2)),
+              p95: Number(percentile(sortedQueueWaits, 0.95).toFixed(2)),
+              p99: Number(percentile(sortedQueueWaits, 0.99).toFixed(2)),
+              max: Number((sortedQueueWaits.at(-1) ?? 0).toFixed(2)),
+            },
+            dispatchLatencyMs: {
+              p50: Number(percentile(sortedLatencies, 0.50).toFixed(2)),
+              p95: Number(percentile(sortedLatencies, 0.95).toFixed(2)),
+              p99: Number(percentile(sortedLatencies, 0.99).toFixed(2)),
+              max: Number((sortedLatencies.at(-1) ?? 0).toFixed(2)),
+            },
+            throughputTargetsPerSecond: Number((published / (durationMs / 1000)).toFixed(2)),
+            providerAvailability: {
+              provider: 'synthetic local Discord fixture',
+              ...providerMetrics,
+              availabilityPercent: providerMetrics.requests > 0
+                ? Number(((providerMetrics.successfulResponses / providerMetrics.requests) * 100).toFixed(2))
+                : null,
+              externalProviderMeasured: false,
+            },
+          };
+          scaleRuns.push(scale);
+
+          assert.equal(completed, denominator, 'Scale ' + modelCount + ' must finish every worker job');
+          assert.equal(published, denominator, 'Scale ' + modelCount + ' must persist every remote publish result');
+          assert.equal(provider.deliveries.length, denominator, 'Scale ' + modelCount + ' provider fixture must confirm every request');
+          assert.equal(providerMetrics.requests, denominator, 'Scale ' + modelCount + ' provider request denominator must match');
+          assert.equal(providerMetrics.successfulResponses, denominator, 'Scale ' + modelCount + ' provider must confirm every response');
+          assert.equal(providerMetrics.failedResponses, 0, 'Scale ' + modelCount + ' synthetic provider must have no failed responses');
+          assert.ok(availabilityPercent >= 99.5, 'Scale ' + modelCount + ' core publishing path must meet the 99.5% target');
+          assert.ok(percentile(sortedLatencies, 0.95) < 2_000,
+            'Scale ' + modelCount + ' publish dispatch p95 must remain under 2 seconds');
+        } finally {
+          await provider.close();
         }
-        const endedAt = new Date().toISOString();
-        const durationMs = performance.now() - clockStart;
-        const persistedTargets = (await Promise.all(models.map(model => scoped(model.fixture.org, tx =>
-          tx.select({ state: schema.postTarget.state, remoteId: schema.postTarget.remoteId })
-            .from(schema.postTarget).where(eq(schema.postTarget.orgId, model.fixture.org)))))).flat();
-        const published = persistedTargets.filter(target => target.state === 'published' && Boolean(target.remoteId)).length;
-        const sortedLatencies = [...latenciesMs].sort((left, right) => left - right);
-        const percentile = value => sortedLatencies[Math.max(0, Math.ceil(value * sortedLatencies.length) - 1)] ?? 0;
-        const completed = outcomes.filter(outcome => outcome === 'done').length;
-        const availabilityPercent = (published / denominator) * 100;
-        const providerMetrics = provider.metrics();
-        report.availability = {
-          window: { startedAt, endedAt, durationMs: Number(durationMs.toFixed(2)) },
-          models: modelCount,
-          targetsPerModel: targetsPerModel,
-          dispatchBatchSize: batchSize,
-          denominator,
-          completedJobs: completed,
-          durablePublishedTargets: published,
-          failedTargets: denominator - published,
-          availabilityPercent: Number(availabilityPercent.toFixed(2)),
-          dispatchLatencyMs: {
-            p50: Number(percentile(0.50).toFixed(2)),
-            p95: Number(percentile(0.95).toFixed(2)),
-            p99: Number(percentile(0.99).toFixed(2)),
-            max: Number((sortedLatencies.at(-1) ?? 0).toFixed(2)),
-          },
-          throughputTargetsPerSecond: Number((published / (durationMs / 1000)).toFixed(2)),
-          providerAvailability: {
-            provider: 'synthetic local Discord fixture',
-            ...providerMetrics,
-            availabilityPercent: providerMetrics.requests > 0
-              ? Number(((providerMetrics.successfulResponses / providerMetrics.requests) * 100).toFixed(2))
-              : null,
-            externalProviderMeasured: false,
-          },
-          limitations: 'Preapproved synthetic content, isolated PostgreSQL, and an in-process provider fixture; measures dispatch and durable outcomes only, not generation, live-provider uptime, or production availability.',
-        };
-        assert.equal(completed, denominator, 'Every canary worker job must finish');
-        assert.equal(published, denominator, 'Every canary target must have a durable published result');
-        assert.equal(provider.deliveries.length, denominator, 'The synthetic provider must confirm each canary request');
-        assert.ok(availabilityPercent >= 99.5, 'Core publishing canary must meet the 99.5% target');
-        assert.ok(percentile(0.95) < 2_000, 'Publish dispatch p95 must remain under 2 seconds');
-      } finally {
-        await provider.close();
       }
+
+      const totalMeasuredTargets = scaleRuns.reduce((total, scale) => total + scale.denominator, 0);
+      report.availability = {
+        ...scaleRuns.at(-1),
+        scaleRuns,
+        totalMeasuredTargets,
+        queueBurst: {
+          allApprovedTargetsQueuedBeforeDispatch: true,
+          approvalApiConcurrencyMeasured: false,
+        },
+        generationBatchesMeasured: false,
+        limitations: 'Preapproved synthetic content, isolated PostgreSQL, and an in-process provider fixture; this measures one real worker claim/process path across four queued workload scales. It does not measure model generation, concurrent approval API requests, host resource peaks, live-provider uptime, or production availability.',
+      };
     });
   }
   await check('publish.target: accepted provider outcome survives a persistence fault and blocks blind retry', async () => {

@@ -200,14 +200,42 @@ try {
     if (repetition === 1) {
       const availability = report.availability;
       assert.ok(availability, 'The source-bound availability canary receipt is required');
+      assert.ok(Array.isArray(availability.scaleRuns), 'The availability scale matrix is required');
+      const expectedScales = [
+        { models: 1, targetsPerModel: 20, denominator: 20 },
+        { models: 5, targetsPerModel: 20, denominator: 100 },
+        { models: 10, targetsPerModel: 20, denominator: 200 },
+        { models: 20, targetsPerModel: 20, denominator: 400 },
+      ];
+      const actualScales = availability.scaleRuns.map(({ models, targetsPerModel, denominator }) =>
+        ({ models, targetsPerModel, denominator }));
+      assert.deepEqual(actualScales, expectedScales, 'The availability matrix must cover every agreed model scale');
+      assert.equal(availability.totalMeasuredTargets, 720);
+      assert.equal(availability.queueBurst.allApprovedTargetsQueuedBeforeDispatch, true);
+      assert.equal(availability.queueBurst.approvalApiConcurrencyMeasured, false);
+      assert.equal(availability.generationBatchesMeasured, false);
+      for (const scale of availability.scaleRuns) {
+        assert.equal(scale.completedJobs, scale.denominator);
+        assert.equal(scale.durablePublishedTargets, scale.denominator);
+        assert.equal(scale.failedTargets, 0);
+        assert.ok(Number.isFinite(scale.window.durationMs) && scale.window.durationMs > 0);
+        assert.ok(Number.isFinite(scale.queueWaitFromBurstStartMs.p95) && scale.queueWaitFromBurstStartMs.p95 >= 0);
+        assert.ok(Number.isFinite(scale.throughputTargetsPerSecond) && scale.throughputTargetsPerSecond > 0);
+        assert.equal(scale.providerAvailability.requests, scale.denominator);
+        assert.equal(scale.providerAvailability.successfulResponses, scale.denominator);
+        assert.equal(scale.providerAvailability.failedResponses, 0);
+        assert.equal(scale.providerAvailability.externalProviderMeasured, false);
+        assert.ok(scale.availabilityPercent >= 99.5);
+        assert.ok(scale.dispatchLatencyMs.p95 < 2_000);
+      }
       assert.equal(availability.models, 20);
       assert.equal(availability.targetsPerModel, 20);
       assert.equal(availability.denominator, 400);
-      assert.equal(availability.durablePublishedTargets, 400);
-      assert.equal(availability.failedTargets, 0);
       assert.equal(availability.providerAvailability.requests, 400);
       assert.equal(availability.providerAvailability.successfulResponses, 400);
       assert.equal(availability.providerAvailability.failedResponses, 0);
+      assert.equal(availability.durablePublishedTargets, 400);
+      assert.equal(availability.failedTargets, 0);
       assert.equal(availability.providerAvailability.externalProviderMeasured, false);
       assert.ok(availability.availabilityPercent >= 99.5);
     } else {
