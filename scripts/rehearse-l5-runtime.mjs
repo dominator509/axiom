@@ -18,7 +18,7 @@ const receipt = { sourceSha: '', command: 'node scripts/rehearse-l5-runtime.mjs 
   egressFixture: { mode: 'test', scope: 'database-backed-health-only', productionProvisioner: 'scripts/rehearse-egress.mjs' },
   secretDelivery: { mechanism: 'ephemeral read-only file mount', containerPath: '/run/secrets/egress-kek',
     rootKeyInEnvironment: null, externalKms: false, filesCreated: 0, filesRemoved: 0, cleanupVerified: false },
-  images: {}, runs: [], auditChecks: [], passed: 0, failed: 0, skipped: 0, cleanup: false };
+  images: {}, runs: [], auditChecks: [], availability: null, passed: 0, failed: 0, skipped: 0, cleanup: false };
 const secrets = [];
 const secret = () => { const value = randomBytes(32).toString('hex'); secrets.push(value); return value; };
 const scrub = text => secrets.reduce((value, key) => value.replaceAll(key, '[FIXTURE-REDACTED]'), String(text ?? ''));
@@ -182,11 +182,30 @@ try {
     await ready(runner, 9090);
     const source = run('git', ['show', `${receipt.sourceSha}:scripts/l5/runtime.mjs`]).stdout;
     docker(['exec', '-i', runner, 'node', '-e', "let s='';process.stdin.on('data',b=>s+=b);process.stdin.on('end',()=>require('fs').writeFileSync('/app/fixture.mjs',s))"], { input: source });
-    const result = docker(['exec', runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
+    const availabilityArgs = repetition === 1 ? ['--env', 'AXIOM_L5_AVAILABILITY=enabled'] : [];
+    const result = docker(['exec', ...availabilityArgs, runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
     const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
-    assert.equal(report.total, 57, 'All fifty-seven runtime cases must execute');
+    const expectedCases = repetition === 1 ? 58 : 57;
+    assert.equal(report.total, expectedCases, `Runtime fixture ${repetition} must execute ${expectedCases} cases`);
     assert.equal(report.node, receipt.node, 'Runtime container must match the pinned Node release');
+    if (repetition === 1) {
+      const availability = report.availability;
+      assert.ok(availability, 'The source-bound availability canary receipt is required');
+      assert.equal(availability.models, 20);
+      assert.equal(availability.targetsPerModel, 20);
+      assert.equal(availability.denominator, 400);
+      assert.equal(availability.durablePublishedTargets, 400);
+      assert.equal(availability.failedTargets, 0);
+      assert.equal(availability.providerAvailability.requests, 400);
+      assert.equal(availability.providerAvailability.successfulResponses, 400);
+      assert.equal(availability.providerAvailability.failedResponses, 0);
+      assert.equal(availability.providerAvailability.externalProviderMeasured, false);
+      assert.ok(availability.availabilityPercent >= 99.5);
+      receipt.availability = availability;
+    } else {
+      assert.equal(report.availability, null, 'The load canary runs once, avoiding a duplicate measurement');
+    }
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
     if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');
