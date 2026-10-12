@@ -6,6 +6,7 @@
 import type { AppType } from '@axiom/api';
 import { normalizeLocale, SUPPORTED_LOCALES, type SupportedLocale } from '@axiom/core';
 import { apiFetch, createIdempotencyKey, resolveBaseUrl } from './client';
+import { consentRecordUploadFormData, type ConsentRecordUploadInput } from '../consent-upload';
 
 /** The BFF Hono app type — type-only documentation of the shared contract. */
 export type BffApp = AppType;
@@ -568,6 +569,24 @@ export async function getConsentRecords(modelId: string): Promise<MobileConsentR
   const body = await apiFetch<unknown>(`/api/v1/models/${encodeURIComponent(modelId)}/consent-records`);
   if (!isRecord(body) || !Array.isArray(body['data'])) throw new Error('response shape: consent records must be an array');
   return body['data'].slice(0, 100).map(parseMobileConsentRecord);
+}
+
+/** POST one consent record and encrypted document through the existing bounded multipart API. */
+export async function uploadConsentRecord(
+  modelId: string,
+  input: ConsentRecordUploadInput,
+  idempotencyKey: string = createIdempotencyKey(),
+): Promise<MobileConsentRecord> {
+  const body = await apiFetch<unknown>(`/api/v1/models/${encodeURIComponent(modelId)}/consent-records`, {
+    method: 'POST',
+    body: consentRecordUploadFormData(input),
+    idempotencyKey,
+  });
+  if (!isRecord(body) || !isRecord(body['data'])) throw new Error('response shape: consent upload response must be an object');
+  if (body['data']['modelId'] !== modelId || body['data']['hasDocument'] !== true) {
+    throw new Error('response shape: consent upload identity was not confirmed');
+  }
+  return parseMobileConsentRecord(body['data']);
 }
 
 /** GET the server's authoritative publish preflight for one destination platform. */

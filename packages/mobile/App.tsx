@@ -86,7 +86,7 @@ export default function App() {
         ) : tab === 'patreon' ? (
           <PatreonScreen user={user} />
         ) : tab === 'consent' ? (
-          <ConsentScreen />
+          <ConsentScreen user={user} />
         ) : (
           <RelayScreen />
         )}
