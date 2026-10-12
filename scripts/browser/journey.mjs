@@ -1201,7 +1201,12 @@ COMMIT;
         const campaignForm = page.locator('form[aria-label="Create a campaign"]');
         await campaignForm.locator('select[name="partnerId"]').selectOption(partnerId);
         await campaignForm.locator('input[name="campaignName"]').fill(campaignName);
-        await campaignForm.locator('input[name="campaignSlug"]').fill(campaignSlug);
+        const campaignSlugField = campaignForm.locator('input[name="campaignSlug"]');
+        await campaignSlugField.fill(campaignSlug);
+        expect(await campaignSlugField.evaluate(input => input.validity.valid)).toBe(true);
+        await campaignSlugField.fill(`${campaignSlug}-`);
+        expect(await campaignSlugField.evaluate(input => input.validity.patternMismatch)).toBe(true);
+        await campaignSlugField.fill(campaignSlug);
         await campaignForm.locator('select[name="campaignStatus"]').selectOption('active');
         const campaignResponsePromise = page.waitForResponse(response =>
           new URL(response.url()).pathname === '/api/v1/platform/affiliate/campaigns'
