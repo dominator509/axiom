@@ -356,7 +356,7 @@ export function ConsentView({
                 />
               </View>
               {uploadError ? <Text accessibilityRole="alert" style={styles.danger}>{uploadError}</Text> : null}
-              {uploadMessage ? <Text accessibilityRole="status" style={styles.successText}>{uploadMessage}</Text> : null}
+              {uploadMessage ? <Text accessibilityLiveRegion="polite" style={styles.successText}>{uploadMessage}</Text> : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: uploading || !hasSelectedDocument }}
