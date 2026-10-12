@@ -431,6 +431,9 @@ router.get('/partners/:partnerId/export', async (c) => {
   return c.json({
     data: exportPartnerData(partner, campaigns, commissions),
     deletion: { mode: 'revoke', preservesAuditAttribution: true },
+  }, 200, {
+    'Content-Disposition': `attachment; filename="fanthynks-partner-${partnerRow.id}.json"`,
+    'Cache-Control': 'private, no-store',
   });
 });
 

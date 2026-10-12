@@ -176,6 +176,9 @@ describe('platform affiliate API', () => {
     ];
     const response = await app().request(`/partners/${partnerId}/export`);
     expect(response.status).toBe(200);
+    expect(response.headers.get('content-disposition'))
+      .toBe(`attachment; filename="fanthynks-partner-${partnerId}.json"`);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).toMatchObject({
       data: {
         partner: { partnerId, email: 'partner@example.com', status: 'active' },
