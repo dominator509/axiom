@@ -598,14 +598,33 @@ COMMIT;
           endsAt: localDateTime(new Date(Date.now() + 60 * 60_000)),
         };
       });
-      await page.getByLabel('Starts').fill(shiftWindow.startsAt);
-      await page.getByLabel('Ends').fill(shiftWindow.endsAt);
+      const startsInput = page.getByLabel('Starts');
+      const endsInput = page.getByLabel('Ends');
+      await startsInput.fill(shiftWindow.startsAt);
+      await endsInput.fill(shiftWindow.endsAt);
+      await expect(startsInput).toHaveValue(shiftWindow.startsAt);
+      await expect(endsInput).toHaveValue(shiftWindow.endsAt);
+      const expectedWindowMs = Date.parse(shiftWindow.endsAt) - Date.parse(shiftWindow.startsAt);
+      expect(expectedWindowMs).toBeGreaterThan(0);
+      expect(expectedWindowMs).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
+      const shiftRequestObserved = page.waitForRequest(request => new URL(request.url()).pathname === `/api/v1/models/${ownModel}/team-shifts`
+        && request.method() === 'POST');
       const shiftCreated = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/models/${ownModel}/team-shifts`
         && response.request().method() === 'POST');
       await page.getByRole('button', { name: 'Schedule shift', exact: true }).click();
-      const shiftResponse = await shiftCreated;
+      const [shiftRequest, shiftResponse] = await Promise.all([shiftRequestObserved, shiftCreated]);
       const shiftBody = await shiftResponse.json();
-      expect(shiftResponse.status(), `Shift schedule rejected: ${JSON.stringify(shiftBody)}`).toBe(201);
+      const requestBody = shiftRequest.postDataJSON();
+      const requestSummary = {
+        assigneeType: requestBody?.assigneeType,
+        agentPermissionSelected: requestBody?.assigneeAgentRef === fixtureActor.actorRef,
+        unexpectedHumanAssignee: typeof requestBody?.assigneeUserId === 'string',
+        queue: requestBody?.queue,
+        startsAt: requestBody?.startsAt,
+        endsAt: requestBody?.endsAt,
+        windowMs: Date.parse(requestBody?.endsAt) - Date.parse(requestBody?.startsAt),
+      };
+      expect(shiftResponse.status(), `Shift schedule rejected: ${JSON.stringify({ response: shiftBody, request: requestSummary })}`).toBe(201);
       shiftId = shiftBody?.data?.id;
       expect(shiftId, 'Scheduled shift response omitted its ID').toEqual(expect.any(String));
       const shiftCard = page.locator('article.card').filter({ hasText: fixtureActor.actorRef });
