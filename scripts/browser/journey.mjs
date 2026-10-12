@@ -24,10 +24,40 @@ const cert = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-node
   '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1',
   '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem')], { stdio: 'ignore' });
 if (cert.status !== 0) throw new Error('Fixture certificate creation failed');
+const proxyTransferDiagnostics = [];
 const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (incoming, outgoing) => {
+  const incomingPath = new URL(incoming.url, origin).pathname;
+  const exportTrace = incoming.method === 'GET'
+    && /^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/i.test(incomingPath)
+    ? {
+        path: safePath(incomingPath), method: incoming.method,
+        fetchMode: incoming.headers['sec-fetch-mode'] ?? null,
+        fetchDestination: incoming.headers['sec-fetch-dest'] ?? null,
+        upstreamBytes: 0,
+      }
+    : null;
+  if (exportTrace) proxyTransferDiagnostics.push(exportTrace);
   const upstream = http.request({ hostname: '127.0.0.1', port: 3000, path: incoming.url, method: incoming.method,
     headers: { ...incoming.headers, 'x-forwarded-proto': 'https', 'x-forwarded-host': '127.0.0.1:3443' } }, response => {
     const headers = { ...response.headers };
+    if (exportTrace) {
+      exportTrace.status = response.statusCode ?? null;
+      exportTrace.headers = Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
+        .filter(header => headers[header] !== undefined)
+        .map(header => [header, header === 'content-disposition'
+          ? String(headers[header]).replace(/[a-f0-9-]{36}/gi, '<fixture-id>')
+          : String(headers[header])]));
+      response.on('data', chunk => { exportTrace.upstreamBytes += chunk.length; });
+      response.on('end', () => { exportTrace.upstreamComplete = response.complete; });
+      response.on('aborted', () => { exportTrace.upstreamAborted = true; });
+      response.on('error', error => { exportTrace.upstreamError = safeDiagnostic(error); });
+      outgoing.on('finish', () => { exportTrace.clientWriteFinished = true; });
+      outgoing.on('close', () => {
+        exportTrace.clientSocketClosed = true;
+        exportTrace.clientWriteFinished = outgoing.writableFinished;
+      });
+      outgoing.on('error', error => { exportTrace.clientError = safeDiagnostic(error); });
+    }
     // Negative control belongs to this test-only proxy, never to application code.
     if (mode === 'negative-cookie') delete headers['set-cookie'];
     outgoing.writeHead(response.statusCode, headers);
@@ -1277,6 +1307,7 @@ ORDER BY created_at DESC LIMIT 1;
           data: { partner: { partnerId, status: 'revoked' } },
           deletion: { mode: 'revoke', preservesAuditAttribution: true },
         });
+        const proxyTraceStart = proxyTransferDiagnostics.length;
         const exportCdp = await context.newCDPSession(page);
         const exportRequestIds = new Set();
         await exportCdp.send('Network.enable');
@@ -1329,10 +1360,12 @@ ORDER BY created_at DESC LIMIT 1;
             ]);
           } catch (error) {
             const downloadFailure = await exportDownload.failure().catch(failureError => safeDiagnostic(failureError));
+            await delay(100);
             failureContext = {
               awaitingAffiliateDownloadSave: 'partner export JSON', downloadFailure,
               browserPageClosed: page.isClosed(), browserContextPageCount: context.pages().length,
               networkEvents: [...affiliateDownloadDiagnostics],
+              proxyTransfer: proxyTransferDiagnostics.slice(proxyTraceStart),
             };
             throw error;
           }
