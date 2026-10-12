@@ -4,11 +4,13 @@ import { spawn } from 'node:child_process';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, rmdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
-import { buildEgressFetch } from '@axiom/llm-gateway';
+import { buildEgressFetch, LocalObjectStorage } from '@axiom/llm-gateway';
 import { sql, eq, and, inArray } from 'drizzle-orm';
 import { processJob, defaultExecutors, publishTarget, readKillSwitch, workerTick, connectorForConnection } from '@axiom/worker';
 import { CommandRouter } from '@axiom/relay';
@@ -324,16 +326,57 @@ async function availabilityModelFixture() {
   const connection = randomUUID(), asset = randomUUID();
   const media = readFileSync('/app/var/media/fixture.png');
   const assetSha256 = createHash('sha256').update(media).digest();
-  await scoped(org, async tx => {
-    await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
-      fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey: 'fixture.png', sha256: assetSha256 });
-    await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
-      platform: 'discord', displayName: 'L5 isolated availability fixture', encToken: randomBytes(32),
-      encNonce: randomBytes(12), dekId: `l5-${randomUUID()}`, capabilities: ['publish'], status: 'connected' });
-    await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model));
-  });
-  const cookie = await credentialOperatorCookie(org);
-  return { org, model, connection, asset, cookie, generatedBundles: [], publishBundleId: null, targetIds: [] };
+  const storageKey = `generated/${org}/${model}/${asset}.png`;
+  const mediaStorage = new LocalObjectStorage(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+  const stored = await mediaStorage.put({ key: storageKey, scope: { orgId: org, modelId: model }, body: media, mimeType: 'image/png' });
+  assert.equal(stored.size, media.length);
+  assert.equal(stored.mimeType, 'image/png');
+  assert.deepEqual(stored.sha256, assetSha256);
+  try {
+    await scoped(org, async tx => {
+      await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
+        fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey, sha256: assetSha256 });
+      await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
+        platform: 'discord', displayName: 'L5 isolated availability fixture', encToken: randomBytes(32),
+        encNonce: randomBytes(12), dekId: `l5-${randomUUID()}`, capabilities: ['publish'], status: 'connected' });
+      await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model));
+    });
+    const cookie = await credentialOperatorCookie(org);
+    return { org, model, connection, asset, storageKey, cookie, generatedBundles: [], publishBundleId: null, targetIds: [] };
+  } catch (error) {
+    await deleteAvailabilityAsset({ org, model, storageKey });
+    throw error;
+  }
+}
+async function deleteAvailabilityAsset(fixture) {
+  const mediaRoot = process.env.AXIOM_MEDIA_ROOT ?? 'var/media';
+  const storage = new LocalObjectStorage(mediaRoot);
+  const result = await storage.delete(fixture.storageKey, { orgId: fixture.org, modelId: fixture.model });
+  assert.equal(result, 'deleted', 'The isolated fixture image must be removed');
+  assert.equal(await storage.head(fixture.storageKey, { orgId: fixture.org, modelId: fixture.model }), null,
+    'The isolated fixture image must be absent after cleanup');
+  const modelDirectory = join(mediaRoot, 'generated', fixture.org, fixture.model);
+  const orgDirectory = join(mediaRoot, 'generated', fixture.org);
+  if (existsSync(modelDirectory)) rmdirSync(modelDirectory);
+  if (existsSync(orgDirectory)) rmdirSync(orgDirectory);
+}
+async function withIsolatedAvailabilityR2Config(run) {
+  const subscriptionHome = mkdtempSync(join(tmpdir(), 'axiom-l5-availability-subscriptions-'));
+  const originalMediaRoot = process.env.AXIOM_MEDIA_ROOT;
+  const originalSubscriptionHome = process.env.AXIOM_SUBSCRIPTION_HOME;
+  process.env.AXIOM_MEDIA_ROOT = '/app/var/media';
+  process.env.AXIOM_SUBSCRIPTION_HOME = subscriptionHome;
+  try {
+    return await run();
+  } finally {
+    if (originalMediaRoot === undefined) delete process.env.AXIOM_MEDIA_ROOT;
+    else process.env.AXIOM_MEDIA_ROOT = originalMediaRoot;
+    if (originalSubscriptionHome === undefined) delete process.env.AXIOM_SUBSCRIPTION_HOME;
+    else process.env.AXIOM_SUBSCRIPTION_HOME = originalSubscriptionHome;
+    assert.ok(subscriptionHome.startsWith(join(tmpdir(), 'axiom-l5-availability-subscriptions-')));
+    rmSync(subscriptionHome, { recursive: true, force: true });
+    assert.equal(existsSync(subscriptionHome), false, 'The owned storage-config directory must be removed');
+  }
 }
 async function successfulPublishFixture({ includeConsent = true, startReady = false } = {}) {
   const { org, model } = await tenant();
@@ -1259,8 +1302,10 @@ for (const kind of Object.keys(defaultExecutors)) {
       const targetsPerModel = 20;
       const scaleRuns = [];
 
+      await withIsolatedAvailabilityR2Config(async () => {
       for (const modelCount of modelScales) {
         const models = [];
+        try {
         for (let index = 0; index < modelCount; index++) {
           models.push({ fixture: await availabilityModelFixture() });
         }
@@ -1393,7 +1438,11 @@ for (const kind of Object.keys(defaultExecutors)) {
         } finally {
           await provider.close();
         }
+        } finally {
+          await Promise.all(models.map(model => deleteAvailabilityAsset(model.fixture)));
+        }
       }
+      });
 
       const totalMeasuredTargets = scaleRuns.reduce((total, scale) => total + scale.denominator, 0);
       report.availability = {
@@ -1406,6 +1455,7 @@ for (const kind of Object.keys(defaultExecutors)) {
           generationApiBurstExercised: true,
         },
         generationBatchesMeasured: true,
+        localFixtureStorageCleaned: true,
         limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Dispatch uses the synthetic local Discord fixture. This does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
       };
     });

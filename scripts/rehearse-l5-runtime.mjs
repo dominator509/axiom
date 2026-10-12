@@ -215,6 +215,7 @@ try {
       assert.equal(availability.queueBurst.approvalApiBurstExercised, true);
       assert.equal(availability.queueBurst.generationApiBurstExercised, true);
       assert.equal(availability.generationBatchesMeasured, true);
+      assert.equal(availability.localFixtureStorageCleaned, true);
       for (const scale of availability.scaleRuns) {
         const expectedGenerationRequests = scale.models * 4;
         assert.equal(scale.generationBatchesPerModel, 4);
