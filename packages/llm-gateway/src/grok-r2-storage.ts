@@ -205,26 +205,44 @@ export async function signedR2Request(
   });
 }
 
+/** Require the provider to acknowledge probe deletion before reporting verification success. */
+export function isR2ProbeCleanupConfirmed(response: Pick<Response, 'ok' | 'status'>): boolean {
+  return response.ok;
+}
+
 /** Prove private R2 read/write access with a tenant-scoped temporary object. */
 export async function verifyR2Storage(scope: R2Scope): Promise<{ configured: true; verified: true }> {
   const config = loadR2Storage(scope);
   if (!config) throw new Error('R2 storage is not configured');
   const objectKey = `axiom-verification/${identity(scope)}/${randomUUID()}.txt`;
   const probe = Buffer.from('FanThynks private storage verification\n', 'utf8');
-  let uploaded = false;
+  let putAttempted = false;
+  let verificationError: string | null = null;
   try {
+    // A timed-out PUT may have created the object even when no success response
+    // reached us, so cleanup must run after every attempted write.
+    putAttempted = true;
     const put = await signedR2Request(config, 'PUT', objectKey, probe);
     if (!put.ok) throw new Error(`PUT returned HTTP ${put.status}`);
-    uploaded = true;
     const get = await signedR2Request(config, 'GET', objectKey);
     if (!get.ok) throw new Error(`GET returned HTTP ${get.status}`);
     if (!Buffer.from(await get.arrayBuffer()).equals(probe)) throw new Error('GET returned unexpected probe bytes');
-    return { configured: true, verified: true };
   } catch (error) {
-    throw new Error(`R2 verification failed: ${error instanceof Error ? error.message : 'provider request failed'}`);
-  } finally {
-    if (uploaded) {
-      try { await signedR2Request(config, 'DELETE', objectKey); } catch { /* best-effort cleanup */ }
+    verificationError = error instanceof Error ? error.message : 'provider request failed';
+  }
+
+  if (putAttempted) {
+    try {
+      const deletion = await signedR2Request(config, 'DELETE', objectKey);
+      if (!isR2ProbeCleanupConfirmed(deletion)) {
+        throw new Error(`DELETE returned HTTP ${deletion.status}`);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'DELETE request failed';
+      throw new Error(`R2 verification failed: probe cleanup was not confirmed (${detail})`);
     }
   }
+
+  if (verificationError) throw new Error(`R2 verification failed: ${verificationError}`);
+  return { configured: true, verified: true };
 }

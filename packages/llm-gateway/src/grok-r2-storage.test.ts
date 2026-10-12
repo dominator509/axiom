@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createRouter } from './routes.js';
 import type { LLMGateway } from './gateway.js';
-import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema, normalizeR2ObjectKey, withinR2ObjectLimits } from './grok-r2-storage.js';
+import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema, normalizeR2ObjectKey, withinR2ObjectLimits, isR2ProbeCleanupConfirmed } from './grok-r2-storage.js';
 
 let root: string;
 const scope = { userId: 'test-operator', orgId: 'test-workspace' };
@@ -32,6 +32,12 @@ it('bounds content and canonicalizes tenant/model asset and operation keys', () 
     `generated/${objectScope.orgId}/00000000-0000-4000-8000-000000000003/other.png`,
     `generated/${objectScope.orgId}/${objectScope.modelId}/../other.png`,
   ]) expect(() => normalizeR2ObjectKey(key, objectScope)).toThrow();
+});
+it('requires a successful or already-absent response to confirm probe cleanup', () => {
+  expect(isR2ProbeCleanupConfirmed(new Response(null, { status: 204 }))).toBe(true);
+  expect(isR2ProbeCleanupConfirmed(new Response(null, { status: 404 }))).toBe(false);
+  expect(isR2ProbeCleanupConfirmed(new Response(null, { status: 403 }))).toBe(false);
+  expect(isR2ProbeCleanupConfirmed(new Response(null, { status: 503 }))).toBe(false);
 });
 it('encrypts at rest, redacts readback, isolates user/workspace and removes only the selected record', () => {
   saveR2Storage(scope, config);
@@ -148,5 +154,29 @@ it('verifies private R2 read/write with a temporary tenant-scoped object and cle
   expect(fetchMock.mock.calls[0]![0]).toMatch(/^https:\/\/11111111111111111111111111111111\.r2\.cloudflarestorage\.com\/test-private-media\/axiom-verification\//);
   expect(fetchMock.mock.calls[0]![1].headers.Authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=/);
   expect(fetchMock.mock.calls[0]![1].headers.Authorization).not.toContain(config.secretAccessKey);
+  expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
+});
+it('attempts probe cleanup even when the PUT response is unsuccessful', async () => {
+  saveR2Storage(scope, config);
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 503 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const response = await app().request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(response.status).toBe(502);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1]![1].method).toBe('DELETE');
+});
+it('does not report verification success when probe deletion is unconfirmed', async () => {
+  saveR2Storage(scope, config);
+  const probe = Buffer.from('FanThynks private storage verification\n');
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    .mockResolvedValueOnce(new Response(probe, { status: 200 }))
+    .mockResolvedValueOnce(new Response(null, { status: 503 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const response = await app().request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(response.status).toBe(502);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
   expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
 });
