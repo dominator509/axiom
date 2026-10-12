@@ -448,7 +448,7 @@ async function scanAvailabilityBundles(models) {
     }
     const jobs = await scoped(fixture.org, tx => tx.select({ state: schema.job.state }).from(schema.job).where(and(
       eq(schema.job.orgId, fixture.org), eq(schema.job.kind, 'tos.scan'),
-      sql`${schema.job.payload}->>'bundleId' = ANY(${bundleIds}::text[])`,
+      inArray(sql`${schema.job.payload}->>'bundleId'`, bundleIds),
     )));
     assert.equal(jobs.length, bundleIds.length, 'Every generation request must enqueue one durable ToS scan');
     assert.ok(jobs.every(job => job.state === 'done'), 'Every ToS scan job must be durably completed');
