@@ -156,3 +156,27 @@ it('verifies private R2 read/write with a temporary tenant-scoped object and cle
   expect(fetchMock.mock.calls[0]![1].headers.Authorization).not.toContain(config.secretAccessKey);
   expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
 });
+it('attempts probe cleanup even when the PUT response is unsuccessful', async () => {
+  saveR2Storage(scope, config);
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 503 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const response = await app().request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(response.status).toBe(502);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1]![1].method).toBe('DELETE');
+});
+it('does not report verification success when probe deletion is unconfirmed', async () => {
+  saveR2Storage(scope, config);
+  const probe = Buffer.from('FanThynks private storage verification\n');
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    .mockResolvedValueOnce(new Response(probe, { status: 200 }))
+    .mockResolvedValueOnce(new Response(null, { status: 503 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const response = await app().request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(response.status).toBe(502);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
+});
