@@ -227,7 +227,7 @@ it('offers a safe retry when loading the persona revision fails', async () => {
   for (const effect of harness.effects.splice(0)) effect();
   await new Promise(resolve => setTimeout(resolve, 0));
 
-  const failedRead = render([], true).find(node => node.props.role === 'alert');
+  const failedRead = render([], true).find(node => node.props?.role === 'alert');
   expect(textContent(failedRead?.props.children)).toContain('Retry before editing or saving');
   expect(personaEditor()?.props.disabled).toBe(true);
   expect(button('Save new persona revision')?.props.disabled).toBe(true);
@@ -237,7 +237,7 @@ it('offers a safe retry when loading the persona revision fails', async () => {
   await new Promise(resolve => setTimeout(resolve, 0));
 
   expect(personaReads).toBe(2);
-  expect(render([], true).find(node => node.props.role === 'alert')).toBeUndefined();
+  expect(render([], true).find(node => node.props?.role === 'alert')).toBeUndefined();
   expect(personaEditor()?.props.disabled).toBe(false);
   personaEditor()?.props.onChange?.({ target: { value: 'A playful, mischievous charmer.' } });
   expect(button('Save new persona revision')?.props.disabled).toBe(false);
