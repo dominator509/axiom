@@ -428,12 +428,19 @@ router.get('/partners/:partnerId/export', async (c) => {
     accruedAt: row.createdAt.toISOString(),
     ...(row.kind === 'reversed' ? { reversedAt: row.createdAt.toISOString(), reversalReason: row.reason ?? 'refund' } : {}),
   }));
-  return c.json({
+  const exportJson = JSON.stringify({
     data: exportPartnerData(partner, campaigns, commissions),
     deletion: { mode: 'revoke', preservesAuditAttribution: true },
-  }, 200, {
-    'Content-Disposition': `attachment; filename="fanthynks-partner-${partnerRow.id}.json"`,
-    'Cache-Control': 'private, no-store',
+  });
+  const exportBody = new TextEncoder().encode(exportJson);
+  return new Response(exportBody, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="fanthynks-partner-${partnerRow.id}.json"`,
+      'Cache-Control': 'private, no-store',
+      'Content-Length': String(exportBody.byteLength),
+    },
   });
 });
 

@@ -179,7 +179,10 @@ describe('platform affiliate API', () => {
     expect(response.headers.get('content-disposition'))
       .toBe(`attachment; filename="fanthynks-partner-${partnerId}.json"`);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(await response.json()).toMatchObject({
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    const responseText = await response.text();
+    expect(Number(response.headers.get('content-length'))).toBe(new TextEncoder().encode(responseText).byteLength);
+    expect(JSON.parse(responseText)).toMatchObject({
       data: {
         partner: { partnerId, email: 'partner@example.com', status: 'active' },
         campaigns: [{ campaignId, partnerId, slug: 'launch' }],
