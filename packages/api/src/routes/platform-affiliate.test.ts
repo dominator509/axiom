@@ -50,7 +50,7 @@ function app(cacheRequestBody = false) {
     c.set('role', 'owner');
     if (cacheRequestBody && c.req.method !== 'GET' && c.req.method !== 'HEAD') {
       const bytes = await c.req.raw.arrayBuffer();
-      c.req.bodyCache.arrayBuffer = Promise.resolve(bytes);
+      c.req.bodyCache.arrayBuffer = bytes;
     }
     await next();
   });
