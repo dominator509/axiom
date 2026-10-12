@@ -1486,3 +1486,4 @@ Lane 1 follow-up PR #85 exact source 7f14028417e6294b8da666f83f66febe8c17503e, h
 2026-10-12T20:46:27Z | L5 performance matrix now exercises prompt generation, durable text ToS scans, API approval and scheduled dispatch in isolated CI fixtures; awaits hosted validation
 2026-10-12T20:56:39Z | L5 CI exposed missing Idempotency-Key on synthetic API mutations; added a fresh fixture key per mutation and await existing run completion before resubmitting
 2026-10-12T21:06:45Z | L5 CI found Drizzle array interpolation expanded bundle IDs incorrectly in scan verification; switched to scalar inArray expression for the synthetic ToS-job check
+2026-10-12T21:21:00Z | L5 runtime showed Discord approval requires saved media; added synthetic fixture.png bundle via real API and pinned local vision scan before approval, without claiming model-backed media generation

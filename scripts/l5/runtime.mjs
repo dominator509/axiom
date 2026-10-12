@@ -321,15 +321,19 @@ function syntheticConsentRows(org, model, platform = 'discord') {
 }
 async function availabilityModelFixture() {
   const { org, model } = await tenant();
-  const connection = randomUUID();
+  const connection = randomUUID(), asset = randomUUID();
+  const media = readFileSync('/app/var/media/fixture.png');
+  const assetSha256 = createHash('sha256').update(media).digest();
   await scoped(org, async tx => {
+    await tx.insert(schema.asset).values({ id: asset, orgId: org, modelId: model, kind: 'image',
+      fileName: 'fixture.png', mimeType: 'image/png', fileSize: media.length, storageKey: 'fixture.png', sha256: assetSha256 });
     await tx.insert(schema.platformConnection).values({ id: connection, orgId: org, modelId: model,
       platform: 'discord', displayName: 'L5 isolated availability fixture', encToken: randomBytes(32),
       encNonce: randomBytes(12), dekId: `l5-${randomUUID()}`, capabilities: ['publish'], status: 'connected' });
     await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model));
   });
   const cookie = await credentialOperatorCookie(org);
-  return { org, model, connection, cookie, generatedBundles: [], targetIds: [] };
+  return { org, model, connection, asset, cookie, generatedBundles: [], publishBundleId: null, targetIds: [] };
 }
 async function successfulPublishFixture({ includeConsent = true, startReady = false } = {}) {
   const { org, model } = await tenant();
@@ -406,7 +410,8 @@ async function generateAvailabilityBatches(models, batchCount) {
       assert.equal(body.data.captionEnrichment.discord, 'not_requested', 'LLM enrichment must remain explicitly unrequested');
       const requestLatencyMs = performance.now() - requestStartedAt;
       requestLatenciesMs.push(requestLatencyMs);
-      return { bundleId: body.data.bundle.id, batchIndex, variantCount: body.data.variants.length };
+      return { bundleId: body.data.bundle.id, batchIndex, variantCount: body.data.variants.length,
+        caption: body.data.bundle.captions.discord, hashtags: body.data.bundle.hashtags };
     }));
   }));
   return {
@@ -418,6 +423,41 @@ async function generateAvailabilityBatches(models, batchCount) {
     requestLatencyMs: latencySummary(requestLatenciesMs),
     concurrentRequestsSubmitted: models.length * batchCount,
     llmEnrichmentRequested: false,
+  };
+}
+async function createAvailabilityPublishBundles(models) {
+  const requestLatenciesMs = [];
+  const startedAt = performance.now();
+  await Promise.all(models.map(async fixture => {
+    const source = fixture.generatedBundles[0];
+    assert.ok(source?.caption, 'The prompt-engine generation must provide a caption for a saved-media bundle');
+    const requestStartedAt = performance.now();
+    const response = await apiApp.request('/api/v1/bundles', {
+      method: 'POST',
+      headers: availabilityRequestHeaders(fixture),
+      body: JSON.stringify({
+        modelId: fixture.model,
+        assetId: fixture.asset,
+        captions: { discord: source.caption },
+        hashtags: source.hashtags,
+      }),
+    });
+    const responseText = await response.text();
+    assert.equal(response.status, 201, `Saved-media bundle creation failed: ${responseText}`);
+    const body = JSON.parse(responseText);
+    assert.equal(body.data.modelId, fixture.model);
+    assert.equal(body.data.assetId, fixture.asset);
+    assert.equal(body.data.state, 'generated');
+    assert.equal(body.data.tosReport?.verdict, 'pending', 'Saved media must await its worker ToS scan');
+    fixture.publishBundleId = body.data.id;
+    requestLatenciesMs.push(performance.now() - requestStartedAt);
+  }));
+  return {
+    requests: models.length,
+    bundlesCreated: models.length,
+    concurrentRequestsSubmitted: models.length,
+    durationMs: Number((performance.now() - startedAt).toFixed(2)),
+    requestLatencyMs: latencySummary(requestLatenciesMs),
   };
 }
 async function scanAvailabilityBundles(models) {
@@ -434,6 +474,14 @@ async function scanAvailabilityBundles(models) {
       assert.equal(stats.done, 1, 'The ToS worker must complete each generated bundle scan');
       scanLatenciesMs.push(performance.now() - scanStartedAt);
     }
+    const mediaScanStartedAt = performance.now();
+    const mediaScan = await workerTick({
+      workerId: `l5-availability-media-tos-${fixture.model}`,
+      mediaScope: { orgId: fixture.org, modelId: fixture.model },
+    });
+    assert.equal(mediaScan.claimed, 1, 'The media worker must claim the saved-media ToS scan');
+    assert.equal(mediaScan.done, 1, 'The saved-media ToS scan must complete through the real vision worker');
+    scanLatenciesMs.push(performance.now() - mediaScanStartedAt);
     const bundleIds = fixture.generatedBundles.map(bundle => bundle.bundleId);
     const bundles = await scoped(fixture.org, tx => tx.select({
       id: schema.contentBundle.id, state: schema.contentBundle.state, tosReport: schema.contentBundle.tosReport,
@@ -452,27 +500,40 @@ async function scanAvailabilityBundles(models) {
     )));
     assert.equal(jobs.length, bundleIds.length, 'Every generation request must enqueue one durable ToS scan');
     assert.ok(jobs.every(job => job.state === 'done'), 'Every ToS scan job must be durably completed');
+    const [publishBundle] = await scoped(fixture.org, tx => tx.select({
+      id: schema.contentBundle.id, assetId: schema.contentBundle.assetId,
+      state: schema.contentBundle.state, tosReport: schema.contentBundle.tosReport,
+    }).from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.orgId, fixture.org), eq(schema.contentBundle.id, fixture.publishBundleId),
+    )).limit(1));
+    assert.ok(publishBundle, 'The saved-media bundle must persist in the model tenant');
+    assert.equal(publishBundle.assetId, fixture.asset);
+    assert.equal(publishBundle.state, 'generated');
+    assert.equal(publishBundle.tosReport?.verdict, 'pass', 'The pinned vision worker must approve the fixture image before publish approval');
+    const [publishScanJob] = await scoped(fixture.org, tx => tx.select({ state: schema.job.state }).from(schema.job).where(and(
+      eq(schema.job.orgId, fixture.org), eq(schema.job.kind, 'tos.scan'),
+      sql`${schema.job.payload}->>'bundleId' = ${fixture.publishBundleId}`,
+    )).limit(1));
+    assert.equal(publishScanJob?.state, 'done', 'Saved-media scan completion must be durable before approval');
   }));
   return {
-    generatedBundles: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
-    completedJobs: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
+    promptBundlesScanned: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
+    mediaBundlesScanned: models.length,
+    completedJobs: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length + 1, 0),
     durationMs: Number((performance.now() - startedAt).toFixed(2)),
     workerLatencyMs: latencySummary(scanLatenciesMs),
     verdict: 'pass',
   };
 }
 async function approveAndScheduleAvailabilityTargets(models, targetCountPerModel, slotIntervalMinutes = 15) {
-  const batchesPerModel = models[0]?.generatedBundles.length ?? 0;
-  assert.ok(batchesPerModel > 0, 'Generation batches must exist before approval and scheduling');
-  assert.equal(targetCountPerModel % batchesPerModel, 0, 'Publish targets must be evenly scheduled across generated bundles');
-  const targetsPerBundle = targetCountPerModel / batchesPerModel;
+  assert.ok(models.every(fixture => fixture.generatedBundles.length > 0 && fixture.publishBundleId),
+    'Prompt batches and an API-created saved-media bundle must exist before approval and scheduling');
   const scheduleBaseMs = Date.now() + 2 * 60 * 60_000;
   const approvalLatenciesMs = [];
   const approvalStartedAt = performance.now();
-  await Promise.all(models.map(async fixture => Promise.all(fixture.generatedBundles.map(async bundle => {
-    const slotIndex = bundle.batchIndex * targetsPerBundle;
+  await Promise.all(models.map(async fixture => {
     const responseStartedAt = performance.now();
-    const response = await apiApp.request(`/api/v1/bundles/${bundle.bundleId}/approve`, {
+    const response = await apiApp.request(`/api/v1/bundles/${fixture.publishBundleId}/approve`, {
       method: 'POST',
       headers: availabilityRequestHeaders(fixture),
       body: JSON.stringify({
@@ -485,46 +546,40 @@ async function approveAndScheduleAvailabilityTargets(models, targetCountPerModel
     assert.equal(response.status, 200, `Bundle approval failed: ${responseText}`);
     assert.equal(JSON.parse(responseText).data.state, 'approved');
     approvalLatenciesMs.push(performance.now() - responseStartedAt);
-  }))));
+  }));
   const approvalDurationMs = performance.now() - approvalStartedAt;
 
   const scheduleLatenciesMs = [];
   const schedulingStartedAt = performance.now();
   await Promise.all(models.map(async fixture => {
-    const bundleIds = fixture.generatedBundles.map(bundle => bundle.bundleId);
     const approvedTargets = await scoped(fixture.org, tx => tx.select({
       id: schema.postTarget.id, bundleId: schema.postTarget.bundleId,
     }).from(schema.postTarget).where(and(
-      eq(schema.postTarget.orgId, fixture.org), inArray(schema.postTarget.bundleId, bundleIds),
+      eq(schema.postTarget.orgId, fixture.org), eq(schema.postTarget.bundleId, fixture.publishBundleId),
     )));
-    assert.equal(approvedTargets.length, bundleIds.length, 'Each API approval must create its first durable target');
-    const targetByBundle = new Map(approvedTargets.map(target => [target.bundleId, target.id]));
+    assert.equal(approvedTargets.length, 1, 'Each API approval must create its first durable target');
+    assert.equal(approvedTargets[0].bundleId, fixture.publishBundleId);
     fixture.targetIds = [];
-    for (const bundle of fixture.generatedBundles) {
-      const firstTargetId = targetByBundle.get(bundle.bundleId);
-      assert.ok(firstTargetId, 'Approved target must be associated with its generated bundle');
-      fixture.targetIds.push(firstTargetId);
-      for (let slotIndex = 1; slotIndex < targetsPerBundle; slotIndex++) {
-        const globalSlot = bundle.batchIndex * targetsPerBundle + slotIndex;
-        const scheduledFor = new Date(scheduleBaseMs + globalSlot * slotIntervalMinutes * 60_000).toISOString();
-        const requestStartedAt = performance.now();
-        const response = await apiApp.request('/api/v1/posts', {
-          method: 'POST',
-          headers: availabilityRequestHeaders(fixture),
-          body: JSON.stringify({
-            bundleId: bundle.bundleId,
-            platform: 'discord',
-            connectionId: fixture.connection,
-            scheduledFor,
-          }),
-        });
-        const responseText = await response.text();
-        assert.equal(response.status, 201, `Post scheduling failed: ${responseText}`);
-        const targetId = JSON.parse(responseText).data.id;
-        assert.match(targetId, /^[0-9a-f-]{36}$/i, 'The schedule API must return a durable target ID');
-        fixture.targetIds.push(targetId);
-        scheduleLatenciesMs.push(performance.now() - requestStartedAt);
-      }
+    fixture.targetIds.push(approvedTargets[0].id);
+    for (let slotIndex = 1; slotIndex < targetCountPerModel; slotIndex++) {
+      const scheduledFor = new Date(scheduleBaseMs + slotIndex * slotIntervalMinutes * 60_000).toISOString();
+      const requestStartedAt = performance.now();
+      const response = await apiApp.request('/api/v1/posts', {
+        method: 'POST',
+        headers: availabilityRequestHeaders(fixture),
+        body: JSON.stringify({
+          bundleId: fixture.publishBundleId,
+          platform: 'discord',
+          connectionId: fixture.connection,
+          scheduledFor,
+        }),
+      });
+      const responseText = await response.text();
+      assert.equal(response.status, 201, `Post scheduling failed: ${responseText}`);
+      const targetId = JSON.parse(responseText).data.id;
+      assert.match(targetId, /^[0-9a-f-]{36}$/i, 'The schedule API must return a durable target ID');
+      fixture.targetIds.push(targetId);
+      scheduleLatenciesMs.push(performance.now() - requestStartedAt);
     }
     assert.equal(fixture.targetIds.length, targetCountPerModel, 'Each model must receive the agreed daily target workload');
   }));
@@ -554,15 +609,15 @@ async function approveAndScheduleAvailabilityTargets(models, targetCountPerModel
   assert.equal(targetsAdvanced.rowCount, targetIds.length, 'Only created schedule targets must be advanced to due time');
   assert.equal(jobsAdvanced.rowCount, targetIds.length, 'Every scheduled target must have one due publish job');
   return {
-    approvedBundles: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
-    approvalRequests: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
-    concurrentApprovalRequestsSubmitted: models.reduce((sum, fixture) => sum + fixture.generatedBundles.length, 0),
+    approvedBundles: models.length,
+    approvalRequests: models.length,
+    concurrentApprovalRequestsSubmitted: models.length,
     approvalDurationMs: Number(approvalDurationMs.toFixed(2)),
     approvalLatencyMs: latencySummary(approvalLatenciesMs),
-    scheduleRequests: models.reduce((sum, fixture) => sum + fixture.targetIds.length - fixture.generatedBundles.length, 0),
+    scheduleRequests: models.reduce((sum, fixture) => sum + fixture.targetIds.length - 1, 0),
     scheduledTargets: targetIds.length,
     scheduledTargetsPerModel: targetCountPerModel,
-    targetsPerGeneratedBundle: targetsPerBundle,
+    targetsPerApprovedBundle: targetCountPerModel,
     scheduledWindowMinutes: (targetCountPerModel - 1) * slotIntervalMinutes,
     schedulingDurationMs: Number((performance.now() - schedulingStartedAt).toFixed(2)),
     scheduleLatencyMs: latencySummary(scheduleLatenciesMs),
@@ -1212,6 +1267,7 @@ for (const kind of Object.keys(defaultExecutors)) {
         const workloadStartedAt = new Date().toISOString();
         const workloadClockStart = performance.now();
         const generation = await generateAvailabilityBatches(models.map(model => model.fixture), generationBatchesPerModel);
+        const mediaBundles = await createAvailabilityPublishBundles(models.map(model => model.fixture));
         const tosScan = await scanAvailabilityBundles(models.map(model => model.fixture));
         const approvalAndSchedule = await approveAndScheduleAvailabilityTargets(
           models.map(model => model.fixture), targetsPerModel,
@@ -1273,6 +1329,7 @@ for (const kind of Object.keys(defaultExecutors)) {
             models: modelCount,
             generationBatchesPerModel,
             generation,
+            mediaBundles,
             tosScan,
             approvalAndSchedule,
             targetsPerModel,
@@ -1310,10 +1367,18 @@ for (const kind of Object.keys(defaultExecutors)) {
           assert.equal(generation.generatedBundles, modelCount * generationBatchesPerModel);
           assert.equal(generation.promptVariants, modelCount * generationBatchesPerModel * 5);
           assert.equal(generation.llmEnrichmentRequested, false);
-          assert.equal(tosScan.completedJobs, modelCount * generationBatchesPerModel);
-          assert.equal(approvalAndSchedule.approvalRequests, modelCount * generationBatchesPerModel);
-          assert.equal(approvalAndSchedule.scheduleRequests, modelCount * (targetsPerModel - generationBatchesPerModel));
+          assert.equal(mediaBundles.requests, modelCount);
+          assert.equal(mediaBundles.bundlesCreated, modelCount);
+          assert.equal(mediaBundles.concurrentRequestsSubmitted, modelCount);
+          assert.equal(tosScan.promptBundlesScanned, modelCount * generationBatchesPerModel);
+          assert.equal(tosScan.mediaBundlesScanned, modelCount);
+          assert.equal(tosScan.completedJobs, modelCount * (generationBatchesPerModel + 1));
+          assert.equal(approvalAndSchedule.approvalRequests, modelCount);
+          assert.equal(approvalAndSchedule.concurrentApprovalRequestsSubmitted, modelCount);
+          assert.equal(approvalAndSchedule.scheduleRequests, modelCount * (targetsPerModel - 1));
           assert.equal(approvalAndSchedule.scheduledTargets, denominator);
+          assert.equal(approvalAndSchedule.targetsPerApprovedBundle, targetsPerModel);
+          assert.equal(approvalAndSchedule.isolatedClockAdvance.futureTargetsValidated, denominator);
           assert.equal(approvalAndSchedule.isolatedClockAdvance.targetsAdvanced, denominator);
           assert.equal(approvalAndSchedule.isolatedClockAdvance.publishJobsAdvanced, denominator);
           assert.equal(completed, denominator, 'Scale ' + modelCount + ' must finish every worker job');
@@ -1341,7 +1406,7 @@ for (const kind of Object.keys(defaultExecutors)) {
           generationApiBurstExercised: true,
         },
         generationBatchesMeasured: true,
-        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested; durable text ToS scans, API approval, scheduled API targets, and the real worker publish path use isolated PostgreSQL. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Dispatch uses the synthetic local Discord fixture. This does not measure provider-backed LLM inference/cache rates, media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
+        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Dispatch uses the synthetic local Discord fixture. This does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
       };
     });
   }
