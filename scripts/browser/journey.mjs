@@ -43,6 +43,8 @@ const redirects = [];
 const browserErrors = [];
 const pageResponses = [];
 const pendingRouteBodySummaries = [];
+const affiliateDownloadDiagnostics = [];
+const pendingAffiliateDownloadDiagnostics = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -86,6 +88,28 @@ const observePage = observedPage => {
   observedPage.on('response', response => {
     const path = new URL(response.url()).pathname;
     const kind = response.request().resourceType();
+    if (/^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/.test(path)) {
+      const headers = response.headers();
+      const transfer = {
+        event: 'affiliate-export-response',
+        path: safePath(response.url()),
+        method: response.request().method(),
+        status: response.status(),
+        headers: Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
+          .filter(name => headers[name] !== undefined)
+          .map(name => [name, name === 'content-disposition'
+            ? headers[name].replace(/[a-f0-9-]{36}/g, '<fixture-id>')
+            : headers[name]])),
+      };
+      affiliateDownloadDiagnostics.push(transfer);
+      pendingAffiliateDownloadDiagnostics.push(response.finished().then(error => {
+        transfer.finished = error ? 'failed' : 'complete';
+        if (error) transfer.finishError = safeDiagnostic(error);
+      }).catch(error => {
+        transfer.finished = 'unavailable';
+        transfer.finishError = safeDiagnostic(error);
+      }));
+    }
     let routeResponse;
     if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
       routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
@@ -143,6 +167,17 @@ const observePage = observedPage => {
         return { ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' };
       }));
     }
+  });
+  observedPage.on('requestfailed', request => {
+    const path = new URL(request.url()).pathname;
+    if (!/^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/.test(path)) return;
+    affiliateDownloadDiagnostics.push({
+      event: 'affiliate-export-request-failed',
+      path: safePath(request.url()),
+      method: request.method(),
+      resourceType: request.resourceType(),
+      error: safeDiagnostic(new Error(request.failure()?.errorText ?? 'request failed')),
+    });
   });
 };
 try {
@@ -1366,7 +1401,7 @@ COMMIT;
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
 } catch (error) {
-  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies]);
+  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies, ...pendingAffiliateDownloadDiagnostics]);
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
@@ -1375,7 +1410,7 @@ COMMIT;
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
       failureDetail: safeDiagnostic(error), failureContext, currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects,
-      pageResponses, browserErrors }));
+      pageResponses, affiliateDownloadDiagnostics, browserErrors }));
     process.exitCode = 1;
   }
 } finally {
