@@ -44,7 +44,6 @@ const browserErrors = [];
 const pageResponses = [];
 const pendingRouteBodySummaries = [];
 const affiliateDownloadDiagnostics = [];
-const pendingAffiliateDownloadDiagnostics = [];
 let failureContext = null;
 let currentCheck = 'browser launch';
 let faultObserved = false;
@@ -88,28 +87,6 @@ const observePage = observedPage => {
   observedPage.on('response', response => {
     const path = new URL(response.url()).pathname;
     const kind = response.request().resourceType();
-    if (/^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/.test(path)) {
-      const headers = response.headers();
-      const transfer = {
-        event: 'affiliate-export-response',
-        path: safePath(response.url()),
-        method: response.request().method(),
-        status: response.status(),
-        headers: Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
-          .filter(name => headers[name] !== undefined)
-          .map(name => [name, name === 'content-disposition'
-            ? headers[name].replace(/[a-f0-9-]{36}/g, '<fixture-id>')
-            : headers[name]])),
-      };
-      affiliateDownloadDiagnostics.push(transfer);
-      pendingAffiliateDownloadDiagnostics.push(response.finished().then(error => {
-        transfer.finished = error ? 'failed' : 'complete';
-        if (error) transfer.finishError = safeDiagnostic(error);
-      }).catch(error => {
-        transfer.finished = 'unavailable';
-        transfer.finishError = safeDiagnostic(error);
-      }));
-    }
     let routeResponse;
     if ((kind === 'document' || new URL(response.url()).searchParams.has('_rsc')) && path.startsWith('/models/')) {
       routeResponse = { path: safePath(response.url()), status: response.status(), kind, check: currentCheck };
@@ -167,17 +144,6 @@ const observePage = observedPage => {
         return { ...resource, readable: false, sentinelMatch: false, errorName: error?.name ?? 'Error' };
       }));
     }
-  });
-  observedPage.on('requestfailed', request => {
-    const path = new URL(request.url()).pathname;
-    if (!/^\/api\/v1\/platform\/affiliate\/partners\/[a-f0-9-]{36}\/export$/.test(path)) return;
-    affiliateDownloadDiagnostics.push({
-      event: 'affiliate-export-request-failed',
-      path: safePath(request.url()),
-      method: request.method(),
-      resourceType: request.resourceType(),
-      error: safeDiagnostic(new Error(request.failure()?.errorText ?? 'request failed')),
-    });
   });
 };
 try {
@@ -1311,24 +1277,74 @@ ORDER BY created_at DESC LIMIT 1;
           data: { partner: { partnerId, status: 'revoked' } },
           deletion: { mode: 'revoke', preservesAuditAttribution: true },
         });
-        failureContext = { awaitingAffiliateDownload: 'partner export JSON' };
-        const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
-        await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
-        const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
-        expect(new URL(exportDownload.url()).pathname).toBe(exportPath);
-        expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
-        const exportFilePath = join(dir, 'partner-export.json');
-        failureContext = { awaitingAffiliateDownloadSave: 'partner export JSON' };
-        await Promise.race([
-          exportDownload.saveAs(exportFilePath),
-          delay(15_000).then(() => { throw new Error('Timed out saving partner export download'); }),
-        ]);
-        failureContext = null;
-        const exportedPartner = JSON.parse(readFileSync(exportFilePath, 'utf8'));
-        expect(exportedPartner).toMatchObject({
-          data: { partner: { partnerId, status: 'revoked' } },
-          deletion: { mode: 'revoke', preservesAuditAttribution: true },
+        const exportCdp = await context.newCDPSession(page);
+        const exportRequestIds = new Set();
+        await exportCdp.send('Network.enable');
+        exportCdp.on('Network.requestWillBeSent', event => {
+          if (new URL(event.request.url).pathname !== exportPath) return;
+          exportRequestIds.add(event.requestId);
+          affiliateDownloadDiagnostics.push({
+            event: 'request', path: safePath(event.request.url), method: event.request.method, resourceType: event.type,
+          });
         });
+        exportCdp.on('Network.responseReceived', event => {
+          if (!exportRequestIds.has(event.requestId)) return;
+          const headers = event.response.headers ?? {};
+          affiliateDownloadDiagnostics.push({
+            event: 'response', path: safePath(event.response.url), status: event.response.status,
+            protocol: event.response.protocol, mimeType: event.response.mimeType,
+            headers: Object.fromEntries(['cache-control', 'content-disposition', 'content-encoding', 'content-length', 'content-type', 'transfer-encoding']
+              .filter(name => headers[name] !== undefined)
+              .map(name => [name, name === 'content-disposition'
+                ? String(headers[name]).replace(/[a-f0-9-]{36}/g, '<fixture-id>')
+                : String(headers[name])])),
+          });
+        });
+        exportCdp.on('Network.loadingFinished', event => {
+          if (exportRequestIds.has(event.requestId)) {
+            affiliateDownloadDiagnostics.push({ event: 'loading-finished', encodedDataLength: event.encodedDataLength });
+          }
+        });
+        exportCdp.on('Network.loadingFailed', event => {
+          if (exportRequestIds.has(event.requestId)) {
+            affiliateDownloadDiagnostics.push({
+              event: 'loading-failed', error: safeDiagnostic(new Error(event.errorText)),
+              canceled: event.canceled, blockedReason: event.blockedReason ?? null,
+            });
+          }
+        });
+        try {
+          failureContext = { awaitingAffiliateDownload: 'partner export JSON' };
+          const exportDownloadPromise = waitForAffiliateDownload('partner record JSON');
+          await partnerRow.getByRole('link', { name: 'Export partner data' }).click();
+          const exportDownload = await requireAffiliateDownload(await exportDownloadPromise);
+          expect(new URL(exportDownload.url()).pathname).toBe(exportPath);
+          expect(exportDownload.suggestedFilename()).toBe(`fanthynks-partner-${partnerId}.json`);
+          const exportFilePath = join(dir, 'partner-export.json');
+          failureContext = { awaitingAffiliateDownloadSave: 'partner export JSON' };
+          try {
+            await Promise.race([
+              exportDownload.saveAs(exportFilePath),
+              delay(15_000).then(() => { throw new Error('Timed out saving partner export download'); }),
+            ]);
+          } catch (error) {
+            const downloadFailure = await exportDownload.failure().catch(failureError => safeDiagnostic(failureError));
+            failureContext = {
+              awaitingAffiliateDownloadSave: 'partner export JSON', downloadFailure,
+              browserPageClosed: page.isClosed(), browserContextPageCount: context.pages().length,
+              networkEvents: [...affiliateDownloadDiagnostics],
+            };
+            throw error;
+          }
+          const exportedPartner = JSON.parse(readFileSync(exportFilePath, 'utf8'));
+          expect(exportedPartner).toMatchObject({
+            data: { partner: { partnerId, status: 'revoked' } },
+            deletion: { mode: 'revoke', preservesAuditAttribution: true },
+          });
+        } finally {
+          await exportCdp.detach().catch(() => {});
+        }
+        failureContext = null;
       } finally {
         const restored = fixtureSql(`
 BEGIN;
@@ -1401,7 +1417,7 @@ COMMIT;
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
 } catch (error) {
-  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies, ...pendingAffiliateDownloadDiagnostics]);
+  await Promise.allSettled([...pendingRouteBodySummaries, ...deliveredBodies]);
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
