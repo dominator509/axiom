@@ -1,5 +1,5 @@
 // LLMGateway — unified multi-provider chat completion gateway
-// Supports user-funded OAuth subscription transports and local vLLM.
+// Supports user-funded OAuth subscription transports, explicit server-funded Venice, and local vLLM.
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
@@ -8,6 +8,7 @@ import { resolveEgressBinding, buildEgressFetch } from './egress.js';
 // Runtime configuration belongs to the service launcher/deployment boundary.
 import { v4 as uuid } from 'uuid';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
+import { callVenice, streamVenice } from './providers/venice.js';
 import {
   OfficialSubscriptionTransport,
   type SubscriptionProvider,
@@ -122,6 +123,8 @@ export interface ProviderConfig {
   name: string;
   baseUrl: string;
   defaultModel: string;
+  /** Server-managed API key. Never included in capability or status responses. */
+  apiKey?: string;
   /** Cost per 1K input tokens (USD, approximate) */
   costPer1KInput: number;
   /** Cost per 1K output tokens (USD, approximate) */
@@ -224,7 +227,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
   {
     name: 'venice',
     baseUrl: 'api-disabled://venice',
-    defaultModel: 'venice-uncensored-1-2',
+    defaultModel: '',
     costPer1KInput: 0.0009,
     costPer1KOutput: 0.0009,
     latencyRank: 2,
@@ -458,22 +461,39 @@ export class LLMGateway {
 
   /** Full billing/auth matrix, including providers intentionally disabled. */
   getProviderCapabilities() {
-    return Array.from(this.providers.values()).map((provider) => ({
-      provider: provider.name,
-      available: provider.name === 'vllm' || provider.subscriptionSupported === true,
-      transport:
-        provider.name === 'vllm'
-          ? 'local'
-          : provider.subscriptionSupported
-            ? 'user-subscription'
-            : 'unsupported',
-      auth: provider.subscriptionSupported ? 'oauth' : provider.name === 'vllm' ? 'none' : null,
-      operatorApiCost: false,
-      reason:
-        provider.name === 'vllm' || provider.subscriptionSupported
+    return Array.from(this.providers.values()).map((provider) => {
+      const veniceConfigured = provider.name === 'venice'
+        && Boolean(provider.apiKey)
+        && Boolean(provider.defaultModel);
+      const available = provider.name === 'vllm'
+        || provider.subscriptionSupported === true
+        || veniceConfigured;
+      return {
+        provider: provider.name,
+        available,
+        transport:
+          provider.name === 'vllm'
+            ? 'local'
+            : provider.subscriptionSupported
+              ? 'user-subscription'
+              : veniceConfigured
+                ? 'server-api'
+                : 'unsupported',
+        auth: provider.subscriptionSupported
+          ? 'oauth'
+          : provider.name === 'vllm'
+            ? 'none'
+            : veniceConfigured
+              ? 'api-key'
+              : null,
+        operatorApiCost: provider.name === 'venice',
+        reason: available
           ? null
-          : 'No qualifying official subscription-backed transport',
-    }));
+          : provider.name === 'venice'
+            ? 'Venice requires an API-server key and model configuration'
+            : 'No qualifying official subscription-backed transport',
+      };
+    });
   }
 
   async getSubscriptionStatus(provider: string, userId: string, signal?: AbortSignal) {
@@ -513,10 +533,13 @@ export class LLMGateway {
     // If an explicit provider is requested, try it first
     if (explicit) {
       const cfg = this.providers.get(explicit);
-      if (cfg && (cfg.name === 'vllm' || cfg.subscriptionSupported)) return [cfg];
+      if (cfg && (cfg.name === 'vllm' || cfg.subscriptionSupported
+        || (cfg.name === 'venice' && Boolean(cfg.apiKey) && Boolean(cfg.defaultModel)))) return [cfg];
       if (cfg) {
         throw new ProviderError(
-          `${explicit} does not provide a supported user-subscription transport`,
+          cfg.name === 'venice'
+            ? 'Venice API key and model are not configured on the API server'
+            : `${explicit} does not provide a supported user-subscription transport`,
           503,
           explicit,
         );
@@ -524,8 +547,8 @@ export class LLMGateway {
       throw new Error(`Unknown provider: ${explicit}`);
     }
 
-    // API-key-only providers are intentionally unavailable. A SaaS request may
-    // use an official user subscription transport or the operator's local vLLM.
+    // Operator-funded API keys stay opt-in: automatic policies may use an
+    // official user subscription transport or local vLLM, never Venice.
     const available = Array.from(this.providers.values()).filter((p) => {
       return p.name === 'vllm' || p.subscriptionSupported === true;
     });
@@ -602,7 +625,7 @@ export class LLMGateway {
     throwIfAborted(options.signal);
     // Egress: route through the model's bound sidecar when requested.
     const egressFetchImpl =
-      options.egress && provider.name === 'vllm'
+      options.egress && (provider.name === 'vllm' || provider.name === 'venice')
         ? await this.resolveEgressFetch(options.model)
         : undefined;
 
@@ -684,6 +707,19 @@ export class LLMGateway {
             cachedPromptTokens: res.usage.prompt_tokens_details?.cached_tokens,
             cacheCreationPromptTokens: res.usage.prompt_tokens_details?.created_cache_tokens,
           });
+        } else if (provider.name === 'venice') {
+          if (!provider.apiKey) {
+            throw new ProviderError('Venice API key is not configured on the API server', 503, 'venice');
+          }
+          const res = await callVenice(provider.apiKey, {
+            model,
+            messages,
+            temperature: options.temperature,
+            max_tokens: options.maxTokens,
+          }, options.signal, egressFetchImpl ?? fetch);
+          content = res.choices[0]?.message?.content ?? '';
+          promptTokens = res.usage.prompt_tokens;
+          completionTokens = res.usage.completion_tokens;
         } else {
           throw new Error(`Unsupported provider: ${provider.name}`);
         }
@@ -962,7 +998,7 @@ export class LLMGateway {
     };
     const subscriptionTransport = this.subscriptionTransport;
     const egressFetchImpl =
-      requiredOptions.egress && chain.some((provider) => provider.name === 'vllm')
+      requiredOptions.egress && chain.some((provider) => provider.name === 'vllm' || provider.name === 'venice')
         ? await this.resolveEgressFetch(requiredOptions.model)
         : undefined;
     async function* streamWithFallback(): AsyncIterable<string> {
@@ -1024,6 +1060,16 @@ export class LLMGateway {
               options.signal,
               egressFetchImpl ?? fetch,
             );
+          } else if (provider.name === 'venice') {
+            if (!provider.apiKey) {
+              throw new ProviderError('Venice API key is not configured on the API server', 503, 'venice');
+            }
+            stream = streamVenice(provider.apiKey, {
+              model: resolvedModel,
+              messages: processedMessages,
+              temperature: requiredOptions.temperature,
+              max_tokens: requiredOptions.maxTokens,
+            }, options.signal, egressFetchImpl ?? fetch);
           } else {
             throw new Error(`Unsupported provider for streaming: ${provider.name}`);
           }

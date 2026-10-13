@@ -568,9 +568,9 @@ export interface UiLocaleSnapshot {
 export interface LlmProviderCapability {
   provider: string;
   available: boolean;
-  transport: 'local' | 'user-subscription' | 'unsupported';
-  auth: 'oauth' | 'none' | null;
-  operatorApiCost: false;
+  transport: 'local' | 'user-subscription' | 'server-api' | 'unsupported';
+  auth: 'oauth' | 'none' | 'api-key' | null;
+  operatorApiCost: boolean;
   reason: string | null;
 }
 

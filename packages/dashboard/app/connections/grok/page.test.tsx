@@ -24,6 +24,9 @@ const messages: Record<string, string> = {
   'connection.policyUnavailable': 'No disponible según la política actual',
   'connection.transportLocal': 'Transporte local de vLLM',
   'connection.transportSubscription': 'Transporte con suscripción propia',
+  'connection.transportServerApi': 'Clave API administrada por el servidor',
+  'connection.operatorApiCost': 'Las llamadas pueden usar los créditos existentes de la organización.',
+  'connection.veniceConfigRequired': 'Configura VENICE_API_KEY y VENICE_MODEL en el entorno del servidor API.',
   'connection.transportUnsupported': 'Sin transporte compatible',
   'connection.capabilitiesReason': 'No hay un transporte oficial compatible basado en suscripción.',
 };
@@ -33,7 +36,7 @@ beforeEach(() => {
   getServerLocale.mockResolvedValue({ t: (key: string) => messages[key] ?? key });
   providers.mockResolvedValue({ capabilities: [
     { provider: 'vllm', available: true, transport: 'local', auth: 'none', operatorApiCost: false, reason: null },
-    { provider: 'venice', available: false, transport: 'unsupported', auth: null, operatorApiCost: false, reason: 'No qualifying official subscription-backed transport' },
+    { provider: 'venice', available: false, transport: 'unsupported', auth: null, operatorApiCost: true, reason: 'Venice requires an API-server key and model configuration' },
   ] });
 });
 it.each(['owner', 'manager', 'operator'])('retains generation connection and storage controls for %s', async role => {
@@ -45,8 +48,19 @@ it.each(['owner', 'manager', 'operator'])('retains generation connection and sto
   expect(html).toContain('Capacidades de transporte del proveedor');
   expect(html).toContain('Transporte local de vLLM');
   expect(html).toContain('Venice');
-  expect(html).toContain('No hay un transporte oficial compatible basado en suscripción.');
+  expect(html).toContain('Configura VENICE_API_KEY y VENICE_MODEL en el entorno del servidor API.');
   expect(workspaceDestinationAllowed(role, '/connections/grok')).toBe(true);
+});
+
+it('shows Venice as a server-managed, operator-funded API when configured', async () => {
+  session.mockResolvedValue({ user: { role: 'owner' } });
+  providers.mockResolvedValue({ capabilities: [
+    { provider: 'venice', available: true, transport: 'server-api', auth: 'api-key', operatorApiCost: true, reason: null },
+  ] });
+  const html = renderToStaticMarkup(await Page());
+  expect(html).toContain('Clave API administrada por el servidor');
+  expect(html).toContain('Las llamadas pueden usar los créditos existentes de la organización.');
+  expect(html).not.toContain('fixture-venice-secret');
 });
 it('shows Creator own-account connection and private storage controls', async () => {
   session.mockResolvedValue({ user: { role: 'content_creator' } });

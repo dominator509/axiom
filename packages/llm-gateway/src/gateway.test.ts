@@ -105,6 +105,47 @@ describe('LLMGateway subscription-only availability', () => {
     },
   );
 
+  it('keeps configured Venice out of automatic providers and returns no credential material', () => {
+    const gw = gateway([{ name: 'venice', apiKey: 'fixture-venice-secret', defaultModel: 'fixture-model' }]);
+    const capability = gw.getProviderCapabilities().find((entry) => entry.provider === 'venice');
+
+    expect(gw.getAvailableProviders()).not.toContain('venice');
+    expect(capability).toMatchObject({
+      available: true,
+      transport: 'server-api',
+      auth: 'api-key',
+      operatorApiCost: true,
+      reason: null,
+    });
+    expect(JSON.stringify(capability)).not.toContain('fixture-venice-secret');
+  });
+
+  it('uses the configured Venice API only for an explicit provider request', async () => {
+    const response = {
+      id: 'venice-1',
+      object: 'chat.completion',
+      created: 1,
+      model: 'fixture-model',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Venice response' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    const gw = gateway([{ name: 'venice', apiKey: 'fixture-venice-secret', defaultModel: 'fixture-model' }]);
+
+    const result = await gw.chat(messages, { provider: 'venice' });
+
+    expect(result).toMatchObject({ provider: 'venice', model: 'fixture-model', content: 'Venice response' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.venice.ai/api/v1/chat/completions');
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer fixture-venice-secret');
+    expect(JSON.parse(String(init.body))).toMatchObject({ model: 'fixture-model', messages });
+    expect(JSON.stringify(result)).not.toContain('fixture-venice-secret');
+  });
+
   it('rejects unknown providers', async () => {
     await expect(gateway().chat(messages, { provider: 'nope' })).rejects.toThrow(
       'Unknown provider: nope',
@@ -360,6 +401,24 @@ describe('LLMGateway subscription streaming', () => {
       unobservedResponses: 1,
       providers: { anthropic: { observedResponses: 0, unobservedResponses: 1 } },
     });
+  });
+
+  it('streams through Venice only when explicitly selected', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(
+      'data: {"choices":[{"delta":{"content":"Venice stream"}}]}\n\ndata: [DONE]\n\n',
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    ));
+    const gw = gateway([{ name: 'venice', apiKey: 'fixture-venice-secret', defaultModel: 'fixture-model' }]);
+    const stream = await gw.chatStream(messages, { provider: 'venice' });
+    let result = '';
+    for await (const chunk of stream) result += chunk;
+
+    expect(result).toBe('Venice stream');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.venice.ai/api/v1/chat/completions');
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer fixture-venice-secret');
+    expect(JSON.parse(String(init.body))).toMatchObject({ model: 'fixture-model', stream: true });
   });
 
   it('includes provider-reported cache counters from a completed stream', async () => {
