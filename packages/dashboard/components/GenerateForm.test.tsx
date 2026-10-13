@@ -40,10 +40,10 @@ import GenerateForm from './GenerateForm';
 beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.refresh.mockReset(); });
 afterEach(() => vi.unstubAllGlobals());
 
-function submit(modelId = 'model-a') {
+function submit(modelId = 'model-a', veniceAvailable = false) {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
-  const element = GenerateForm({ modelId });
+  const element = GenerateForm({ modelId, veniceAvailable });
   const handler = element.props.children.find((child: { type?: unknown }) => child?.type === 'form').props.onSubmit as (event: FormEvent) => Promise<void>;
   return () => handler({ preventDefault: vi.fn() } as unknown as FormEvent);
 }
@@ -98,6 +98,27 @@ describe('generation intent', () => {
       style: 'studio', location: ' sunlit table ', mood: 'energetic', lighting: 'soft studio',
     });
     expect(JSON.parse(fetch.mock.calls[0][1].body)).not.toHaveProperty('outfit');
+  });
+
+  it('submits Venice only when the configured provider is explicitly selected for enrichment', async () => {
+    submit('model-a', true);
+    hooks.values[7] = true;
+    hooks.values[18] = 'venice';
+    const fetch = vi.fn().mockResolvedValue(response());
+    vi.stubGlobal('fetch', fetch);
+    await submit('model-a', true)();
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ enrichWithLlm: true, provider: 'venice' });
+  });
+
+  it('offers Venice only when the API reports it configured and identifies the state as unverified', () => {
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    const unavailable = renderToStaticMarkup(GenerateForm({ modelId: 'model-a' }));
+    expect(unavailable).not.toContain('value="venice"');
+    hooks.values[7] = true;
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    const configured = renderToStaticMarkup(GenerateForm({ modelId: 'model-a', veniceAvailable: true }));
+    expect(configured).toContain('value="venice"');
+    expect(configured).toContain('generation.veniceConfiguredNotice');
   });
 
   it('accepts the API variant and scored text-report shape', async () => {

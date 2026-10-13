@@ -70,7 +70,7 @@ router.get('/models/:modelId/media-source-images', async (c) => {
   return c.json({ data });
 });
 
-const generateSchema = z.object({
+const generateInputSchema = z.object({
   style: z.string().min(1).max(100).default('studio'),
   outfit: z.string().min(1).max(100).default('summer dress'),
   location: z.string().min(1).max(100).default('studio'),
@@ -80,6 +80,7 @@ const generateSchema = z.object({
   platforms: z.array(z.string().min(1).max(30)).min(1).default(['instagram']),
   enrichWithLlm: z.boolean().default(false),
   model: z.string().max(100).optional(),
+  provider: z.enum(['venice']).optional(),
   media: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('image'), provider: z.literal('grok').default('grok'), prompt: z.string().trim().min(1).max(4000),
       sanitizeMetadata: z.boolean().optional(),
@@ -88,6 +89,11 @@ const generateSchema = z.object({
       sanitizeMetadata: z.boolean().optional(),
       sourceAssetId: z.string().uuid(), duration: z.union([z.literal(6), z.literal(10)]).default(6) }).strict(),
   ]).optional(),
+});
+
+const generateSchema = generateInputSchema.refine(body => !body.provider || body.enrichWithLlm, {
+  path: ['provider'],
+  message: 'Choose an LLM provider only when caption enrichment is enabled',
 });
 
 // One text-only proposal from the operator's generating provider. The saved
@@ -184,7 +190,7 @@ router.post('/models/:modelId/generate/:bundleId/retry', zValidator('json', z.ob
       sql`${schema.job.payload}->>'bundleId' = ${bundleId}`,
     )).orderBy(desc(schema.job.createdAt), desc(schema.job.id)).limit(1).for('update');
     if (!job || job.payload?.userId !== userId || job.lockedBy || job.lockedAt) return false;
-    const media = generateSchema.shape.media.safeParse(job.payload && {
+    const media = generateInputSchema.shape.media.safeParse(job.payload && {
       kind: job.payload.kind, provider: job.payload.provider, prompt: body.prompt ?? job.payload.prompt,
       ...(job.payload.sanitizeMetadata === undefined ? {} : { sanitizeMetadata: job.payload.sanitizeMetadata }),
       ...(job.payload.kind === 'image' ? { aspectRatio: job.payload.aspectRatio } : {
@@ -228,7 +234,7 @@ router.post('/models/:modelId/generate/:bundleId/retry', zValidator('json', z.ob
 
 // POST /models/:id/generate
 router.post('/models/:modelId/generate', zValidator('json', generateSchema,
-  validationDiagnostics('generate', Object.keys(generateSchema.shape))), async (c) => {
+  validationDiagnostics('generate', Object.keys(generateInputSchema.shape))), async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
@@ -337,7 +343,10 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           // The subscription profile is selected from authenticated context,
           // never from request JSON or the audit-only 'system' fallback.
           {
-            model: body.model,
+            // Venice's model is operator-configured on the API server. Ignore
+            // client model overrides so this selection cannot bypass it.
+            model: body.provider === 'venice' ? undefined : body.model,
+            provider: body.provider,
             userId: c.get('userId'),
             cacheControls,
             providerCacheObserver: persistCacheObservation(orgId, modelId),

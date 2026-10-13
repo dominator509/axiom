@@ -25,7 +25,7 @@ const PLATFORMS = [
   'fanvue',
 ];
 
-export default function GenerateForm({ modelId, initialSourceAssetId = '', operatorControls = true }: { modelId: string; initialSourceAssetId?: string; operatorControls?: boolean }) {
+export default function GenerateForm({ modelId, initialSourceAssetId = '', operatorControls = true, veniceAvailable = false }: { modelId: string; initialSourceAssetId?: string; operatorControls?: boolean; veniceAvailable?: boolean }) {
   const { locale = 'en', t } = useLocale();
   const router = useRouter();
   const [style, setStyle] = useState('studio');
@@ -55,6 +55,8 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
   const [sourceImages, setSourceImages] = useState<Array<{ id: string; fileName: string }>>([]);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sanitizeMetadata, setSanitizeMetadata] = useState(false);
+  // Keep this after existing state to preserve the component's established state ordering.
+  const [enrichmentProvider, setEnrichmentProvider] = useState<'automatic' | 'venice'>('automatic');
   const inFlight = useRef(false);
   const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
 
@@ -108,6 +110,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
       );
       const requestBody = JSON.stringify({
         ...cleaned, aspectRatio, platforms, enrichWithLlm: enrich,
+        ...(enrich && veniceAvailable && enrichmentProvider === 'venice' ? { provider: 'venice' } : {}),
         ...(mediaKind === 'brief' ? {} : { media: {
           kind: mediaKind, prompt: mediaPrompt.trim(),
           ...(sanitizeMetadata ? { sanitizeMetadata: true } : {}),
@@ -263,6 +266,14 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
           />
           <span>{t('generation.enrichCaptions')}</span>
         </label>
+        {enrich && veniceAvailable && <>
+          <label htmlFor="captionProvider">{t('generation.provider')}</label>
+          <select id="captionProvider" value={enrichmentProvider} onChange={e => setEnrichmentProvider(e.target.value as 'automatic' | 'venice')}>
+            <option value="automatic">{t('generation.providerAutomatic')}</option>
+            <option value="venice">Venice</option>
+          </select>
+          <p className="subtle">{t('generation.veniceConfiguredNotice')} {t('connection.operatorApiCost')}</p>
+        </>}
         </fieldset>
         {intent.current && !busy && <p>{t('generation.unresolvedRequest')}</p>}
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}

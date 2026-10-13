@@ -2,10 +2,11 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 const session = vi.hoisted(() => vi.fn());
+const providers = vi.hoisted(() => vi.fn());
 const getServerLocale = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/api', () => ({ getSession: session }));
+vi.mock('@/lib/api', () => ({ getSession: session, api: { llm: { providers } } }));
 vi.mock('@/lib/server-locale', () => ({ getServerLocale }));
-vi.mock('@/components/GenerateForm', () => ({ default: ({ modelId, initialSourceAssetId, operatorControls }: { modelId: string; initialSourceAssetId?: string; operatorControls: boolean }) => <div data-model={modelId} data-source={initialSourceAssetId ?? ''} data-operator={String(operatorControls)} /> }));
+vi.mock('@/components/GenerateForm', () => ({ default: ({ modelId, initialSourceAssetId, operatorControls, veniceAvailable }: { modelId: string; initialSourceAssetId?: string; operatorControls: boolean; veniceAvailable?: boolean }) => <div data-model={modelId} data-source={initialSourceAssetId ?? ''} data-operator={String(operatorControls)} data-venice-available={String(veniceAvailable ?? false)} /> }));
 import GenerationPage from './page';
 
 const catalog = new LocaleCatalog(CATALOGS);
@@ -17,12 +18,20 @@ const localeFor = (locale: SupportedLocale) => ({
 
 beforeEach(() => {
   session.mockResolvedValue({ user: { role: 'owner' } });
+  providers.mockResolvedValue({ capabilities: [] });
   getServerLocale.mockResolvedValue(localeFor('en'));
 });
 
 it('forwards only a valid selected source asset to the generator', async () => {
   expect(renderToStaticMarkup(await GenerationPage({ params: Promise.resolve({ id: 'model' }), searchParams: Promise.resolve({ sourceAssetId: '11111111-1111-4111-8111-111111111111' }) }))).toContain('data-source="11111111-1111-4111-8111-111111111111"');
   expect(renderToStaticMarkup(await GenerationPage({ params: Promise.resolve({ id: 'model' }), searchParams: Promise.resolve({ sourceAssetId: ['one', 'two'] }) }))).toContain('data-source=""');
+});
+it('passes only a safe Venice configuration flag to the client form', async () => {
+  providers.mockResolvedValue({ capabilities: [{ provider: 'venice', available: true }] });
+  const html = renderToStaticMarkup(await GenerationPage({ params: Promise.resolve({ id: 'model' }) }));
+  expect(html).toContain('data-venice-available="true"');
+  expect(html).not.toContain('VENICE_API_KEY');
+  expect(html).not.toContain('VENICE_MODEL');
 });
 it.each(['analyst', 'agent', 'model', 'chatter', undefined])('excludes generation controls for %s', async role => {
   session.mockResolvedValue({ user: { role } });
