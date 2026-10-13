@@ -167,17 +167,17 @@ it('allows a new persona revision to be saved without an active actor context', 
 
 it('explains how to unlock handoff fields when no actor or loaded context is available', () => {
   const withoutActor = render([], true);
-  const actorHint = withoutActor.find(node => node.props.id === 'roleplay-handoff-context-hint');
+  const actorHint = withoutActor.find(node => node.props?.id === 'roleplay-handoff-context-hint');
   expect(textContent(actorHint?.props.children)).toContain('assigned shift starts');
   expect(textContent(actorHint?.props.children)).toContain('Team & shifts');
-  expect(withoutActor.some(node => node.props.href === '/models/model/team')).toBe(true);
+  expect(withoutActor.some(node => node.props?.href === '/models/model/team')).toBe(true);
 
   harness.values = [];
   const withActor = render();
-  const contextHint = withActor.find(node => node.props.id === 'roleplay-handoff-context-hint');
+  const contextHint = withActor.find(node => node.props?.id === 'roleplay-handoff-context-hint');
   expect(textContent(contextHint?.props.children)).toBe('Reload bounded context to edit handoff fields.');
   expect(withActor.filter(node => node.type === 'textarea' || node.type === 'input')
-    .some(node => node.props['aria-describedby'] === 'roleplay-handoff-context-hint')).toBe(true);
+    .some(node => node.props?.['aria-describedby'] === 'roleplay-handoff-context-hint')).toBe(true);
 });
 
 it('loads the current persona revision without an actor and saves against that revision', async () => {
