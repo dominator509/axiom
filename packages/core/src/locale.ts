@@ -880,6 +880,8 @@ export const MESSAGE_KEYS = [
   'roleplay.grokTurnRejected',
   'roleplay.grokTurnSaved',
   'roleplay.grokTurnUnconfirmed',
+  'roleplay.handoffNeedsActor',
+  'roleplay.handoffNeedsContext',
   'roleplay.handoffSaved',
   'roleplay.handoffTitle',
   'roleplay.humanActorDescription',
