@@ -70,7 +70,8 @@ import {
   requireMutationRole,
   requireRole,
 } from '@axiom/auth';
-import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
+import { createLLMRouter } from '@axiom/llm-gateway';
+import { createRuntimeLlmGateway } from './llm-gateway-runtime.js';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
 import {
   createMcpServerAsync,
@@ -1109,7 +1110,7 @@ app.route('/api/v1', providerCacheControlsRouter);
 app.route('/api/v1', watermarkPolicyRouter);
 
 // LLM gateway — unified multi-provider chat completions
-const llmGateway = new LLMGateway();
+const llmGateway = createRuntimeLlmGateway();
 app.route('/api/v1/llm', createLLMRouter(llmGateway));
 
 // ── CRM MCP endpoint (F-45 / L2.11) ────────────────────────────────────────

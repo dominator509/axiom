@@ -24,6 +24,7 @@ type ServerTranslate = Awaited<ReturnType<typeof getServerLocale>>['t'];
 function transportLabel(capability: LlmProviderCapability, t: ServerTranslate): string {
   if (capability.transport === 'local') return t('connection.transportLocal');
   if (capability.transport === 'user-subscription') return t('connection.transportSubscription');
+  if (capability.transport === 'server-api') return t('connection.transportServerApi');
   return t('connection.transportUnsupported');
 }
 
@@ -55,7 +56,10 @@ export default async function GrokConnectionPage() {
               <strong>{PROVIDER_LABELS[capability.provider] ?? capability.provider}</strong>
               {' — '}{capability.available ? t('connection.policyAvailable') : t('connection.policyUnavailable')}
               {' · '}{transportLabel(capability, t)}
-              {!capability.available && <p>{t('connection.capabilitiesReason')}</p>}
+              {!capability.available && <p>{capability.provider === 'venice'
+                ? t('connection.veniceConfigRequired')
+                : t('connection.capabilitiesReason')}</p>}
+              {capability.operatorApiCost && <p>{t('connection.operatorApiCost')}</p>}
             </li>
           ))}
         </ul>
