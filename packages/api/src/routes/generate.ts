@@ -80,6 +80,7 @@ const generateSchema = z.object({
   platforms: z.array(z.string().min(1).max(30)).min(1).default(['instagram']),
   enrichWithLlm: z.boolean().default(false),
   model: z.string().max(100).optional(),
+  provider: z.enum(['venice']).optional(),
   media: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('image'), provider: z.literal('grok').default('grok'), prompt: z.string().trim().min(1).max(4000),
       sanitizeMetadata: z.boolean().optional(),
@@ -88,6 +89,9 @@ const generateSchema = z.object({
       sanitizeMetadata: z.boolean().optional(),
       sourceAssetId: z.string().uuid(), duration: z.union([z.literal(6), z.literal(10)]).default(6) }).strict(),
   ]).optional(),
+}).refine(body => !body.provider || body.enrichWithLlm, {
+  path: ['provider'],
+  message: 'Choose an LLM provider only when caption enrichment is enabled',
 });
 
 // One text-only proposal from the operator's generating provider. The saved
@@ -337,7 +341,10 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           // The subscription profile is selected from authenticated context,
           // never from request JSON or the audit-only 'system' fallback.
           {
-            model: body.model,
+            // Venice's model is operator-configured on the API server. Ignore
+            // client model overrides so this selection cannot bypass it.
+            model: body.provider === 'venice' ? undefined : body.model,
+            provider: body.provider,
             userId: c.get('userId'),
             cacheControls,
             providerCacheObserver: persistCacheObservation(orgId, modelId),

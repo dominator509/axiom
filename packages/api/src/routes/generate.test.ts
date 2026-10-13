@@ -25,6 +25,8 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
     LLMGateway: class {
       async chat(_messages: unknown, options: {
         userId?: string;
+        provider?: string;
+        model?: string;
         providerCacheObserver?: (observation: {
           provider: string;
           usage: { promptTokens: number; cachedPromptTokens: number; cacheCreationPromptTokens: number };
@@ -60,6 +62,8 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
 let capturedSegments: Record<string, string> | null = null;
 let capturedOptions: {
   userId?: string;
+  provider?: string;
+  model?: string;
   cacheControls?: unknown;
   providerCacheObserver?: (observation: {
     provider: string;
@@ -178,6 +182,28 @@ describe('POST /models/:id/generate', () => {
       usage: { promptTokens: 100, cachedPromptTokens: 98, cacheCreationPromptTokens: 0 },
       observedAt: new Date('2026-10-09T12:00:00.000Z'),
     });
+  });
+  it('routes explicit Venice enrichment without allowing a client model override', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    mockState.results = [[], mockState.result, [], [], [], []];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true, provider: 'venice', model: 'client-selected-model' }),
+    });
+    expect(response.status).toBe(201);
+    expect(capturedOptions?.provider).toBe('venice');
+    expect(capturedOptions?.model).toBeUndefined();
+  });
+  it.each([
+    { provider: 'venice' },
+    { provider: 'openai', enrichWithLlm: true },
+  ])('rejects provider selections outside the explicit enrichment contract: %j', async input => {
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, ...input }),
+    });
+    expect(response.status).toBe(400);
+    expect(capturedOptions).toBeNull();
   });
   it('persists the exact photoshoot controls alongside the generated bundle', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
