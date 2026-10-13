@@ -1,4 +1,12 @@
-# TEST deployment checkpoint — required before further feature work
+# Historical TEST deployment checkpoint (captured 2026-09-17)
+
+This file preserves the deployment and acceptance evidence collected under the
+2026-09-17 owner direction below. It is not the current release status or an
+instruction to suspend later source work. Use
+[`release-readiness.md`](release-readiness.md) for the current plan, register
+state, exact-main receipts and external blockers. The historical server facts
+below must not be treated as current readbacks or permission to access owner
+infrastructure.
 
 Owner direction, 2026-09-17: deploy and test completed work before moving to other
 fixes. This checkpoint supersedes the previous source-only milestone cadence.
@@ -137,6 +145,7 @@ Record URL, role, action, expected/actual result and console/network errors.
 - Attachment previews are still under construction: M332 supplies the provider
   resolver only. Deployment does not make that incomplete GUI feature complete.
 
-No new feature batch until this checkpoint is completed or the owner explicitly
-changes the sequence. Deployment access/install and authenticated acceptance are
-currently open, not silently waived.
+At the time this checkpoint was recorded, deployment access/install and
+authenticated acceptance were open. Current status is maintained in
+[`release-readiness.md`](release-readiness.md); this historical note does not
+authorize deployment or owner-infrastructure access.
