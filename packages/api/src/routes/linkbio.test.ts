@@ -670,7 +670,10 @@ describe('public Native Link-in-Bio page', () => {
     mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], []];
     const res = await publicApp().request(`/${MODEL_ID}`);
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(res.headers.get('cloudflare-cdn-cache-control')).toBe('max-age=60');
     expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(res.headers.get('content-security-policy')).not.toContain('nonce-');
     const html = await res.text();
     expect(html).toContain('Luna Vex');
     expect(html).toContain('Fanvue');
@@ -690,6 +693,7 @@ describe('public Native Link-in-Bio page', () => {
       headers: { referer: 'https://social.example/post', 'user-agent': 'test-browser' },
     });
     expect(res.status).toBe(302);
+    expect(res.headers.get('cache-control')).toBe('no-store');
     expect(res.headers.get('location')).toContain(`${provider.config.links[0].url}?`);
     expect(res.headers.get('location')).toContain('utm_source=axiom');
     expect(mockState.updates).toHaveLength(1);

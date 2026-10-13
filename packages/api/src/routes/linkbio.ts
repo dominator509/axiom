@@ -1272,13 +1272,16 @@ publicRouter.get('/:modelId', async (c) => {
     loadPublicNativePage(tx, orgId, modelId),
   );
   if (!page) return c.text('Not Found', 404);
-  c.header('Cache-Control', 'no-store');
-  const nonce = randomBytes(18).toString('base64');
+  // Native link pages contain only public model/link content and do not set
+  // cookies or render per-request script nonces. A short shared-cache TTL
+  // makes the documented edge-cached page possible while bounding staleness.
+  c.header('Cache-Control', 'public, max-age=60');
+  c.header('Cloudflare-CDN-Cache-Control', 'max-age=60');
   c.header(
     'Content-Security-Policy',
-    `default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' https://www.googletagmanager.com; connect-src https://www.google-analytics.com https://analytics.google.com; base-uri 'none'; object-src 'none'`,
+    "default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; base-uri 'none'; object-src 'none'",
   );
-  return c.html(renderNativePage(page, nonce));
+  return c.html(renderNativePage(page, ''));
 });
 
 publicRouter.get('/fanlynks/:modelId', async (c) => {
@@ -1331,6 +1334,7 @@ publicRouter.get('/:modelId/s/:slug', async (c) => {
   });
 
   if (!destination) return c.text('Not Found', 404);
+  c.header('Cache-Control', 'no-store');
   return c.redirect(destination, 302);
 });
 
@@ -1357,6 +1361,7 @@ publicRouter.get('/:kind/:modelId/s/:slug', async (c) => {
     );
   });
   if (!destination) return c.text('Not Found', 404);
+  c.header('Cache-Control', 'no-store');
   return c.redirect(destination, 302);
 });
 
