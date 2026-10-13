@@ -531,6 +531,20 @@ export default function RoleplayManager({
         </section>
         <section className="card stack">
           <h3>{t('roleplay.handoffTitle')}</h3>
+          {!context && (
+            <p id="roleplay-handoff-context-hint" className="subtle" role="note">
+              {actor ? (
+                t('roleplay.handoffNeedsContext')
+              ) : (
+                <>
+                  {t('roleplay.handoffNeedsActor')}{' '}
+                  <Link href={canEdit ? `/models/${encodeURIComponent(modelId)}/team` : '/shifts'}>
+                    {t(canEdit ? 'team.pageTitle' : 'shifts.title')}
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           <label>
             {t('roleplay.lastSafeSummary')}
             <textarea
@@ -538,6 +552,7 @@ export default function RoleplayManager({
               onChange={(event) => setSummary(event.target.value)}
               maxLength={2000}
               rows={5}
+              aria-describedby={!context ? 'roleplay-handoff-context-hint' : undefined}
               disabled={busy || !context}
             />
           </label>
@@ -547,6 +562,7 @@ export default function RoleplayManager({
               value={nextAction}
               onChange={(event) => setNextAction(event.target.value)}
               maxLength={500}
+              aria-describedby={!context ? 'roleplay-handoff-context-hint' : undefined}
               disabled={busy || !context}
             />
           </label>

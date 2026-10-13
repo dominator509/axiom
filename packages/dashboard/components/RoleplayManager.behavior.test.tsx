@@ -38,6 +38,10 @@ vi.mock('./LocaleProvider', () => ({
       'roleplay.changeUnconfirmed': 'Change unconfirmed',
       'roleplay.reloadContext': 'Reload bounded context',
       'roleplay.noActiveActor': 'No active actor',
+      'roleplay.handoffNeedsActor': 'These fields unlock after an assigned shift starts.',
+      'roleplay.handoffNeedsContext': 'Reload bounded context to edit handoff fields.',
+      'team.pageTitle': 'Team & shifts',
+      'shifts.title': 'My shifts',
       'action.retry': 'Retry',
     }[key] ?? key),
   }),
@@ -53,6 +57,9 @@ type Node = ReactElement<{
   onClick?: () => void;
   disabled?: boolean;
   role?: string;
+  id?: string;
+  href?: string;
+  'aria-describedby'?: string;
 }>;
 
 function descendants(node: unknown): Node[] {
@@ -156,6 +163,21 @@ it('allows a new persona revision to be saved without an active actor context', 
     content: 'A playful, mischievous charmer.',
   });
   expect(render([], true).some(node => node.type === 'p' && textContent(node.props.children) === 'Persona revision saved')).toBe(true);
+});
+
+it('explains how to unlock handoff fields when no actor or loaded context is available', () => {
+  const withoutActor = render([], true);
+  const actorHint = withoutActor.find(node => node.props?.id === 'roleplay-handoff-context-hint');
+  expect(textContent(actorHint?.props.children)).toContain('assigned shift starts');
+  expect(textContent(actorHint?.props.children)).toContain('Team & shifts');
+  expect(withoutActor.some(node => node.props?.href === '/models/model/team')).toBe(true);
+
+  harness.values = [];
+  const withActor = render();
+  const contextHint = withActor.find(node => node.props?.id === 'roleplay-handoff-context-hint');
+  expect(textContent(contextHint?.props.children)).toBe('Reload bounded context to edit handoff fields.');
+  expect(withActor.filter(node => node.type === 'textarea' || node.type === 'input')
+    .some(node => node.props?.['aria-describedby'] === 'roleplay-handoff-context-hint')).toBe(true);
 });
 
 it('loads the current persona revision without an actor and saves against that revision', async () => {
