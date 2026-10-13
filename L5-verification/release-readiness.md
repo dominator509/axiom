@@ -1,6 +1,6 @@
 # Release readiness: evidence register and execution order
 
-Latest verified application baseline before this documentation refresh (2026-10-12): `29de9f31de799ecf68f022af20252ce20d7fda4e`, after PR #182. Exact-main [CI run 38189597974](https://github.com/dominator509/axiom/actions/runs/38189597974) completed with 12/12 jobs successful, 0 failed, 0 cancelled, and 0 skipped. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 28 accepted, 23 unverified, and 3 blocked (26 open); the register is valid and is not release approval. The run includes fresh RLS and browser receipts recorded below. This documentation update changes no application code or acceptance status; accepted rows still need replay against the eventual final release SHA.
+Application-code baseline for this evidence refresh (2026-10-13) is `240557e712892e99b7a87279c76ddc3ddaf49b3c`, merged from PR #200. At the time this note was assembled, the post-merge exact-main [CI run 38345997237](https://github.com/dominator509/axiom/actions/runs/38345997237) was in progress; verify its final outcome before relying on a receipt. On this source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 29 accepted and 25 open; the register is valid and is not release approval. Accepted rows still need replay against the eventual final release SHA.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -19,7 +19,7 @@ PR #139 records the owner's permanent removal of a fixed 30-day availability
 observation period. The ≥99.5% target remains; acceptance reports the actual
 sample window, denominator, and provider availability separately.
 
-## Current exact-main checkpoint (2026-10-12; SHA 29de9f3)
+## Previous exact-main checkpoint (2026-10-12; SHA 29de9f3)
 
 Exact-main [CI run 38189597974](https://github.com/dominator509/axiom/actions/runs/38189597974)
 completed 12/12 jobs successfully (0 failed, 0 cancelled, 0 skipped). The
@@ -192,28 +192,55 @@ This is partial evidence, not closure of `NONFUNCTIONAL-6`: the drill did not us
 
 ## Current external blockers
 
-- **Beacon CRM records API (A7 and FUNCTIONAL-12):** the public
+- **Publishing platforms and Relay (A2/A3/A6; FUNCTIONAL-2/4/5/11):** acceptance
+  needs dedicated non-production provider accounts, permitted destinations,
+  validated permissions and remote readback for each approved capability.
+  Telegram, iMessage, Signal and Discord delivery must use test channels and
+  supported hardware. Patreon remains a read-only community contract. Synthetic
+  endpoints do not count as provider acceptance; use existing credits and free
+  quotas only, and leave a provider open if access or quota is unavailable.
+- **Beacon CRM records API (A7 and FUNCTIONAL-12):** the current
   [Beacon API guide](https://guide.beaconcrm.org/en/articles/5720215-beacon-s-api)
-  confirms that API access requires a Standard, Premium, or Ultimate plan; an
-  active-account admin creates and revokes API keys; and account-specific
-  developer docs are generated from that account's database and require login.
-  It documents `GET /v1/account/{account_id}/entity_types` for schema discovery,
-  limits normal calls to 300/minute and bulk calls to 60/minute, and warns that
-  API writes can trigger Beacon workflows. The remaining blocker is the
-  authorized account's exact authentication/record contract and approved
-  dedicated-test-account field map. Keep record writes disabled until those
-  inputs and workflow effects are reviewed; never infer the auth header or
-  mappings from the public overview.
+  says API access requires a Standard, Premium, or Ultimate plan; only active
+  account admins create or revoke keys; and detailed developer docs are
+  generated from the account database and require login. It documents
+  `GET /v1/account/{account_id}/entity_types`, 300 requests/minute (60 for bulk),
+  and confirms API actions can trigger workflows. The blocker is the eligible
+  test account's login-protected auth/record contract and approved field map.
+  Keep record writes disabled until workflow effects are reviewed; never infer
+  an auth header or mappings from the public overview.
 - **Beacons.ai creator link management (FUNCTIONAL-3):** the current source
-  keeps this adapter unavailable. Beacons' creator help documents adding links
-  through its page editor, while its separate Brands API page has no endpoint
-  reference yet ([Links Block help](https://help.beacons.ai/en/articles/4696577),
-  [Brands API help](https://help.beacons.ai/en/articles/11826369)). From those
-  public docs, a creator-account link-management API contract is not established;
-  this is an evidence-based inference, not proof that no private API exists.
-  Unblock with official creator API documentation and a dedicated test account.
-  Linktree remains excluded by the owner's decision; Beacon CRM remains a
-  separate records connector.
+  keeps this adapter unavailable. Creator help describes adding links through
+  the page editor ([Links Block help](https://help.beacons.ai/en/articles/4696577)).
+  The separate [Brands API page](https://help.beacons.ai/en/articles/11826369)
+  describes a bearer key but its endpoints section still says “Section to come”
+  (checked 2026-10-13). These public docs do not establish creator-account link
+  CRUD, analytics, primary selection or revocation; that is an evidence-based
+  limitation, not proof that no private API exists. Unblock with official
+  creator API documentation and a dedicated test account. Linktree remains
+  excluded by the owner's decision; Beacon CRM is a separate records connector.
+- **Owned deployment, Cloudflare R2 and key recovery (FUNCTIONAL-1,
+  NONFUNCTIONAL-6, SECURITY-8):** isolated Docker deployment/fault tests are
+  authorized and should reuse the existing image, egress, kill-switch and
+  observability receipts. The remaining integrated run needs an isolated R2
+  bucket with the required retention behavior and a secret store/KMS path for
+  read-only KEK delivery and recovery. Configure credentials directly in the
+  isolated test environment; never put values in a PR, agent prompt, hosted CI,
+  or logs. Do not touch the owner's live host or shared database.
+- **Provider-backed performance, cost and availability (LBI-09,
+  NONFUNCTIONAL-1/5, MATRIX-NFR-2/5):** model-scale resource and latency
+  measurements can use synthetic workloads, but the >97% cache gate needs
+  provider-reported token counters, and provider availability must be reported
+  separately from the synthetic core-path sample. Cost must be measured against
+  the approved budget with existing free quotas only. No fixed 30-day window is
+  required; record the actual sample window and denominator.
+- **Native journeys and owner decisions (LBI-12, FEATURE-PRESERVATION,
+  FUNCTIONAL-8/9/10, SECURITY-7, HUMAN-SIGNOFF):** remaining acceptance requires
+  synthetic consent journeys on supported native iOS/Android devices, the F-90
+  affiliate license/security and commission decisions, owner consent-record
+  attestation, and release-specific owner sign-off. Use test transactions only;
+  no live payouts. Browser CI does not stand in for native-device or owner
+  evidence.
 
 ## Lane 4 API test baseline (2026-10-10)
 
@@ -542,24 +569,35 @@ the owner's standing authorization. Recheck main CI after each merge.
 
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
-   crosswalk is validated. Current status is 28 accepted and 26 open
-   (23 unverified, 3 blocked). Repeat all accepted rows at the final
+   crosswalk is validated. At main SHA `240557e712892e99b7a87279c76ddc3ddaf49b3c`,
+   the register is structurally valid with 29 accepted and 25 open
+   (22 unverified, 3 blocked). Repeat all accepted rows at the final
    release SHA and complete exact-SHA hosted readback.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
-   Latest exact-main isolated acceptance passed at `8f106167168af13c70e2c1bc9b1ae9d2c37f2cd7`
-   (20 assertions passed, 0 failed, 0 skipped; cleanup verified) and is recorded for
-   LBI-01, NONFUNCTIONAL-2, and SECURITY-2. Deployed-state inspection remains
-   outside this lane.
+   The latest completed exact-main isolated acceptance before this refresh was
+   SHA `8e83f183da91a49f07b29e67781038c57158cf6b`: the `ci (test)` job in
+   [run 38341605406](https://github.com/dominator509/axiom/actions/runs/38341605406/job/115113611817)
+   ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` with 20
+   assertions passed, 0 failed, 0 skipped, and cleanup verified. Its raw job-log
+   SHA-256 is `dc2550e83f73296e2eea1c67bed80fbc4cee7fe5960364a7e09c0bb870bb1b89`.
+   The overall workflow had 11 jobs pass and 1 fail (`l5-runtime`), so it was
+   not a green full run. The RLS receipt is recorded for LBI-01, NONFUNCTIONAL-2,
+   and SECURITY-2. The replay on current main SHA
+   `240557e712892e99b7a87279c76ddc3ddaf49b3c` is part of
+   [post-merge run 38345997237](https://github.com/dominator509/axiom/actions/runs/38345997237)
+   and remains pending. Deployed/shared database state remains outside this lane.
 3. L5 matrix: close the remaining real isolated runtime/browser journeys and
    negative controls, including pinned-model inference, uncertain dispatch,
    durable audit outcomes, secrets and consent enforcement.
 4. Providers/Relay: use dedicated accounts or sandboxes and supported hardware
    for connection, permission validation, permitted dispatch, remote readback,
    reconciliation, revocation and cleanup. Missing external access remains open.
-5. Deployment/egress: use immutable images and an owned isolated deployment to
-   prove readiness, restart/rollback, injected network faults, the <=5-second
-   kill switch and observable incidents.
+5. Deployment/egress: use one source-pinned owned Docker deployment for the
+   integrated R2 write/read/delete and restart/rollback boundaries. Reuse the
+   existing image, egress, kill-switch and observability receipts for component
+   coverage; add only missing integrated checks. Owner-host deployment remains
+   outside scope.
 6. Performance/cost: measure the 1-20-model workload, specified latency budgets,
    >97% provider-reported token-cache hits, resource use, monthly cost and
    measured availability against the 99.5% target. Report the actual sample

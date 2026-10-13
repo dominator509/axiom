@@ -325,7 +325,7 @@
       "requirementSha256": "31260dfbb2dccb338bc52f22d8ad8c70fb8734d33525ceb9774a84ccb71d5e21",
       "lane": 5,
       "status": "passed",
-      "nextStep": "Complete the remaining lane-5 host-policy handoff, tunnel/DNS/proxy fault injection, five-second suspension, restart and correlated observability checks; validate external provider delivery separately.",
+      "nextStep": "Replay host-policy handoff, tunnel/DNS/proxy fault behavior, five-second suspension, restart and correlated observability on the final release SHA. Existing component receipts are recorded at their tested SHAs; reuse them to avoid duplicate runs, and investigate only gaps the final replay exposes. Validate external provider delivery separately.",
       "evidence": [
         {
           "criterion": "LBI-02",
@@ -1743,7 +1743,7 @@
       "requirementSha256": "4f0ed5c9e832343031d52a03965cbb75345cf29c6caa3818913f5c2b2ba980d1",
       "lane": 5,
       "status": "unverified",
-      "nextStep": "Run the owned isolated deployment with network fault injection, kill-switch timing, restarts and correlated observability.",
+      "nextStep": "Run one source-pinned owned Docker deployment through its configured R2 write/read/delete path and restart/rollback boundaries. Reuse the existing container, egress, kill-switch and observability receipts for component coverage; add only missing integrated checks. Keep the criterion open until the target-shaped deployment and R2 behavior are evidenced; do not use owner infrastructure.",
       "evidence": [],
       "verification": {
         "test": "Start the clean single-box deployment and verify required services, persistence, readiness, and documented self-host boundaries.",
