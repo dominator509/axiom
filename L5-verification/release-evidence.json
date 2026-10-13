@@ -1022,9 +1022,37 @@
       "requirement": "| LBI-12 | Consent record precondition | missing, expired, or unauthorized consent records block publishing for that model | security + integration |",
       "requirementSha256": "5886a1c013da198fb4d8820fd097041c43d24aaa771550b0e26427ca74d93780",
       "lane": 8,
-      "status": "unverified",
-      "nextStep": "Verify consent existence, model ownership, expiry, access control, and publish blocking using synthetic records in isolated desktop and native-mobile journeys.",
-      "evidence": [],
+      "status": "passed",
+      "nextStep": "Repeat this acceptance at the final release SHA; this receipt demonstrates isolated synthetic consent enforcement, not production data or native-device acceptance.",
+      "evidence": [
+        {
+          "criterion": "LBI-12",
+          "sha": "8c165bed97d8a18d2a5b6441aae7c29e626f42a8",
+          "command": "node scripts/rehearse-browser.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two isolated Chromium journeys with synthetic tenants and fixture services",
+          "scope": "Two isolated Chromium journeys exercise the authenticated mobile consent vault and publish boundary: missing, expired, revoked, and other-model consent; missing and expired publish attempts return 409 without creating post targets; unauthorized cross-model document read returns 404; fixture records are removed and cleanup is verified.",
+          "limitations": "Synthetic test tenants and records only; no production/shared database, real consent records, or external provider dispatch.",
+          "observedAt": "2026-10-13T06:36:42Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38354422974",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38354422974/job/115153868266",
+          "logSha256": "7734f956b64ab2e030b1f32499d2d4b55ae9e0ca9b806ac73597ef6c1945cc69",
+          "counts": {
+            "passed": 81,
+            "failed": 0,
+            "skipped": 0,
+            "total": 81,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:d5b8495459b77ea3bcf650987fceb3e5776b87af8184dd52b0bd2cc2bf54c6d9",
+            "sha256:43528452229e11728179b6be5c61ff3cd4e1a4aadeeb0954f92884a57389eda8",
+            "sha256:da24be5e892ff08bdc87696859a72c380e6ee5a9475e7a765774e7f652c5de67",
+            "sha256:9856abcd651053c52cfed66bac984d8656f5d43d6978ab58fad9ebd8984a6f8d",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "missing, expired, or unauthorized consent records block publishing for that model",
         "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
@@ -1339,7 +1367,7 @@
       "requirementSha256": "655a200f15acc809c9864420d87fcf36f6b2e4386f43a3dd561622cd4cb0b27d",
       "lane": 8,
       "status": "unverified",
-      "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
+      "nextStep": "Repeat at the final release SHA; owner consent-record attestation and any real vault population remain separate HUMAN-SIGNOFF evidence.",
       "evidence": [],
       "verification": {
         "test": "Resolve every F-01 through F-92 row to an observable UI/API/worker route and execute its acceptance journey.",
@@ -3094,9 +3122,37 @@
       "requirement": "- [ ] Adult-content Consent & Records Vault populated + access-controlled; missing/expired records block publishing (LBI-12, `L0.1`).",
       "requirementSha256": "79fe244c16000716901c5559180049a5b9413e340acd3a4ea63e1cd49510d759",
       "lane": 8,
-      "status": "unverified",
+      "status": "passed",
       "nextStep": "Complete product/mobile/consent acceptance and obtain explicit owner sign-off tied to the final release SHA.",
-      "evidence": [],
+      "evidence": [
+        {
+          "criterion": "SECURITY-7",
+          "sha": "8c165bed97d8a18d2a5b6441aae7c29e626f42a8",
+          "command": "node scripts/rehearse-browser.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; two isolated Chromium journeys with synthetic tenants and fixture services",
+          "scope": "Two isolated Chromium journeys create and read back synthetic consent records, verify model-scoped document authorization, upload and download an exact 25 MiB DNG through encrypted storage, confirm ciphertext is not returned by list APIs, verify checksum and no-store response, and prove missing/expired consent blocks scheduling; fixture cleanup is verified.",
+          "limitations": "Synthetic records only; no owner consent-record attestation or production vault population is implied.",
+          "observedAt": "2026-10-13T06:36:42Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/38354422974",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/38354422974/job/115153868266",
+          "logSha256": "7734f956b64ab2e030b1f32499d2d4b55ae9e0ca9b806ac73597ef6c1945cc69",
+          "counts": {
+            "passed": 81,
+            "failed": 0,
+            "skipped": 0,
+            "total": 81,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:d5b8495459b77ea3bcf650987fceb3e5776b87af8184dd52b0bd2cc2bf54c6d9",
+            "sha256:43528452229e11728179b6be5c61ff3cd4e1a4aadeeb0954f92884a57389eda8",
+            "sha256:da24be5e892ff08bdc87696859a72c380e6ee5a9475e7a765774e7f652c5de67",
+            "sha256:9856abcd651053c52cfed66bac984d8656f5d43d6978ab58fad9ebd8984a6f8d",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Use synthetic missing, expired, unauthorized, and valid consent records and verify model-scoped publishing enforcement.",
         "environment": "Isolated desktop/mobile browser and native-device acceptance with synthetic consent records; no customer records or live payouts. Owner attestation is collected separately.",
