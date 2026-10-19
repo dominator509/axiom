@@ -19,3 +19,16 @@ describe('talent roster creation receipts', () => {
     expect(mergeTalentRosterProfiles([created, existing], [created])).toEqual([created, existing]);
   });
 });
+
+describe('talent roster cursor transition (hub #35 review note)', () => {
+  it('scopes a creation receipt to the first page instead of leaking it onto a later cursor', () => {
+    const created = profile('created', 'New Talent');
+    const pageTwo = [profile('page2-a'), profile('page2-b')];
+    // TalentRoster passes [] as the created list whenever a cursor is present.
+    const firstPage = mergeTalentRosterProfiles([profile('existing')], [created]);
+    const laterPage = mergeTalentRosterProfiles(pageTwo, []);
+    expect(firstPage.map(row => row.id)).toEqual(['created', 'existing']);
+    expect(laterPage.map(row => row.id)).toEqual(['page2-a', 'page2-b']);
+    expect(laterPage.some(row => row.id === 'created')).toBe(false);
+  });
+});
