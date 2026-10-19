@@ -9,6 +9,11 @@ export default async function AgentPermissionsPage({ params }: { params: Promise
   const { t } = await getServerLocale();
   const session = await getSession();
   const canEdit = session?.user?.role === 'owner';
+  if (!canEdit) return <div className="card stack" role="status">
+    <h2>{t('agent.accessTitle')}</h2>
+    <p>{t('agent.ownerRequired')}</p>
+    <p className="subtle">{t('agent.grantsDescription')}</p>
+  </div>;
   try {
     const permissions = (await api.models.agentPermissions(id)).data;
     return <div className="page-stack"><h2>{t('agent.accessTitle')}</h2><div className="card"><AgentPermissionManager modelId={id} permissions={permissions} canEdit={canEdit} /></div></div>;
