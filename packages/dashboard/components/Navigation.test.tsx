@@ -56,7 +56,12 @@ describe('workspace navigation coverage', () => {
   it('links every signed-in page through primary or talent navigation', () => {
     location.pathname = '/';
     const html = renderToStaticMarkup(<><NavLinks role="owner" /><ModelTabs modelId="test-profile" role="owner" /></>);
-    const routes = pages(join(process.cwd(), 'app')).filter(route => route !== '/login');
+    // Public legal pages are intentionally unlinked from workspace navigation:
+    // they are reached from the marketing/acquisition surface and by platform
+    // reviewers, not from inside the app shell.
+    const routes = pages(join(process.cwd(), 'app')).filter(
+      route => route !== '/login' && route !== '/privacy' && route !== '/terms',
+    );
     expect(routes.length).toBeGreaterThan(10);
     for (const route of routes) {
       expect(html, `Unlinked page: ${route}`).toContain(`href="${route.replace('[id]', 'test-profile')}"`);

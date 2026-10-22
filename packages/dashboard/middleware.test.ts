@@ -38,6 +38,20 @@ describe('dashboard auth middleware', () => {
     expect(await middleware(requestFor(path))).toEqual({ type: 'redirect', url: 'http://dashboard.test/login' });
   });
 
+  it.each(['/privacy', '/terms'])('forwards public legal pages without session lookup: %s', async (path) => {
+    const fetch = vi.fn().mockResolvedValue(new Response('null'));
+    vi.stubGlobal('fetch', fetch);
+    expect(await middleware(requestFor(path))).toEqual({ type: 'next' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['/privacy/x', '/termsx'])('keeps legal page lookalikes authenticated: %s', async (path) => {
+    const fetch = vi.fn().mockResolvedValue(new Response('null'));
+    vi.stubGlobal('fetch', fetch);
+    expect(await middleware(requestFor(path))).toEqual({ type: 'redirect', url: 'http://dashboard.test/login' });
+    expect(fetch).toHaveBeenCalled();
+  });
+
   it('fails closed and redirects when session bootstrap hangs', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {

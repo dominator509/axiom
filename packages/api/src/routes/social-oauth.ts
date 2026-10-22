@@ -204,7 +204,9 @@ const PROVIDERS: Record<SocialOAuthPlatform, ProviderProfile> = {
   reddit: {
     clientIdEnv: 'REDDIT_CLIENT_ID',
     clientSecretEnv: 'REDDIT_CLIENT_SECRET',
-    scopes: ['identity', 'submit', 'read', 'modposts'],
+    // Post-only: identity to confirm the connected account and submit to
+    // publish our own scheduled posts. No read, no modposts.
+    scopes: ['identity', 'submit'],
     separator: ' ',
     authorizeUrl: 'https://www.reddit.com/api/v1/authorize',
     tokenUrl: 'https://www.reddit.com/api/v1/access_token',
