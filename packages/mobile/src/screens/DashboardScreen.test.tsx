@@ -167,3 +167,19 @@ it('keeps the sign-out control available', () => {
   const html = render({ uiLocale: snapshot('en') });
   expect(html).toContain(catalog.t('en', 'mobile.signOut'));
 });
+
+it('keeps operator locale and digest panels while omitting owner settings', () => {
+  const html = render({ user: { ...user, role: 'operator' }, settings: null, uiLocale: snapshot('ja') });
+  expect(html).toContain(catalog.t('ja', 'mobile.language'));
+  expect(html).toContain(catalog.t('ja', 'mobile.weeklyDigests'));
+  expect(html).not.toContain(catalog.t('ja', 'mobile.orgSettings'));
+  expect(html).not.toContain(catalog.t('ja', 'mobile.viralSharing'));
+});
+
+it('does not describe failed panels as empty or healthy', () => {
+  const html = render({ digests: null, crashReports: null, error: 'panel unavailable' });
+  expect(html).toContain('panel unavailable');
+  expect(html).not.toContain(catalog.t('en', 'mobile.noCrashes'));
+  expect(html).not.toContain(catalog.t('en', 'mobile.digestEmpty'));
+  expect(html).toContain(catalog.t('en', 'mobile.language'));
+});
