@@ -7,6 +7,10 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import {
+  normalizeProviderCacheUsage,
+  type ProviderCacheUsage,
+} from '../provider-cache-telemetry.js';
+import {
   normalizeVeniceBilling,
   observeProviderBilling,
   type ProviderBillingObserver,
@@ -19,6 +23,21 @@ import {
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+/** Only explicit, consistent provider counters qualify as cache telemetry. */
+export function normalizeVeniceCacheUsage(usage: unknown): ProviderCacheUsage | undefined {
+  if (!usage || typeof usage !== 'object') return undefined;
+  const raw = usage as Record<string, unknown>;
+  const details =
+    raw.prompt_tokens_details && typeof raw.prompt_tokens_details === 'object'
+      ? (raw.prompt_tokens_details as Record<string, unknown>)
+      : undefined;
+  return normalizeProviderCacheUsage({
+    promptTokens: raw.prompt_tokens,
+    cachedPromptTokens: details?.cached_tokens,
+    cacheCreationPromptTokens: details?.created_cache_tokens,
+  });
 }
 
 function toSnakeCase(options: ProviderOptions): Record<string, unknown> {
@@ -90,6 +109,7 @@ export class VeniceProvider implements BaseProvider {
       totalTokens: 0,
     };
     usage.totalTokens = usage.promptTokens + usage.completionTokens;
+    const providerCacheUsage = normalizeVeniceCacheUsage(data.usage);
 
     return {
       content,
@@ -97,6 +117,7 @@ export class VeniceProvider implements BaseProvider {
       usage,
       cost: normalizeVeniceBilling(data.cost).usd,
       providerBilling: normalizeVeniceBilling(data.cost),
+      ...(providerCacheUsage ? { providerCacheUsage } : {}),
     };
   }
 
@@ -118,9 +139,11 @@ export class VeniceProvider implements BaseProvider {
     );
     let content = '';
     let usage: ProviderChatResult['usage'] | undefined;
+    let providerCacheUsage: ProviderCacheUsage | undefined;
     let billing = normalizeVeniceBilling(undefined);
     for await (const event of veniceStreamEvents(res)) {
       if (event.usage) usage = event.usage;
+      if (event.hasUsage) providerCacheUsage = event.providerCacheUsage;
       if (event.billing) billing = event.billing;
       if (event.delta) {
         content += event.delta;
@@ -135,6 +158,7 @@ export class VeniceProvider implements BaseProvider {
       usage: usage ?? { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct },
       cost: billing.usd,
       providerBilling: billing,
+      ...(providerCacheUsage ? { providerCacheUsage } : {}),
     };
   }
 }
@@ -248,6 +272,8 @@ async function* veniceStreamEvents(res: Response) {
     yield {
       delta: typeof delta === 'string' ? delta : undefined,
       usage,
+      hasUsage: Object.hasOwn(parsed, 'usage'),
+      providerCacheUsage: normalizeVeniceCacheUsage(rawUsage),
       billing: Object.hasOwn(parsed, 'cost') ? normalizeVeniceBilling(parsed.cost) : undefined,
     };
     // finish_reason is not end-of-stream: usage/cost may follow it.
@@ -260,12 +286,20 @@ export async function* streamVenice(
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
   observer?: ProviderBillingObserver,
+  reportCacheUsage?: (usage: ProviderCacheUsage | undefined) => void | Promise<void>,
 ): AsyncIterable<string> {
   const res = await requestVeniceStream(apiKey, body, signal, fetchImpl);
   let billing = normalizeVeniceBilling(undefined);
+  let providerCacheUsage: ProviderCacheUsage | undefined;
   for await (const event of veniceStreamEvents(res)) {
     if (event.billing) billing = event.billing;
+    if (event.hasUsage) providerCacheUsage = event.providerCacheUsage;
     if (event.delta) yield event.delta;
   }
   await observeProviderBilling(observer, 'venice', body.model, billing);
+  try {
+    await reportCacheUsage?.(providerCacheUsage);
+  } catch {
+    // Telemetry failure must not retry inference or expose observer error text.
+  }
 }
