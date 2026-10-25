@@ -1,6 +1,14 @@
 # Release readiness: evidence register and execution order
 
-Application-code baseline for this evidence refresh (2026-10-13) is `240557e712892e99b7a87279c76ddc3ddaf49b3c`, merged from PR #200. At the time this note was assembled, the post-merge exact-main [CI run 38345997237](https://github.com/dominator509/axiom/actions/runs/38345997237) was in progress; verify its final outcome before relying on a receipt. On this source, `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 29 accepted and 25 open; the register is valid and is not release approval. Accepted rows still need replay against the eventual final release SHA.
+Application-code baseline for this evidence refresh (2026-10-24) is `f140fe0b2ec9b8c23fd15f6b0035f2e2e0954ebf`, merged from PR #203. A fresh fetch confirmed main and origin/main at this SHA with zero divergence and a clean checkout before the documentation change. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 31 accepted and 23 open (20 unverified, 3 blocked); the register is valid and is **not release approval**. Hosted metadata readback confirms that exact-main [CI run 38366040912](https://github.com/dominator509/axiom/actions/runs/38366040912) completed with 12 successful jobs, 0 failed, 0 cancelled, and 0 skipped jobs. This is job-status readback, not a new assertion/log audit or an exact-SHA acceptance receipt. Accepted rows retain their actual tested SHAs and still need replay against the eventual final release SHA.
+
+PR #203 recorded the existing synthetic browser receipts for LBI-12 and
+SECURITY-7, moving the register from 29 accepted/25 open to 31 accepted/23 open.
+Those receipts target `8c165bed97d8a18d2a5b6441aae7c29e626f42a8`, not this
+refresh's baseline. Their recorded scope covers isolated consent enforcement,
+model-scoped access and encrypted 25 MiB DNG upload/download; it does not prove
+native-device acceptance, production vault population, owner attestation, or
+release sign-off. No receipt or normative requirement is changed by this refresh.
 
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
@@ -223,8 +231,11 @@ This is partial evidence, not closure of `NONFUNCTIONAL-6`: the drill did not us
   NONFUNCTIONAL-6, SECURITY-8):** isolated Docker deployment/fault tests are
   authorized and should reuse the existing image, egress, kill-switch and
   observability receipts. The remaining integrated run needs an isolated R2
-  bucket with the required retention behavior and a secret store/KMS path for
-  read-only KEK delivery and recovery. Configure credentials directly in the
+  bucket with the required retention behavior and a supported secure KEK
+  delivery/recovery path. The current egress runtime uses the protected
+  `EGRESS_KEK_FILE` mount and `EGRESS_KEK_ID`; cloud KMS integration is not
+  implemented (see `infra/egress-runtime/README.md`). Do not request credentials
+  for an unimplemented KMS integration. Configure credentials directly in the
   isolated test environment; never put values in a PR, agent prompt, hosted CI,
   or logs. Do not touch the owner's live host or shared database.
 - **Provider-backed performance, cost and availability (LBI-09,
@@ -234,13 +245,15 @@ This is partial evidence, not closure of `NONFUNCTIONAL-6`: the drill did not us
   separately from the synthetic core-path sample. Cost must be measured against
   the approved budget with existing free quotas only. No fixed 30-day window is
   required; record the actual sample window and denominator.
-- **Native journeys and owner decisions (LBI-12, FEATURE-PRESERVATION,
-  FUNCTIONAL-8/9/10, SECURITY-7, HUMAN-SIGNOFF):** remaining acceptance requires
+- **Native journeys and owner decisions (FEATURE-PRESERVATION,
+  FUNCTIONAL-8/9/10, HUMAN-SIGNOFF):** remaining acceptance requires
   synthetic consent journeys on supported native iOS/Android devices, the F-90
   affiliate license/security and commission decisions, owner consent-record
   attestation, and release-specific owner sign-off. Use test transactions only;
   no live payouts. Browser CI does not stand in for native-device or owner
-  evidence.
+  evidence. LBI-12 and SECURITY-7 are accepted in the register for their recorded
+  synthetic browser scope; their final-SHA replay and owner evidence remain
+  separate obligations.
 
 ## Lane 4 API test baseline (2026-10-10)
 
@@ -569,13 +582,13 @@ the owner's standing authorization. Recheck main CI after each merge.
 
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
-   crosswalk is validated. At main SHA `240557e712892e99b7a87279c76ddc3ddaf49b3c`,
-   the register is structurally valid with 29 accepted and 25 open
-   (22 unverified, 3 blocked). Repeat all accepted rows at the final
+   crosswalk is validated. At baseline main SHA `f140fe0b2ec9b8c23fd15f6b0035f2e2e0954ebf`,
+   the register is structurally valid with 31 accepted and 23 open
+   (20 unverified, 3 blocked). Repeat all accepted rows at the final
    release SHA and complete exact-SHA hosted readback.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
-   The latest completed exact-main isolated acceptance before this refresh was
+   One historical exact-main isolated acceptance retained in the register is
    SHA `8e83f183da91a49f07b29e67781038c57158cf6b`: the `ci (test)` job in
    [run 38341605406](https://github.com/dominator509/axiom/actions/runs/38341605406/job/115113611817)
    ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` with 20
@@ -583,10 +596,10 @@ the owner's standing authorization. Recheck main CI after each merge.
    SHA-256 is `dc2550e83f73296e2eea1c67bed80fbc4cee7fe5960364a7e09c0bb870bb1b89`.
    The overall workflow had 11 jobs pass and 1 fail (`l5-runtime`), so it was
    not a green full run. The RLS receipt is recorded for LBI-01, NONFUNCTIONAL-2,
-   and SECURITY-2. The replay on current main SHA
-   `240557e712892e99b7a87279c76ddc3ddaf49b3c` is part of
-   [post-merge run 38345997237](https://github.com/dominator509/axiom/actions/runs/38345997237)
-   and remains pending. Deployed/shared database state remains outside this lane.
+   and SECURITY-2. The baseline main run linked above has a successful test job;
+   this narrative refresh does not promote its job status to a new RLS receipt.
+   Final-release-SHA replay and raw-log receipt verification remain required.
+   Deployed/shared database state remains outside this lane.
 3. L5 matrix: close the remaining real isolated runtime/browser journeys and
    negative controls, including pinned-model inference, uncertain dispatch,
    durable audit outcomes, secrets and consent enforcement.
@@ -606,9 +619,11 @@ the owner's standing authorization. Recheck main CI after each merge.
 7. Recovery: complete two repeatable fresh-cluster PITR drills with object/key
    restoration, RPO <=5 minutes, RTO <=60 minutes, egress disabled, and negative
    controls.
-8. Product/sign-off: verify F01-F92, six locales, desktop and native-mobile
-   journeys, synthetic consent-vault controls, owner records attestation and
-   release-specific sign-off.
+8. Product/sign-off: verify the canonical v1 range F-01..F-88 and the separate
+   owner extensions F-89 (localization), F-90 (platform affiliate/referral),
+   F-91 (Patreon), and F-92 (Beacon CRM), as specified by L5.0 and L5.2.
+   Complete six-locale, desktop and native-mobile journeys, synthetic
+   consent-vault controls, owner records attestation and release-specific sign-off.
 
 Lane 2's isolated effective-RLS acceptance passed at main SHA
 `d8bfb217b4549e8b53c513de71fd92c1ea499c95`: [CI run 37211855138](https://github.com/dominator509/axiom/actions/runs/37211855138),
