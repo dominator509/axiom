@@ -10,6 +10,12 @@ import { v4 as uuid } from 'uuid';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
 import { callVenice, streamVenice } from './providers/venice.js';
 import {
+  normalizeVeniceBilling,
+  observeProviderBilling,
+  type ProviderBilling,
+  type ProviderBillingObserver,
+} from './provider-billing.js';
+import {
   OfficialSubscriptionTransport,
   type SubscriptionProvider,
   type SubscriptionTransport,
@@ -79,6 +85,8 @@ export interface ChatOptions {
   cacheControls?: CacheControlSetting[];
   /** Persist provider-reported cache counters without retaining prompt content. */
   providerCacheObserver?: ProviderCacheObserver;
+  /** Observe Venice's reported currencies once per completed provider request. */
+  providerBillingObserver?: ProviderBillingObserver;
   /**
    * TOKENKILLER (L2.5 / LBI-09): assemble the request as S0–S3 segments,
    * align to 64-token blocks, and track local prefix-cache hits. When set, the
@@ -107,7 +115,8 @@ export interface ChatResult {
   content: string;
   model: string;
   provider: string;
-  cost: number;
+  /** USD component; null when Venice did not report it. DIEM is separate. */
+  cost: number | null;
   tokens: {
     prompt: number;
     completion: number;
@@ -117,6 +126,7 @@ export interface ChatResult {
   cached: boolean;
   /** Missing means the selected provider transport did not report cache usage. */
   providerCacheUsage?: ProviderCacheUsage;
+  providerBilling?: ProviderBilling;
 }
 
 export interface ProviderConfig {
@@ -645,6 +655,7 @@ export class LLMGateway {
         const start = performance.now();
         const model = options.model || provider.defaultModel;
 
+        let providerBilling: ProviderBilling | undefined;
         let content: string;
         let promptTokens: number;
         let completionTokens: number;
@@ -717,6 +728,7 @@ export class LLMGateway {
             temperature: options.temperature,
             max_tokens: options.maxTokens,
           }, options.signal, egressFetchImpl ?? fetch);
+          providerBilling = normalizeVeniceBilling(res.cost);
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
           completionTokens = res.usage.completion_tokens;
@@ -726,7 +738,9 @@ export class LLMGateway {
 
         const latency = performance.now() - start;
         const totalTokens = promptTokens + completionTokens;
-        const cost = calculateCost(provider, promptTokens, completionTokens);
+        const cost = providerBilling
+          ? providerBilling.usd
+          : calculateCost(provider, promptTokens, completionTokens);
 
         // Cache the result
         const resultCacheKey = responseCacheKey(messages, model, options);
@@ -735,6 +749,11 @@ export class LLMGateway {
           usage: { prompt: promptTokens, completion: completionTokens },
         });
 
+        if (providerBilling) {
+          await observeProviderBilling(
+            options.providerBillingObserver, provider.name, model, providerBilling,
+          );
+        }
         this.requestCount++;
         await this.recordProviderCacheUsage(
           provider.name,
@@ -752,6 +771,7 @@ export class LLMGateway {
           latency,
           cached: false,
           ...(providerCacheUsage ? { providerCacheUsage } : {}),
+          ...(providerBilling ? { providerBilling } : {}),
         };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
@@ -793,6 +813,7 @@ export class LLMGateway {
       egress: options.egress ?? false,
       cacheControls: options.cacheControls ?? [],
       providerCacheObserver: options.providerCacheObserver,
+      providerBillingObserver: options.providerBillingObserver,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -961,6 +982,7 @@ export class LLMGateway {
       egress: options.egress ?? false,
       cacheControls: options.cacheControls ?? [],
       providerCacheObserver: options.providerCacheObserver,
+      providerBillingObserver: options.providerBillingObserver,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -1069,7 +1091,7 @@ export class LLMGateway {
               messages: processedMessages,
               temperature: requiredOptions.temperature,
               max_tokens: requiredOptions.maxTokens,
-            }, options.signal, egressFetchImpl ?? fetch);
+            }, options.signal, egressFetchImpl ?? fetch, options.providerBillingObserver);
           } else {
             throw new Error(`Unsupported provider for streaming: ${provider.name}`);
           }

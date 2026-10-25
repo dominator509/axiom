@@ -128,3 +128,5 @@ export type {
   RoleplayPersonaMetadata,
   RoleplayPersonaSource,
 } from './roleplay-context.js';
+
+export type { ProviderBilling, ProviderBillingObserver } from './provider-billing.js';
