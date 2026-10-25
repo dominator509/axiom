@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { VeniceProvider, streamVenice } from './venice.js';
+import { VeniceProvider, streamVenice, normalizeVeniceCacheUsage } from './venice.js';
 import { LLMGateway } from '../gateway.js';
 
 const model = 'fixture-model';
@@ -29,6 +29,43 @@ async function collect<T>(stream: AsyncIterable<T>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Venice provider cache counters', () => {
+  it.each([false, true])('emits enabled routing hints in both provider paths (stream=%s)', async stream => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_url, init) => {
+      bodies.push(JSON.parse(init!.body as string));
+      return stream ? new Response(streamBody) : Response.json(completion);
+    });
+    vi.stubGlobal('fetch', fetchImpl);
+    const control = { provider: 'venice', enabled: true, prefixAlignment: false, promptCacheKey: 'scoped-key' };
+    const provider = new VeniceProvider('fixture-key', model);
+    if (stream) await collect(provider.chatStream(messages, { fetchImpl, cacheControl: control }));
+    else await provider.chat(messages, { fetchImpl, cacheControl: control });
+    const gateway = new LLMGateway([{ name: 'venice', apiKey: 'fixture-key', defaultModel: model }]);
+    const options = { provider: 'venice', model, cacheControls: [control] };
+    if (stream) await collect(await gateway.chatStream(messages, options));
+    else await gateway.chat(messages, options);
+    expect(bodies).toHaveLength(2);
+    expect(bodies.every(body => body.prompt_cache_key === 'scoped-key')).toBe(true);
+    const disabled = { ...control, enabled: false };
+    if (stream) await collect(await gateway.chatStream(messages, { ...options, cacheControls: [disabled] }));
+    else await gateway.chat(messages, { ...options, cacheControls: [disabled] });
+    expect(bodies).toHaveLength(3);
+    expect(bodies[2]).not.toHaveProperty('prompt_cache_key');
+  });
+
+  it.each([
+    [{ cache_creation_input_tokens: 100 }, { promptTokens: 200, cachedPromptTokens: 0, cacheCreationPromptTokens: 100 }],
+    [{ cached_tokens: 100, cache_creation_input_tokens: 50 }, { promptTokens: 200, cachedPromptTokens: 100, cacheCreationPromptTokens: 50 }],
+    [{ cached_tokens: 100, cache_creation_input_tokens: 101 }, undefined],
+    [{ cached_tokens: 100, cache_creation_input_tokens: null }, undefined],
+    [{ cached_tokens: 100, cache_creation_input_tokens: '50' }, undefined],
+    [{ cached_tokens: 100, cache_creation_input_tokens: -1 }, undefined],
+    [{ cached_tokens: 100, cache_creation_input_tokens: 50, created_cache_tokens: 51 }, undefined],
+    [{ cache_creation_input_tokens: 50, created_cache_tokens: 50 }, { promptTokens: 200, cachedPromptTokens: 0, cacheCreationPromptTokens: 50 }],
+  ])('normalizes documented cache writes without hiding invalid counters: %j', (details, expectedUsage) => {
+    expect(normalizeVeniceCacheUsage({ prompt_tokens: 200, prompt_tokens_details: details })).toEqual(expectedUsage);
+  });
+
   it('preserves reported counters in class chat results', async () => {
     const fetchImpl = vi.fn(async () => Response.json(completion));
     const result = await new VeniceProvider('fixture-key', model).chat(messages, { fetchImpl });

@@ -6,11 +6,29 @@ import {
   canonicalCacheControls,
   deepseekCacheFields,
   openaiCacheFields,
+  veniceCacheFields,
+  scopeVeniceCacheControl,
 } from './cache-controls.js';
 
 describe('provider cache-control contracts', () => {
+  it('scopes Venice affinity to the tenant, model and saved label', () => {
+    const setting = { provider: 'venice', enabled: true, prefixAlignment: false, promptCacheKey: 'private-label' };
+    const a = scopeVeniceCacheControl(setting, 'org-a', 'model-a');
+    expect(a.promptCacheKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(a.promptCacheKey).not.toContain('private-label');
+    expect(scopeVeniceCacheControl(setting, 'org-a', 'model-a')).toEqual(a);
+    expect(scopeVeniceCacheControl(setting, 'org-b', 'model-a')).not.toEqual(a);
+    expect(scopeVeniceCacheControl(setting, 'org-a', 'model-b')).not.toEqual(a);
+    expect(scopeVeniceCacheControl({ ...setting, promptCacheKey: 'changed' }, 'org-a', 'model-a')).not.toEqual(a);
+    expect(veniceCacheFields(a)).toEqual({ prompt_cache_key: a.promptCacheKey });
+    expect(veniceCacheFields(scopeVeniceCacheControl(setting, '', 'model-a'))).toEqual({});
+    expect(veniceCacheFields({ ...setting, enabled: false })).toEqual({});
+    expect(veniceCacheFields({ ...setting, promptCacheKey: 'bad key' })).toEqual({});
+    expect(veniceCacheFields({ ...setting, provider: 'openai' })).toEqual({});
+  });
+
   it('keeps the provider set closed', () => {
-    expect([...CACHE_CONTROL_PROVIDERS]).toEqual(['deepseek', 'anthropic', 'openai']);
+    expect([...CACHE_CONTROL_PROVIDERS]).toEqual(['deepseek', 'anthropic', 'openai', 'venice']);
   });
 
   it('preserves disabled defaults without emitting a directive', () => {

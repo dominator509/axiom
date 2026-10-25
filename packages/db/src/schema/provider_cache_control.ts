@@ -4,7 +4,7 @@ import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
 
 /** Providers with a documented cache-control contract in this release. */
-export const CACHE_CONTROL_PROVIDERS = ['deepseek', 'anthropic', 'openai'] as const;
+export const CACHE_CONTROL_PROVIDERS = ['deepseek', 'anthropic', 'openai', 'venice'] as const;
 export type CacheControlProvider = (typeof CACHE_CONTROL_PROVIDERS)[number];
 
 /**

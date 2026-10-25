@@ -17,6 +17,7 @@ import {
   CACHE_CONTROL_PROVIDERS,
   CACHE_CONTROL_UNSUPPORTED_CODE,
   defaultCacheControlSetting,
+  scopeVeniceCacheControl,
   type ModelProfile as PromptModelProfile,
   type CacheControlSetting,
   type ProviderCacheObservation,
@@ -48,12 +49,12 @@ async function loadModelCacheControls(
       promptCacheKey: string | null;
     } | undefined;
     if (!row) return defaultCacheControlSetting(provider);
-    return {
+    return scopeVeniceCacheControl({
       provider: row.provider,
       enabled: row.enabled,
       prefixAlignment: row.prefixAlignment,
       promptCacheKey: row.promptCacheKey,
-    };
+    }, orgId, modelId);
   });
 }
 

@@ -8,6 +8,7 @@ const controls = [
   { provider: 'deepseek', enabled: false, prefixAlignment: false, promptCacheKey: null },
   { provider: 'anthropic', enabled: false, prefixAlignment: false, promptCacheKey: null },
   { provider: 'openai', enabled: true, prefixAlignment: true, promptCacheKey: 'model:v1' },
+  { provider: 'venice', enabled: true, prefixAlignment: false, promptCacheKey: 'garden:v1' },
 ];
 
 it.each(SUPPORTED_LOCALES)('renders bounded cache controls from the shared catalog in %s', locale => {
@@ -26,8 +27,10 @@ it.each(SUPPORTED_LOCALES)('renders bounded cache controls from the shared catal
   expect(html).toContain(catalog['dashboard.cacheControls.telemetryTitle']);
   expect(html).toContain(catalog['dashboard.cacheControls.telemetryIntro']);
   expect(html).toContain(catalog['dashboard.cacheControls.telemetryRefresh']);
-  expect(html.match(/type="checkbox"/g)).toHaveLength(6);
-  expect(html.match(/type="text"/g)).toHaveLength(3);
+  expect(html.match(/type="checkbox"/g)).toHaveLength(8);
+  expect(html.match(/type="text"/g)).toHaveLength(4);
+  expect(html).toContain('Venice');
+  expect(html).toContain('garden:v1');
   expect(html).toContain('model:v1');
   expect(html).not.toContain('apiKey');
 });

@@ -45,6 +45,7 @@ import {
 } from './provider-cache-telemetry.js';
 import {
   applyCacheControl,
+  veniceCacheFields,
   canonicalCacheControls,
   CACHE_CONTROL_UNSUPPORTED_CODE,
   isCacheControlProvider,
@@ -723,6 +724,7 @@ export class LLMGateway {
             throw new ProviderError('Venice API key is not configured on the API server', 503, 'venice');
           }
           const res = await callVenice(provider.apiKey, {
+            ...veniceCacheFields(options.cacheControls.find(setting => setting.provider === 'venice')),
             model,
             messages,
             temperature: options.temperature,
@@ -1088,6 +1090,7 @@ export class LLMGateway {
               throw new ProviderError('Venice API key is not configured on the API server', 503, 'venice');
             }
             stream = streamVenice(provider.apiKey, {
+              ...veniceCacheFields(requiredOptions.cacheControls.find(setting => setting.provider === 'venice')),
               model: resolvedModel,
               messages: processedMessages,
               temperature: requiredOptions.temperature,

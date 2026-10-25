@@ -131,6 +131,43 @@ try {
       RAISE EXCEPTION 'Expected unset context denial'; EXCEPTION WHEN insufficient_privilege OR invalid_text_representation THEN NULL; END $probe$;`],
   ];
   for (const [caseName, statement] of cases) check(caseName, () => sql(`BEGIN; ${seed}\n${statement}\nROLLBACK;`));
+  const cacheSeed = `${seed} RESET ROLE;
+    INSERT INTO model_profile(id,org_id,display_name,handle) VALUES
+      ('${a}','${a}','Cache A','cache-a'),('${b}','${b}','Cache B','cache-b');
+    INSERT INTO provider_cache_control(org_id,model_id,provider,enabled,prompt_cache_key)
+      VALUES ('${b}','${b}','venice',true,'foreign:v1');
+    SET LOCAL ROLE axiom_app;`;
+  const ownCache = `INSERT INTO provider_cache_control(org_id,model_id,provider,prompt_cache_key)
+    VALUES ('${a}','${a}','venice','garden:v1');`;
+  const cacheCases = [
+    ['Venice control defaults disabled and persists enable/disable', `${ownCache}
+      DO $probe$ BEGIN
+        IF (SELECT enabled FROM provider_cache_control WHERE org_id='${a}') IS DISTINCT FROM false THEN RAISE EXCEPTION 'Unsafe default'; END IF;
+        UPDATE provider_cache_control SET enabled=true WHERE org_id='${a}';
+        IF (SELECT enabled AND prompt_cache_key='garden:v1' FROM provider_cache_control WHERE org_id='${a}') IS DISTINCT FROM true THEN RAISE EXCEPTION 'Enable not persisted'; END IF;
+        UPDATE provider_cache_control SET enabled=false WHERE org_id='${a}';
+        IF (SELECT enabled FROM provider_cache_control WHERE org_id='${a}') IS DISTINCT FROM false THEN RAISE EXCEPTION 'Disable not persisted'; END IF;
+      END $probe$;`],
+    ['Venice foreign controls invisible to read/update/delete', `DO $probe$ DECLARE n int; BEGIN
+      SELECT count(*) INTO n FROM provider_cache_control WHERE org_id='${b}'; IF n<>0 THEN RAISE EXCEPTION 'Foreign read'; END IF;
+      UPDATE provider_cache_control SET enabled=false WHERE org_id='${b}'; GET DIAGNOSTICS n=ROW_COUNT; IF n<>0 THEN RAISE EXCEPTION 'Foreign update'; END IF;
+      DELETE FROM provider_cache_control WHERE org_id='${b}'; GET DIAGNOSTICS n=ROW_COUNT; IF n<>0 THEN RAISE EXCEPTION 'Foreign delete'; END IF;
+      END $probe$;`],
+    ['Venice foreign insert denied', denied(`INSERT INTO provider_cache_control(org_id,model_id,provider) VALUES ('${b}','${b}','venice')`)],
+    ['Venice tenant reassignment denied', `${ownCache} ${denied(`UPDATE provider_cache_control SET org_id='${b}',model_id='${b}' WHERE org_id='${a}'`)}`],
+    ['Venice foreign model rejected', `DO $probe$ BEGIN
+      INSERT INTO provider_cache_control(org_id,model_id,provider) VALUES ('${a}','${b}','venice');
+      RAISE EXCEPTION 'Expected model ownership rejection'; EXCEPTION WHEN foreign_key_violation THEN NULL; END $probe$;`],
+    ['Venice missing tenant context denied', `SELECT set_config('app.current_org_id','',true); DO $probe$ BEGIN
+      ${ownCache} RAISE EXCEPTION 'Expected unset context denial'; EXCEPTION WHEN insufficient_privilege OR invalid_text_representation THEN NULL; END $probe$;`],
+    ['cache provider allowlist and key bounds preserved', `DO $probe$ BEGIN
+      INSERT INTO provider_cache_control(org_id,model_id,provider) VALUES ('${a}','${a}','unknown');
+      RAISE EXCEPTION 'Expected provider rejection'; EXCEPTION WHEN check_violation THEN NULL; END $probe$;
+      DO $probe$ BEGIN
+      INSERT INTO provider_cache_control(org_id,model_id,provider,prompt_cache_key) VALUES ('${a}','${a}','venice',repeat('x',65));
+      RAISE EXCEPTION 'Expected key rejection'; EXCEPTION WHEN check_violation THEN NULL; END $probe$;`],
+  ];
+  for (const [caseName, statement] of cacheCases) check(caseName, () => sql(`BEGIN; ${cacheSeed}\n${statement}\nROLLBACK;`));
   check('behavioral fixtures rolled back', () => assert.equal(sql(`SELECT count(*) FROM org WHERE id IN ('${a}','${b}')`), '0'));
   if (receipt.failed) process.exitCode = 1;
 } catch (error) {

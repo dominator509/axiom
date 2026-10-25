@@ -9,6 +9,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   deepseek: 'DeepSeek',
   anthropic: 'Anthropic',
   openai: 'OpenAI',
+  venice: 'Venice',
 };
 const KEY_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/;
 
