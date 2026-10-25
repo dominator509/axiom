@@ -15,6 +15,7 @@ at `2f1be6627f4cf845a5127606472d90a9d9a5d7be` failed its security job:
 `cargo audit` found eight advisories in five locked dependencies, published
 after the baseline. The follow-up pins `ctutils` 0.4.4, `rustls` 0.23.46,
 `rustls-webpki` 0.103.16, `webpki-root-certs` 1.0.10 and `webpki-roots` 1.0.10.
+It also pins Tokio 1.53.3 to resolve the newly reported AsyncFd I/O-safety warning.
 These dependency changes require fresh exact-head CI before merge; the
 historical green baseline does not establish current dependency security.
 
