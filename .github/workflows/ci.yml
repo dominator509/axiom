@@ -647,9 +647,9 @@ jobs:
           node scripts/check-grok-rand-contract.mjs --fetch-upstream
           sh infra/grok-cli/rand-regression/test-linux.sh
 
-      - name: Effective RLS catalog and tenant-write regressions
+      - name: Effective RLS, startup readiness and tenant-write regressions
         if: matrix.task == 'test'
-        run: node scripts/rehearse-rls-catalog.mjs --isolated-fixture
+        run: node scripts/test-isolated-workspace.mjs --isolated-fixture --database-readiness
 
       - name: Install runtime rehearsal dependencies
         if: matrix.task == 'test'
