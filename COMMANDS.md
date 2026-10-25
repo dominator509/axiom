@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `node scripts/rehearse-native-export.mjs --isolated-fixture [--output-root <absolute-directory>]` — validate installed Expo SDK dependency compatibility and compile real Android/iOS Hermes bundles with a synthetic API origin, no dotenv/provider credentials or telemetry; requires pinned Node, installed dependencies, built workspace dependencies and a clean committed checkout. Receipts and hashed bundles remain in a unique owned output directory; temporary caches are removed. Native binary/device/session acceptance remains separate.
 - `node scripts/check-braces-patch.mjs` — verify all active braces installations against pinned source hashes and run depth/compatibility regressions before audit recognition
 - `pnpm test:browser` — build real API/dashboard and pinned Chromium; repeat the HTTPS sign-in/workspace/branding journey against owned internal Docker fixtures, verify negative controls and cleanup; no live targets or reused credentials. Requires a clean committed checkout. Receipts: `var/browser-rehearsal/`.
 - `node scripts/test-vitest-mocker.mjs` — installed Vitest redirect-mock file boundary regressions using synthetic temporary files; no network listener or credentials

@@ -700,6 +700,10 @@ jobs:
         if: matrix.task == 'build'
         run: pnpm build
 
+      - name: Verify native SDK compatibility and Android/iOS Hermes exports
+        if: matrix.task == 'build'
+        run: node scripts/rehearse-native-export.mjs --isolated-fixture
+
       - name: Build Rust crates
         if: matrix.task == 'build'
         run: |
