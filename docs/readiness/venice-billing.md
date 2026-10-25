@@ -28,3 +28,28 @@ The regression suite uses synthetic responses only. It establishes parsing and
 observer behavior, not actual account charges, provider cache efficiency, model
 capacity, or the release cost gate. Real measurements must retain separate
 currencies and explicitly report unknown costs.
+
+## Cache counter propagation
+
+Venice chat and streaming responses also preserve explicit
+`usage.prompt_tokens_details.cached_tokens` and `created_cache_tokens` through
+the shared cache normalizer. Counters must be nonnegative safe integers and
+consistent with the reported prompt-token total. Missing or invalid telemetry
+remains unknown; an explicit zero hit count remains a measured zero. Streaming
+uses the last usage snapshot, including snapshots after `finish_reason`, rather
+than summing cumulative counters or retaining stale valid counters after an
+invalid final snapshot.
+
+The existing `providerCacheObserver` receives one observation per completed
+provider request. API and worker observers use the existing tenant-scoped
+database persistence; no schema change is required. Local response-cache hits
+do not replay provider observations, and observer failures do not retry
+inference. Interrupted streams do not produce completed cache observations.
+
+A bounded live probe at `c3aedb9d646fa60ecdf26ecea6804ee9910b50e0`
+reported 1,761 prompt tokens and 1,728 cached tokens while the gateway discarded
+the cache usage. Its sanitized counters are regression inputs for this fix.
+That single request does not establish controlled cold/warm performance,
+TOKENKILLER efficiency, or the greater-than-97-percent release criterion.
+Those criteria require a separately recorded provider-backed workload, with
+unknown observations retained in its accounting.

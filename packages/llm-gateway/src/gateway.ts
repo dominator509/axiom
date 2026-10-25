@@ -8,7 +8,7 @@ import { resolveEgressBinding, buildEgressFetch } from './egress.js';
 // Runtime configuration belongs to the service launcher/deployment boundary.
 import { v4 as uuid } from 'uuid';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
-import { callVenice, streamVenice } from './providers/venice.js';
+import { callVenice, streamVenice, normalizeVeniceCacheUsage } from './providers/venice.js';
 import {
   normalizeVeniceBilling,
   observeProviderBilling,
@@ -729,6 +729,7 @@ export class LLMGateway {
             max_tokens: options.maxTokens,
           }, options.signal, egressFetchImpl ?? fetch);
           providerBilling = normalizeVeniceBilling(res.cost);
+          providerCacheUsage = normalizeVeniceCacheUsage(res.usage);
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
           completionTokens = res.usage.completion_tokens;
@@ -1091,7 +1092,9 @@ export class LLMGateway {
               messages: processedMessages,
               temperature: requiredOptions.temperature,
               max_tokens: requiredOptions.maxTokens,
-            }, options.signal, egressFetchImpl ?? fetch, options.providerBillingObserver);
+            }, options.signal, egressFetchImpl ?? fetch, options.providerBillingObserver, (usage) => {
+              providerCacheUsage = usage;
+            });
           } else {
             throw new Error(`Unsupported provider for streaming: ${provider.name}`);
           }
