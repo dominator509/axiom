@@ -99,6 +99,16 @@ beforeEach(() => {
 });
 
 describe('content.generate caption revisions', () => {
+  it('loads a tenant/model-scoped Venice key for each revision call', async () => {
+    state.results[2] = [{ provider: 'venice', enabled: true, prefixAlignment: false, promptCacheKey: 'private-label' }];
+    await execute();
+    const controls = state.chat.mock.calls.map(call => call[1].cacheControls.find((row: { provider: string }) => row.provider === 'venice'));
+    expect(controls).toHaveLength(2);
+    expect(controls[0].promptCacheKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(controls[0].promptCacheKey).not.toBe('private-label');
+    expect(controls[1]).toEqual(controls[0]);
+  });
+
   it('sends actual captions and instructions through S3 and preserves media/hashtags', async () => {
     await execute();
     expect(state.locks).toEqual(['update']);

@@ -3,6 +3,7 @@ import { db, schema } from '@axiom/db';
 import {
   CACHE_CONTROL_PROVIDERS,
   defaultCacheControlSetting,
+  scopeVeniceCacheControl,
   type CacheControlSetting,
 } from '@axiom/llm-gateway';
 
@@ -30,11 +31,11 @@ export async function loadCacheControls(
       promptCacheKey: string | null;
     } | undefined;
     if (!row) return defaultCacheControlSetting(provider);
-    return {
+    return scopeVeniceCacheControl({
       provider: row.provider,
       enabled: row.enabled,
       prefixAlignment: row.prefixAlignment,
       promptCacheKey: row.promptCacheKey,
-    };
+    }, orgId, modelId);
   });
 }

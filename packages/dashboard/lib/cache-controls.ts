@@ -37,7 +37,7 @@ export interface ProviderCacheTelemetryView {
   providers: ProviderCacheTelemetryProvider[];
 }
 
-export const CACHE_CONTROL_PROVIDER_ORDER = ['deepseek', 'anthropic', 'openai'] as const;
+export const CACHE_CONTROL_PROVIDER_ORDER = ['deepseek', 'anthropic', 'openai', 'venice'] as const;
 
 export function absentCacheControl(provider: string): CacheControlView {
   return { provider, enabled: false, prefixAlignment: false, promptCacheKey: null };

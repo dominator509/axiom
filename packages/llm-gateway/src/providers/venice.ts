@@ -6,6 +6,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { veniceCacheFields } from '../cache-controls.js';
 import {
   normalizeProviderCacheUsage,
   type ProviderCacheUsage,
@@ -33,15 +34,21 @@ export function normalizeVeniceCacheUsage(usage: unknown): ProviderCacheUsage | 
     raw.prompt_tokens_details && typeof raw.prompt_tokens_details === 'object'
       ? (raw.prompt_tokens_details as Record<string, unknown>)
       : undefined;
+  const creation = details?.cache_creation_input_tokens;
+  const legacyCreation = details?.created_cache_tokens;
+  // Preserve compatibility without summing aliases or hiding contradictory data.
+  if (creation !== undefined && legacyCreation !== undefined && creation !== legacyCreation) {
+    return undefined;
+  }
   return normalizeProviderCacheUsage({
     promptTokens: raw.prompt_tokens,
     cachedPromptTokens: details?.cached_tokens,
-    cacheCreationPromptTokens: details?.created_cache_tokens,
+    cacheCreationPromptTokens: creation === undefined ? legacyCreation : creation,
   });
 }
 
 function toSnakeCase(options: ProviderOptions): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+  const body: Record<string, unknown> = { ...veniceCacheFields(options.cacheControl) };
   if (options.temperature !== undefined) body.temperature = options.temperature;
   if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
   if (options.topP !== undefined) body.top_p = options.topP;
@@ -174,6 +181,7 @@ export interface VeniceCompletionRequest {
   messages: Array<{ role: string; content: string }>;
   temperature?: number;
   max_tokens?: number;
+  prompt_cache_key?: string;
   stream?: boolean;
   venice_parameters?: Record<string, unknown>;
 }

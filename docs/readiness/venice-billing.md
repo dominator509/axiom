@@ -32,8 +32,11 @@ currencies and explicitly report unknown costs.
 ## Cache counter propagation
 
 Venice chat and streaming responses also preserve explicit
-`usage.prompt_tokens_details.cached_tokens` and `created_cache_tokens` through
-the shared cache normalizer. Counters must be nonnegative safe integers and
+`usage.prompt_tokens_details.cached_tokens` and the documented
+`cache_creation_input_tokens` through the shared cache normalizer. The legacy
+`created_cache_tokens` alias remains supported; conflicting simultaneous values
+make the observation unknown, and identical values are not double-counted.
+Counters must be nonnegative safe integers and
 consistent with the reported prompt-token total. Missing or invalid telemetry
 remains unknown; an explicit zero hit count remains a measured zero. Streaming
 uses the last usage snapshot, including snapshots after `finish_reason`, rather

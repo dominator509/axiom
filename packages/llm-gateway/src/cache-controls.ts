@@ -7,7 +7,9 @@
  * dropping an operator's enabled control.
  */
 
-export const CACHE_CONTROL_PROVIDERS = ['deepseek', 'anthropic', 'openai'] as const;
+import { createHash } from 'node:crypto';
+
+export const CACHE_CONTROL_PROVIDERS = ['deepseek', 'anthropic', 'openai', 'venice'] as const;
 export type CacheControlProvider = (typeof CACHE_CONTROL_PROVIDERS)[number];
 export const CACHE_CONTROL_UNSUPPORTED_CODE = 'CACHE_CONTROL_TRANSPORT_UNSUPPORTED';
 
@@ -53,6 +55,32 @@ export function openaiCacheFields(
     : {};
 }
 
+/** Venice's documented routing hint; a hint does not guarantee cache hits. */
+export function veniceCacheFields(
+  setting: CacheControlSetting | null | undefined,
+): { prompt_cache_key?: string } {
+  if (!setting || setting.provider !== 'venice' || !setting.enabled) return {};
+  return isValidPromptCacheKey(setting.promptCacheKey)
+    ? { prompt_cache_key: setting.promptCacheKey }
+    : {};
+}
+
+/** Keep persisted labels private and routing affinity separate per tenant/model. */
+export function scopeVeniceCacheControl(
+  setting: CacheControlSetting,
+  orgId: string,
+  modelId: string,
+): CacheControlSetting {
+  if (setting.provider !== 'venice' || !setting.enabled || !isValidPromptCacheKey(setting.promptCacheKey)) return setting;
+  if (!orgId || !modelId) return { ...setting, promptCacheKey: null };
+  return {
+    ...setting,
+    promptCacheKey: createHash('sha256')
+      .update(JSON.stringify(['axiom-venice-cache-v1', orgId, modelId, setting.promptCacheKey]))
+      .digest('hex'),
+  };
+}
+
 export function applyCacheControl<T extends Record<string, unknown>>(
   body: T,
   setting: CacheControlSetting | null | undefined,
@@ -72,12 +100,12 @@ export function applyCacheControl<T extends Record<string, unknown>>(
     return { body: next, emitted: false, provider: 'anthropic' };
   }
 
-  if (setting.provider === 'openai') {
-    const fields = openaiCacheFields(setting);
+  if (setting.provider === 'openai' || setting.provider === 'venice') {
+    const fields = setting.provider === 'venice' ? veniceCacheFields(setting) : openaiCacheFields(setting);
     if (Object.keys(fields).length > 0) {
-      return { body: { ...next, ...fields } as T, emitted: true, provider: 'openai' };
+      return { body: { ...next, ...fields } as T, emitted: true, provider: setting.provider };
     }
-    return { body: next, emitted: false, provider: 'openai' };
+    return { body: next, emitted: false, provider: setting.provider };
   }
 
   // DeepSeek has automatic prefix caching and no request directive here.

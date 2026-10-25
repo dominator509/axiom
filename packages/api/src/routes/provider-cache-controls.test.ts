@@ -48,6 +48,7 @@ describe('F-33 provider cache controls API', () => {
       { provider: 'deepseek', enabled: false, prefixAlignment: false, promptCacheKey: null },
       { provider: 'anthropic', enabled: false, prefixAlignment: false, promptCacheKey: null },
       { provider: 'openai', enabled: false, prefixAlignment: false, promptCacheKey: null },
+      { provider: 'venice', enabled: false, prefixAlignment: false, promptCacheKey: null },
     ]);
   });
 
@@ -100,7 +101,7 @@ describe('F-33 provider cache controls API', () => {
     expect((await appWithContext('owner').request('/models/not-a-uuid/cache-telemetry')).status).toBe(400);
   });
 
-  it('rejects unknown providers, secret-shaped fields, and operator writes', async () => {
+  it.each(['openai', 'venice'])('rejects unknown providers, secret-shaped fields, and %s operator writes', async provider => {
     const path = `/models/${MODEL_ID}/cache-controls`;
     expect((await appWithContext('owner').request(path, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
@@ -108,28 +109,28 @@ describe('F-33 provider cache controls API', () => {
     })).status).toBe(400);
     expect((await appWithContext('owner').request(path, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ provider: 'openai', enabled: true, apiKey: 'secret' }),
+      body: JSON.stringify({ provider, enabled: true, apiKey: 'secret' }),
     })).status).toBe(400);
     expect((await appWithContext('operator').request(path, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ provider: 'openai', enabled: true }),
+      body: JSON.stringify({ provider, enabled: true }),
     })).status).toBe(403);
   });
 
-  it('writes only bounded controls and returns a safe projection', async () => {
+  it.each(['openai', 'venice'])('writes only bounded %s controls and returns a safe projection', async provider => {
     mockState.results = [
       [],
       [{ id: MODEL_ID }],
-      [{ id: 'control-1', provider: 'openai', enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1' }],
+      [{ id: 'control-1', provider, enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1' }],
     ];
     const response = await appWithContext('manager').request(`/models/${MODEL_ID}/cache-controls`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ provider: 'openai', enabled: true, promptCacheKey: 'model:v1' }),
+      body: JSON.stringify({ provider, enabled: true, promptCacheKey: 'model:v1' }),
     });
     expect(response.status).toBe(200);
-    expect(mockState.insertValues[0]).toMatchObject({ orgId: ORG_ID, modelId: MODEL_ID, provider: 'openai', enabled: true });
+    expect(mockState.insertValues[0]).toMatchObject({ orgId: ORG_ID, modelId: MODEL_ID, provider, enabled: true });
     expect(await response.json()).toEqual({ success: true, data: {
-      provider: 'openai', enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1',
+      provider, enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1',
     } });
   });
 });

@@ -68,6 +68,8 @@ export { VLLMProvider } from './providers/vllm.js';
 export { OfficialSubscriptionTransport } from './providers/subscription.js';
 export {
   CACHE_CONTROL_PROVIDERS,
+  scopeVeniceCacheControl,
+  veniceCacheFields,
   anthropicCacheControl,
   deepseekCacheFields,
   openaiCacheFields,
