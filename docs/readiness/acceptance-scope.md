@@ -33,6 +33,15 @@ zero failures or skips, including the separate human-sign-off boundary. This
 guard checks consistency, not the semantic sufficiency of every receipt; review
 must still match each receipt's actual scope to its requirement.
 
+The first PR runtime run also exposed a barrier mismatch in the existing
+approval/draft race rehearsal: the wait helper returns once at least one request
+is blocked, but its caller asserted exactly one. The observed count was two,
+which satisfies the intended barrier. The caller now accepts at least one;
+the unchanged checks still require both requests to remain pending before the
+lock is released, one 200 and one 409 response afterward, and the correct durable
+bundle, target, job and audit state. The failed run is retained; the new commit
+requires a fresh complete runtime receipt rather than a retry of the old head.
+
 Current canonical count: 28 accepted, 23 unverified, 3 blocked. The separate
 historical Venice diagnostic remains a measured cache-threshold failure (see
 `venice-cache-pilot.md`); it cannot be promoted by green CI or inferred from local
