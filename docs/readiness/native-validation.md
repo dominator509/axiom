@@ -1,0 +1,43 @@
+# Native build validation
+
+The mobile package declares Android, iOS and web, but its normal build exports
+web. The CI build job now additionally runs the installed Expo SDK compatibility
+check and real Android/iOS Hermes exports through
+`node scripts/rehearse-native-export.mjs --isolated-fixture`.
+
+The installed Expo 57 manifest requires SecureStore in the `~57.0.1` range and
+SVG `15.15.4`. At baseline `f030e9fd3a37c81881f9f33f9344151f5da005d8`, the
+offline CLI check exited 1 for installed SecureStore `15.0.8` and SVG `15.15.5`.
+Both native Hermes exports nevertheless passed. This demonstrates why successful
+JavaScript compilation alone does not settle native SDK compatibility.
+
+SecureStore now resolves to `57.0.4`, and SVG is pinned to `15.15.4`. The same
+installed-SDK check reports no differences and exits 0. Offline validation uses
+the installed SDK manifest; it does not claim a fresh registry compatibility
+lookup or establish that every newer SVG patch is incompatible.
+
+The rehearsal requires a clean committed source tree and pinned Node. It passes
+only an explicit environment allowlist to Expo, disables dotenv loading and
+telemetry, uses offline mode and a synthetic loopback API origin, and does not
+pass database/provider credentials. Each run owns its output and temporary
+cache directory. The receipt records source, package/lock/log hashes, actual
+commands, counts, both bundle hashes, cleanup, and unchanged-source readback.
+Hermes bytecode is required for both platforms; JavaScript-only output cannot
+pass. The fixture retains output artifacts and removes only its temporary cache.
+
+On a machine with limited system-drive space, provide an absolute output root:
+`node scripts/rehearse-native-export.mjs --isolated-fixture --output-root F:/axiom-native-validation`.
+Build workspace dependencies first, as the normal CI build job does. No EAS
+account, release signing, app publication or paid service is involved.
+
+These checks do not establish native binary or runtime acceptance. A rebuilt
+Android app must still run on an owned emulator/device against an isolated real
+API/PostgreSQL fixture, exercising sign-in, authenticated critical actions,
+SecureStore restoration after restart, sign-out/revocation, six locales and
+accessibility. iOS runtime/hardware and owner release signing remain separate.
+Mobile browser emulation cannot replace either platform's native journeys.
+No release acceptance row is promoted by this build gate.
+
+Official Expo references:
+- https://github.com/expo/expo/blob/main/docs/pages/more/expo-cli.mdx
+- https://github.com/expo/expo/blob/main/docs/pages/develop/development-builds/use-development-builds.mdx
