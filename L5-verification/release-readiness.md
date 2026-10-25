@@ -1,5 +1,21 @@
 # Release readiness: evidence register and execution order
 
+The 2026-10-25 scope audit corrects the current register to **28 accepted and
+26 open criteria (23 unverified, 3 blocked)**. `A1`, `MATRIX-NFR-1` and
+`MATRIX-CI` are reopened: local provider configuration does not establish live
+external synchronization, synthetic per-job timing does not establish all load
+budgets, and successful existing jobs do not establish the full matrix. Their
+original receipts remain in `partialEvidenceAppendix` with their actual SHAs.
+No normative requirement was weakened. The validator now rejects a passed
+`MATRIX-CI` while any criterion in L5.0 sections 1–4 is open.
+
+The application baseline is `d963c1c1a0585a9dd41c4eb585dd0432ec99fded`:
+[post-merge CI](https://github.com/dominator509/axiom/actions/runs/40178065406)
+passed all 12 jobs. An external source-bound packet with these conservative
+statuses passed hosted receipt verification; this is not release approval.
+See [the scope audit](../docs/readiness/acceptance-scope.md) for evidence limits.
+The checkpoints below are historical, including their earlier acceptance counts.
+
 Application-code baseline for this evidence refresh (2026-10-24) is `f140fe0b2ec9b8c23fd15f6b0035f2e2e0954ebf`, merged from PR #203. A fresh fetch confirmed main and origin/main at this SHA with zero divergence and a clean checkout before the documentation change. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 31 accepted and 23 open (20 unverified, 3 blocked); the register is valid and is **not release approval**. Hosted metadata readback confirms that exact-main [CI run 38366040912](https://github.com/dominator509/axiom/actions/runs/38366040912) completed with 12 successful jobs, 0 failed, 0 cancelled, and 0 skipped jobs. This is job-status readback, not a new assertion/log audit or an exact-SHA acceptance receipt. Accepted rows retain their actual tested SHAs and still need replay against the eventual final release SHA.
 
 PR #203 recorded the existing synthetic browser receipts for LBI-12 and

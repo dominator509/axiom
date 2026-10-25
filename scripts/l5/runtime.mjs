@@ -976,7 +976,7 @@ try {
         return response;
       });
       requests = [approval, draft];
-      assert.equal(await waitForContentBundleLockWaiters(1), 1,
+      assert.ok(await waitForContentBundleLockWaiters(1) >= 1,
         'At least one API transition must reach the locked bundle before the race is released');
       await new Promise(resolve => setTimeout(resolve, 100));
       assert.equal(requestsSettled, 0, 'Both concurrently submitted API transitions must remain pending while the row is locked');

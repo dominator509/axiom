@@ -160,6 +160,12 @@ export function validate(register, expected, { releaseSha, verifySha } = {}) {
       }
     }
   }
+  if (register.criteria.find(row => row.id === 'MATRIX-CI')?.status === 'passed') {
+    const matrixIds = expected.filter(row => row.source === documents[0] && row.id !== 'MATRIX-CI')
+      .map(row => row.id);
+    const open = register.criteria.filter(row => matrixIds.includes(row.id) && row.status !== 'passed');
+    check(open.length === 0, `MATRIX-CI: full matrix has open criteria: ${open.map(row => row.id).join(', ')}`);
+  }
   if (verifySha !== undefined) {
     check(register.criteria.some(row => row.status === 'passed'), 'Receipt verification blocked: no passed criteria');
     check(register.criteria.every(row => row.evidence.length === 0 || row.status === 'passed'),
