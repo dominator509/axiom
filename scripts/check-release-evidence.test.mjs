@@ -46,8 +46,30 @@ function incremental() {
 
 test('current register is structurally complete without implying release acceptance', () => {
   assert.equal(validate(current, expected).criteria, expected.length);
-  assert.equal(validate(current, expected).passed, 31);
+  assert.equal(validate(current, expected).passed, 28);
   assert.throws(() => validate(current, expected, { releaseSha: currentSha }));
+});
+
+for (const [id, status] of [['A1', 'unverified'], ['LBI-09', 'failed'], ['FEATURE-PRESERVATION', 'blocked'], ['MATRIX-NFR-1', 'unverified']]) {
+  test(`full-matrix claim rejects successful jobs with ${id} ${status}`, () => {
+    const register = complete();
+    const open = register.criteria.find(row => row.id === id);
+    open.status = status;
+    open.evidence = [];
+    const ci = register.criteria.find(row => row.id === 'MATRIX-CI');
+    ci.evidence[0].scope = 'All twelve existing CI jobs succeeded';
+    ci.evidence[0].counts = { passed: 12, failed: 0, skipped: 0, total: 12, unit: 'checks' };
+    assert.throws(() => validate(register, expected), /MATRIX-CI: full matrix has open criteria/);
+  });
+}
+
+test('full-matrix coverage does not replace separate owner release sign-off', () => {
+  const register = complete();
+  const owner = register.criteria.find(row => row.id === 'HUMAN-SIGNOFF');
+  owner.status = 'unverified';
+  owner.evidence = [];
+  assert.equal(validate(register, expected).passed, expected.length - 1);
+  assert.throws(() => validate(register, expected, { releaseSha }), /Release blocked: open acceptance criteria/);
 });
 test('exact-SHA requirements load from the pinned release commit', () => {
   const requested = [];
