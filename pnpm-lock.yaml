@@ -31,6 +31,9 @@ patchedDependencies:
   braces@3.0.3:
     hash: qmg66scvpk6bdck4s3iyyjiya4
     path: patches/braces@3.0.3.patch
+  metro@0.84.4:
+    hash: wut4o3egktmih25bmjcdemjhnq
+    path: patches/metro@0.84.4.patch
   zod@3.25.76:
     hash: yt4pzuh45w2hbme2pf7wp6gspq
     path: patches/zod@3.25.76.patch
@@ -6408,7 +6411,7 @@ snapshots:
 
   '@expo/metro@56.0.0':
     dependencies:
-      metro: 0.84.4
+      metro: 0.84.4(patch_hash=wut4o3egktmih25bmjcdemjhnq)
       metro-babel-transformer: 0.84.4
       metro-cache: 0.84.4
       metro-cache-key: 0.84.4
@@ -7007,7 +7010,7 @@ snapshots:
       '@react-native/dev-middleware': 0.86.2
       debug: 4.4.3
       invariant: 2.2.4
-      metro: 0.84.4
+      metro: 0.84.4(patch_hash=wut4o3egktmih25bmjcdemjhnq)
       metro-config: 0.84.4
       metro-core: 0.84.4
       semver: 7.8.5
@@ -9261,7 +9264,7 @@ snapshots:
       connect: 3.7.0
       flow-enums-runtime: 0.0.6
       jest-validate: 29.7.0
-      metro: 0.84.4
+      metro: 0.84.4(patch_hash=wut4o3egktmih25bmjcdemjhnq)
       metro-cache: 0.84.4
       metro-core: 0.84.4
       metro-runtime: 0.84.4
@@ -9348,7 +9351,7 @@ snapshots:
       '@babel/parser': 7.29.8
       '@babel/types': 7.29.8
       flow-enums-runtime: 0.0.6
-      metro: 0.84.4
+      metro: 0.84.4(patch_hash=wut4o3egktmih25bmjcdemjhnq)
       metro-babel-transformer: 0.84.4
       metro-cache: 0.84.4
       metro-cache-key: 0.84.4
@@ -9361,7 +9364,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  metro@0.84.4:
+  metro@0.84.4(patch_hash=wut4o3egktmih25bmjcdemjhnq):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7

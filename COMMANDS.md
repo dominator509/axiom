@@ -95,6 +95,7 @@
 - `sh scripts/build.sh` — full build
 
 ## Git
+- `node scripts/test-metro-image-assets.mjs` — exercise installed Metro's real PNG file and byte-input processing, ZIP-path branch, non-image handling, invalid-image rejection and reverted-patch negative control; temporary synthetic assets only.
 - `git commit -m "[AXIOM][P{phase}][M{step}] message"` — milestone commits
 - `git tag green/P{phase}` — phase completion tags
 
