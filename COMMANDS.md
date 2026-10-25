@@ -38,6 +38,8 @@
 - `cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_kek_rotation_is_atomic_and_preserves_payloads -- --exact` — exercise organization KEK rewrap, rollback, audit, and preserved ciphertext in the disposable axiom_test database
 
 ## Validation
+- `cargo update -p <package> --precise <patched-version>` — narrowly update a vulnerable locked dependency to its reviewed patched release; inspect the lockfile diff and validate affected Rust lanes before merging.
+- `cargo audit` — check the workspace lockfile against current RustSec advisories; never suppress new advisories to obtain a green gate.
 - `cargo run --locked --manifest-path crates/egress-plane/Cargo.toml --bin rotate-org-kek -- --database-url-file <protected-url-file> --old-kek-file <protected-old-key> --old-kek-id <old-id> --new-kek-file <protected-new-key> --new-kek-id <new-id>` — read-only organization KEK preflight; apply requires stopped services and explicit `--apply --confirm-services-stopped`
 - `node --check scripts/rehearse-glitchtip-observability.mjs` and `node --check scripts/rehearse-glitchtip-fault-child.mjs` — validate the isolated GlitchTip rehearsal harness JavaScript syntax without starting services
 - `git diff --check` — reject whitespace errors in the pending patch

@@ -10,6 +10,14 @@ model-scoped access and encrypted 25 MiB DNG upload/download; it does not prove
 native-device acceptance, production vault population, owner attestation, or
 release sign-off. No receipt or normative requirement is changed by this refresh.
 
+The 2026-10-24 candidate [CI run 40158198520](https://github.com/dominator509/axiom/actions/runs/40158198520)
+at `2f1be6627f4cf845a5127606472d90a9d9a5d7be` failed its security job:
+`cargo audit` found eight advisories in five locked dependencies, published
+after the baseline. The follow-up pins `ctutils` 0.4.4, `rustls` 0.23.46,
+`rustls-webpki` 0.103.16, `webpki-root-certs` 1.0.10 and `webpki-roots` 1.0.10.
+These dependency changes require fresh exact-head CI before merge; the
+historical green baseline does not establish current dependency security.
+
 This register does not declare production readiness. Green build/test jobs,
 `ALL_DONE`, and `verify: ok` do not close the L5 acceptance criteria. At the
 historical 2026-10-09 checkpoint `69c97cb814e93410af53219d634537b436a395d1`,
