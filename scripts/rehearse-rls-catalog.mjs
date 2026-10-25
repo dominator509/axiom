@@ -39,6 +39,10 @@ function check(name, action) {
   try { action(); receipt.assertions.push({ name, passed: true }); receipt.passed++; }
   catch { receipt.assertions.push({ name, passed: false }); receipt.failed++; }
 }
+async function checkAsync(name, action) {
+  try { await action(); receipt.assertions.push({ name, passed: true }); receipt.passed++; }
+  catch { receipt.assertions.push({ name, passed: false }); receipt.failed++; }
+}
 try {
   receipt.sourceSha = run('git', ['rev-parse', 'HEAD']);
   assert.match(receipt.sourceSha, /^[a-f0-9]{40}$/);
@@ -83,6 +87,32 @@ try {
   docker(['exec', '-i', name, 'tar', '-xf', '-', '-C', '/fixture'], { input: archive.stdout });
   for (let attempt = 0; attempt < 2; attempt++) docker(['exec', '--env', 'MIGRATOR_DATABASE_URL=postgresql://axiom@/axiom_test',
     name, 'sh', '/fixture/scripts/migrate.sh']);
+  // Exercise the application's actual startup-readiness function against this
+  // run-owned catalog. No historical container, host port or configured URL.
+  const { assertDatabaseReady, databaseReadinessColumns, databaseReadinessSql } =
+    await import('../packages/db/dist/readiness.js');
+  receipt.readinessColumns = databaseReadinessColumns.length;
+  const readinessQuery = (setup = '') => ({
+    async query(text, values) {
+      assert.equal(text, databaseReadinessSql);
+      assert.deepEqual(values, [JSON.stringify(databaseReadinessColumns)]);
+      const statement = text.replace('$1', `'${values[0].replace(/'/g, "''")}'`);
+      const result = sql(`BEGIN; ${setup}\nSET LOCAL ROLE axiom_app;\n${statement};\nROLLBACK;`);
+      assert.ok(['t', 'f'].includes(result), 'Readiness query must return one boolean');
+      return { rows: [{ ready: result === 't' }] };
+    },
+  });
+  await checkAsync('startup readiness accepts migrated schema as runtime role', () =>
+    assertDatabaseReady(readinessQuery()));
+  for (const [fault, setup] of [
+    ['empty public schema', 'ALTER SCHEMA public RENAME TO readiness_saved; CREATE SCHEMA public; GRANT USAGE ON SCHEMA public TO axiom_app;'],
+    ['missing table', 'ALTER TABLE public.auth_user RENAME TO readiness_hidden_user;'],
+    ['missing column', 'ALTER TABLE public.asset RENAME COLUMN origin TO readiness_hidden_origin;'],
+    ['missing SELECT grant', 'REVOKE SELECT ON public.auth_user FROM axiom_app;'],
+  ]) await checkAsync(`startup readiness rejects ${fault} and restores catalog`, async () => {
+    await assert.rejects(assertDatabaseReady(readinessQuery(setup)), { message: 'Database schema is not ready' });
+    await assertDatabaseReady(readinessQuery());
+  });
   check('all schema tenant tables protected for actual application connection', () => assertRlsCatalog(rows()));
   for (const [fault, setup] of [
     ['disabled RLS', 'ALTER TABLE model_profile DISABLE ROW LEVEL SECURITY;'],
