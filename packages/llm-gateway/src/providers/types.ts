@@ -1,3 +1,4 @@
+import type { ProviderBilling } from '../provider-billing.js';
 // Shared types for LLM Gateway providers
 
 import type { ProviderCacheUsage } from '../provider-cache-telemetry.js';
@@ -31,7 +32,8 @@ export interface ProviderChatResult {
   usage: { promptTokens: number; completionTokens: number; totalTokens: number };
   /** Present only when the provider returned explicit cache token counters. */
   providerCacheUsage?: ProviderCacheUsage;
-  cost: number;
+  providerBilling?: ProviderBilling;
+  cost: number | null;
 }
 
 export interface ProviderStreamChunk {
@@ -40,7 +42,8 @@ export interface ProviderStreamChunk {
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   /** Present only when the provider returned explicit cache token counters. */
   providerCacheUsage?: ProviderCacheUsage;
-  cost?: number;
+  providerBilling?: ProviderBilling;
+  cost?: number | null;
 }
 
 export interface BaseProvider {

@@ -288,12 +288,12 @@ describe('VeniceProvider', () => {
     expect(p.model).toBe('venice-uncensored-1-2');
   });
 
-  it('chat returns content, usage and zero cost', async () => {
+  it('chat returns content, usage and unknown cost', async () => {
     const p = new VeniceProvider('venice-key-333');
     const res = await p.chat([{ role: 'user', content: 'hello' }]);
     expect(res.content).toBe('hello');
     expect(res.usage).toEqual({ promptTokens: 100, completionTokens: 40, totalTokens: 140 });
-    expect(res.cost).toBe(0);
+    expect(res.cost).toBeNull();
     expect(res.model).toBe('some-model');
   });
 
@@ -327,7 +327,7 @@ describe('VeniceProvider', () => {
     expect(err.provider).toBe('venice');
   });
 
-  it('chatStream yields delta and done chunks with zero cost', async () => {
+  it('chatStream yields delta and done chunks with unknown cost', async () => {
     fetchMock.mockResolvedValueOnce(
       sseResponse([
         'data: {"choices":[{"delta":{"content":"yo"}}]}',
@@ -338,7 +338,7 @@ describe('VeniceProvider', () => {
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
     expect(chunks[0]).toEqual({ type: 'delta', content: 'yo' });
-    expect(chunks[1]).toMatchObject({ type: 'done', content: 'yo', cost: 0 });
+    expect(chunks[1]).toMatchObject({ type: 'done', content: 'yo', cost: null });
   });
 
   it('chatStream uses exact usage from a usage chunk', async () => {

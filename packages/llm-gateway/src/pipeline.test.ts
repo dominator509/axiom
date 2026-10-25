@@ -90,7 +90,7 @@ describe('Pipeline', () => {
       name: 'b',
       after: async (r) => {
         order.push('b');
-        return { ...r, cost: r.cost * 2 };
+        return { ...r, cost: r.cost === null ? null : r.cost * 2 };
       },
     });
     const out = await p.runAfter(baseResult);

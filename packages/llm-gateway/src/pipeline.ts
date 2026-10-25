@@ -19,7 +19,7 @@ export interface PipelineResult {
   content: string;
   model: string;
   provider: string;
-  cost: number;
+  cost: number | null;
   tokens: { prompt: number; completion: number; total: number };
   latency: number;
 }
