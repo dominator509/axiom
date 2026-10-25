@@ -60,7 +60,7 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 /** POST /api/auth/sign-out — clears the server session and local cookie. */
 export async function signOut(): Promise<void> {
   try {
-    await apiFetch<unknown>('/api/auth/sign-out', { method: 'POST' });
+    await apiFetch<unknown>('/api/auth/sign-out', { method: 'POST', body: {} });
   } finally {
     await clearPersistedCookie();
   }

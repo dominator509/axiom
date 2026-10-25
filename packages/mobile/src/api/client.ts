@@ -15,6 +15,7 @@ declare const process: { env: Record<string, string | undefined> } | undefined;
 
 import { AXIOM_JSON_RESPONSE_MAX_BYTES, readBoundedResponseText } from '@axiom/core';
 import { loadSessionCookie, removeSessionCookie, saveSessionCookie } from './storage';
+import { requestOrigin } from './requestOrigin';
 
 export const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -178,6 +179,8 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
 
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${resolveBaseUrl()}${normalizedPath}`;
+  const origin = requestOrigin(url);
+  if (origin !== undefined) headers.set('Origin', origin);
   const method = options.method ?? 'GET';
   const isBffMutation = normalizedPath.startsWith('/api/v1/') && method !== 'GET';
   const idempotencyKey = isBffMutation

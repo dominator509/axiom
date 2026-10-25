@@ -38,6 +38,15 @@ accessibility. iOS runtime/hardware and owner release signing remain separate.
 Mobile browser emulation cannot replace either platform's native journeys.
 No release acceptance row is promoted by this build gate.
 
+Native cookie-authenticated requests must send the configured API origin to
+satisfy the existing server CSRF checks. Metro selects `requestOrigin.native.ts`
+on Android/iOS; the default implementation leaves browser-controlled Origin
+unchanged. Sign-out sends a JSON object so the auth endpoint accepts its content
+type. Do not disable CSRF or expand trusted origins to accommodate native clients.
+Runtime validation must inspect server-session deletion, not just navigation back
+to login: a rejected sign-out still clears local state. Also exercise re-login
+after sign-out and server revocation while the native process is stopped.
+
 Official Expo references:
 - https://github.com/expo/expo/blob/main/docs/pages/more/expo-cli.mdx
 - https://github.com/expo/expo/blob/main/docs/pages/develop/development-builds/use-development-builds.mdx
