@@ -1,0 +1,25 @@
+{
+  "version": "3.25.76",
+  "advisory": "GHSA-mrhx-c7xc-m3w5",
+  "reference": "https://github.com/colinhacks/zod/commit/a0ebf97",
+  "scope": "Upper bounds before parsing elements in v3 and bundled v4 interpreters; no implicit cap for unbounded schemas.",
+  "files": {
+    "package.json": "70eedbe34fd52385a4ae2f3e5759b19682189f0118ea73a6e7c32c677f61668e",
+    "index.js": "6419c4ac0e637ff08463083e31886d10354f74cbcc4e584400b2b837e39ac881",
+    "index.cjs": "69025493407e0f37f24e01e363452d75ae43a89aac18eb24806706b5b534b459",
+    "v3/index.js": "3db2efd285e7328d8014b54a7fce3f4861ebcdc655df40517092ed0050983617",
+    "v3/index.cjs": "d58a1fea61e0f0bccdb2f4fd3b7b098adcfddb44f036302c4d2c4e173540a292",
+    "v3/external.js": "5d26d2e47e2352def36f89a3e8bf8581da22b7f857e07ef3114cd52cf4813445",
+    "v3/external.cjs": "224ff76e204434ec469f71dbba41d475db1ea873d3f3a5c26d75ab3a9c9f5f11",
+    "v3/types.js": "7b994f7652ae24855e9fe3066de3463f9bfd1083ca7d56d22434942fcddfbffe",
+    "v3/types.cjs": "674e29beb1bafb0ac61ad688431322e9397ab9b91272173f19dcf11e310f8e3a",
+    "v4/index.js": "a4b634bb8c97cc700dbf165f3bb0095ec669042da72eaf28a7c5e2ddd98169ce",
+    "v4/index.cjs": "35934fbd99d4ca1d46932dfcddb6071c203b5c980862cf58e254998c49e1e5b8",
+    "v4/classic/external.js": "192e6e484559c6e9083f0a8bb1c819d6a6432ed720aa67a139361c79ef4965f6",
+    "v4/classic/external.cjs": "f55bafb8d43bd7e2ecf4af8ad6b7338af86c041701b8b23c69e4addaf4d9ae55",
+    "v4/mini/external.js": "ebb2bea289e0958187128a4c59cf27d744e94b00e7d1aad472989aed27a1f7aa",
+    "v4/mini/external.cjs": "89319ff8b1f7eaf413c723bd269051b0d1e48207db883e80bb620a0a68ecc54b",
+    "v4/core/schemas.js": "98d798c9d62315d50ada1c23bce9b7e7ae8f46d5c20f90585c6d660b42c0f757",
+    "v4/core/schemas.cjs": "49480b2755688df63b572549dfc7a5653e1dd0d8d0439f238e61ae1c0e5333cb"
+  }
+}

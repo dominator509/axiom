@@ -1,9 +1,9 @@
 // Exercise audit-pnpm's narrow upstream exception with synthetic audit output.
 // New high/critical advisories and package mismatches must still fail closed.
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, delimiter } from 'node:path';
+import { join, delimiter, dirname, basename } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = mkdtempSync(join(tmpdir(), 'axiom-pnpm-audit-'));
@@ -19,12 +19,17 @@ try {
     join(root, 'scripts/check-braces-patch.mjs'),
     'process.exit(process.env.AUDIT_PATCH_FAILURE === "1" ? 1 : 0);\n',
   );
+  // Classification-only fixture; the actual source/runtime verifier runs separately.
+  writeFileSync(
+    join(root, 'scripts/check-zod-size-patch.mjs'),
+    'process.exit(process.env.AUDIT_ZOD_FAILURE === "1" ? 1 : 0);\n',
+  );
   writeFileSync(join(root, 'bin/pnpm'), '#!/bin/sh\ncat "$AUDIT_FIXTURE"\nexit 1\n', {
     mode: 0o755,
   });
   writeFileSync(join(root, 'bin/pnpm.cmd'), '@echo off\r\ntype "%AUDIT_FIXTURE%"\r\nexit /b 1\r\n');
 
-  const run = (advisories, patchFailure = false) => {
+  const run = (advisories, patchFailure = false, zodFailure = false) => {
     const file = join(root, 'audit.json');
     writeFileSync(file, JSON.stringify({ advisories }));
     const env = { ...process.env };
@@ -38,6 +43,7 @@ try {
         PATH: `${join(root, 'bin')}${delimiter}${searchPath}`,
         AUDIT_FIXTURE: file,
         AUDIT_PATCH_FAILURE: patchFailure ? '1' : '0',
+        AUDIT_ZOD_FAILURE: zodFailure ? '1' : '0',
       },
     });
   };
@@ -101,9 +107,34 @@ try {
   assert.equal(critical.status, 1);
   assert.match(critical.stderr, /new-package, critical/);
 
+  const zod = {
+    github_advisory_id: 'GHSA-mrhx-c7xc-m3w5', module_name: 'zod',
+    severity: 'high', findings: [{ version: '3.25.76' }],
+  };
+  const zodAccepted = run({ 1: zod });
+  assert.equal(zodAccepted.status, 0, zodAccepted.stderr);
+  assert.match(zodAccepted.stdout, /locally patched - GHSA-mrhx-c7xc-m3w5 \(zod\)/);
+  const zodFailed = run({ 1: zod }, false, true);
+  assert.equal(zodFailed.status, 1);
+  assert.match(zodFailed.stderr, /Zod size backport verification did not pass/);
+  for (const rejected of [
+    { ...zod, module_name: 'other-package' },
+    { ...zod, github_advisory_id: 'GHSA-new-example-1234' },
+    { ...zod, findings: [] },
+    { ...zod, findings: undefined },
+    { ...zod, findings: [{ version: '4.4.3' }] },
+    { ...zod, findings: [{ version: '3.25.76' }, { version: '4.4.3' }] },
+  ]) {
+    const result = run({ 1: rejected });
+    assert.equal(result.status, 1, 'Zod recognition must be restricted to the exact backport');
+    assert.match(result.stderr, /pnpm-audit: fail - GHSA-/);
+  }
+
   console.log(
-    'pnpm-audit: classification regressions 8 passed, 0 failed, 0 skipped (including failed patch verification and unknown high/critical findings)',
+    'pnpm-audit: classification regressions 16 passed, 0 failed, 0 skipped (including failed patch verification, exact Zod versions and unknown high/critical findings)',
   );
 } finally {
+  assert.equal(dirname(realpathSync(root)), realpathSync(tmpdir()));
+  assert.ok(basename(root).startsWith('axiom-pnpm-audit-'));
   rmSync(root, { recursive: true, force: true });
 }
