@@ -70,6 +70,7 @@
       "image-size": "2.0.3"
     },
     "patchedDependencies": {
+      "metro@0.84.4": "patches/metro@0.84.4.patch",
       "braces@3.0.3": "patches/braces@3.0.3.patch",
       "zod@3.25.76": "patches/zod@3.25.76.patch"
     }
