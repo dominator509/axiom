@@ -16,6 +16,11 @@ at `2f1be6627f4cf845a5127606472d90a9d9a5d7be` failed its security job:
 after the baseline. The follow-up pins `ctutils` 0.4.4, `rustls` 0.23.46,
 `rustls-webpki` 0.103.16, `webpki-root-certs` 1.0.10 and `webpki-roots` 1.0.10.
 It also pins Tokio 1.53.3 to resolve the newly reported AsyncFd I/O-safety warning.
+The subsequent candidate run 40158631893 exposed the JavaScript audit failures:
+Next.js is updated to 15.5.28, Vite to 6.4.4, Undici to 6.29.1/8.12.2 and Zod v4
+to 4.6.6. Zod 3.25.76 retains the app's v3 APIs with the bounded-collection
+backport described in `patches/zod-size-backport.md`; source integrity and
+runtime/negative-control checks are mandatory before exact-advisory recognition.
 These dependency changes require fresh exact-head CI before merge; the
 historical green baseline does not establish current dependency security.
 

@@ -46,6 +46,19 @@ if (bracesPatch.status !== 0) {
 }
 console.log(bracesPatch.stdout.trim());
 
+// Only the exact v3 backport may be recognized, after source hashes, CJS/ESM
+// entry points, bounded-collection regressions and an unpatched negative control.
+const zodPatch = spawnSync(process.execPath, ['scripts/check-zod-size-patch.mjs'], {
+  encoding: 'utf8', timeout: 120_000, maxBuffer: 2 * 1024 * 1024,
+});
+if (zodPatch.status !== 0) {
+  console.error('pnpm-audit: fail - Zod size backport verification did not pass');
+  if (zodPatch.stdout) console.error(zodPatch.stdout.trim());
+  if (zodPatch.stderr) console.error(zodPatch.stderr.trim());
+  process.exit(1);
+}
+console.log(zodPatch.stdout.trim());
+
 const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
 const args =
   process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm audit --json'] : ['audit', '--json'];
@@ -70,6 +83,12 @@ const unmitigated = [];
 
 for (const advisory of findings) {
   const ghsa = advisory.github_advisory_id;
+  if (ghsa === 'GHSA-mrhx-c7xc-m3w5' && advisory.module_name === 'zod'
+      && advisory.findings?.length > 0
+      && advisory.findings.every(finding => finding.version === '3.25.76')) {
+    mitigated.push(advisory);
+    continue;
+  }
   if (patchedAdvisories.get(ghsa) === advisory.module_name) {
     mitigated.push(advisory);
     continue;

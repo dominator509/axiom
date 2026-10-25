@@ -38,6 +38,11 @@
 - `cargo test --locked --manifest-path crates/egress-plane/Cargo.toml --features db-integration-tests --test egress_test test_org_kek_rotation_is_atomic_and_preserves_payloads -- --exact` — exercise organization KEK rewrap, rollback, audit, and preserved ciphertext in the disposable axiom_test database
 
 ## Validation
+- `node scripts/check-zod-size-patch.mjs` — verify all active Zod v3 backports by source hash, CJS/ESM collection-bound regressions, and a reverted-patch negative control; remove only owned temporary copies. Upstream v4 must use the audited patched pin.
+- `pnpm patch <package>@<version> --edit-dir <ignored-directory>` and `pnpm patch-commit <ignored-directory>` — prepare and persist a reviewed dependency backport; audit recognition requires runtime regressions and source-integrity verification.
+- `pnpm install --lockfile-only --ignore-scripts` — resolve reviewed dependency/patch changes without running package scripts; inspect lockfile scope before a frozen install.
+- `pnpm install --frozen-lockfile` — install the reviewed lockfile with the pinned Node/pnpm toolchain.
+- `pnpm audit:dependencies` — run the repository dependency audit and verified local-patch regressions.
 - `cargo update -p <package> --precise <patched-version>` — narrowly update a vulnerable locked dependency to its reviewed patched release; inspect the lockfile diff and validate affected Rust lanes before merging.
 - `cargo audit` — check the workspace lockfile against current RustSec advisories; never suppress new advisories to obtain a green gate.
 - `cargo run --locked --manifest-path crates/egress-plane/Cargo.toml --bin rotate-org-kek -- --database-url-file <protected-url-file> --old-kek-file <protected-old-key> --old-kek-id <old-id> --new-kek-file <protected-new-key> --new-kek-id <new-id>` — read-only organization KEK preflight; apply requires stopped services and explicit `--apply --confirm-services-stopped`
