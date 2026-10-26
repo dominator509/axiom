@@ -124,9 +124,9 @@ function check(name, assertion) {
     assertion();
     receipt.passed++;
     receipt.assertions.push({ name, result: 'passed' });
-  } catch {
+  } catch (error) {
     receipt.failed++;
-    receipt.assertions.push({ name, result: 'failed' });
+    receipt.assertions.push({ name, result: 'failed', diagnostic: safeDiagnostic(error?.message ?? error) });
     throw new RehearsalAssertion(`Recovery assertion failed: ${name}`);
   }
 }
