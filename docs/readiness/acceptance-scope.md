@@ -8,18 +8,26 @@ are now unverified. Historical receipts are preserved in the register's
 | Criterion | Established evidence | Still required |
 | --- | --- | --- |
 | A1 | Native link-in-bio, provider configuration/composition and independent disable | Supported external FanLynks and Beacons.ai synchronization and lifecycle acceptance on dedicated authorized accounts |
-| MATRIX-NFR-1 | Four text prompt batches and twenty synthetic targets/model at 1/5/10/20 models; queue wait and per-job dispatch timing | Sustained and burst measurement against all applicable L1.2/L4 latency budgets, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval |
+| MATRIX-NFR-1 | Current-main L5 receipt at 1/5/10/20 models: four text batches and twenty synthetic targets/model; generation, ToS scan, approval, scheduling, per-job dispatch and queue-wait p95 are recorded | Sustained and burst measurement against every applicable L1.2/L4 budget, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval |
+| MATRIX-NFR-2 | Current-main scale cohort: 720/720 durable synthetic outcomes and 100% fixture availability at each scale, with per-scale windows | Permitted real-provider availability and production measurement; synthetic fixture results cannot establish external-provider availability |
 | MATRIX-CI | Exact-SHA successful readback of the existing twelve jobs | Full L5.0 sections 1–4 coverage and acceptance; open provider, performance and feature-preservation rows cannot be replaced by job counts |
 
-The [main runtime job](https://github.com/dominator509/axiom/actions/runs/40178065406/job/121122970105)
-passed 127 checks with cleanup verified. Its twenty-model burst completed all
-400 synthetic targets. Queue-wait p95 was 23,451.39 ms and individual dispatch
-p95 was 95.95 ms. The harness advances fixture-only future schedule timestamps;
-neither measurement is the required approval-to-dispatch interval. These numbers
-do not prove the under-two-second budget, nor do they establish an exact live-SLO
-failure with a different measurement boundary. The missing measurement remains
-open. LLM enrichment, native-device timing and real provider delivery were not
-measured by this cohort.
+The [current-main runtime job](https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609)
+is bound to source SHA `e286c0943e7fdf20e4e0d880978a15473bd23048`; its receipt
+passed 127 checks with zero failures or skips and verified fixture cleanup. One
+scale cohort completed 720/720 durable synthetic targets at 1/5/10/20 models.
+In that scale order, queue-wait p95 from burst start was 346.27/1875.09/6717.92/
+19695.01 ms and per-job worker-dispatch p95 was 27.19/24.77/49.87/80.44 ms.
+Generation, ToS scan, approval and scheduling timings are recorded separately in
+the evidence register. At 20 models, the publishing window was 20.047 seconds
+and the full workload window was 27.294 seconds. The second runtime repetition
+contributes checks but no second scale cohort. This receipt does not measure
+approval-to-dispatch directly: worker dispatch and queue wait have separate
+boundaries, and future schedule timestamps are advanced only for fixture IDs.
+The local Discord provider fixture is not Relay delivery, and external provider
+availability, mobile TTI, media transcode, cold-query/retrieval, provider-backed
+LLM/cache behavior, production resources and cost remain unmeasured. Both
+MATRIX-NFR-1 and MATRIX-NFR-2 remain open.
 
 The evidence validator now derives the matrix dependency set from the normative
 L5.0 requirement source. A passed `MATRIX-CI` requires every section 1–4 criterion

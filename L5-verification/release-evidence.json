@@ -1444,7 +1444,7 @@
       "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "The hosted matrix records 720/720 durable synthetic outcomes and per-scale sample windows at 1/5/10/20 models. Measure permitted real-provider availability separately before closing this criterion; the synthetic fixture cannot establish external-provider availability. No fixed observation duration is required.",
+      "nextStep": "Current-main hosted run 40297468512 records 720/720 durable synthetic outcomes and per-scale sample windows at 1/5/10/20 models. Measure permitted real-provider availability separately before closing this criterion; the synthetic fixture cannot establish external-provider availability. No fixed observation duration is required.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-2",
@@ -1470,6 +1470,33 @@
             "sha256:351856a45752880016412154d1de1aaacf84a12fa28de59d8beb728dde822dc7",
             "sha256:1ed43bc62584fedfc9c73685650b2d5fcf45528a39769ab3986216d601d53aea",
             "sha256:2bd266f2b6977ec9b7f6a6aa6500b50e5694edfc16514f04492927f6c858dac1",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-2",
+          "sha": "e286c0943e7fdf20e4e0d880978a15473bd23048",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; owned network-disabled Docker/PostgreSQL fixtures with the pinned local vision model, synthetic consent/media, and local Discord provider fixture; no real provider credentials or paid quotas.",
+          "scope": "The 1/5/10/20-model publishing windows were 2026-10-26T09:16:34.413Z-09:16:34.783Z (369.21ms), 09:16:57.406Z-09:16:59.384Z (1978.11ms), 09:17:34.098Z-09:17:40.992Z (6894.18ms), and 09:18:50.018Z-09:19:10.065Z (20047.08ms). Denominators were 20/100/200/400 and durable outcomes were 20/100/200/400 (720/720); isolated internal availability was 100% at all scales. The local synthetic Discord fixture returned 720/720 successful responses and is explicitly marked externalProviderMeasured=false. Queue-wait p95 from burst start was 346.27/1875.09/6717.92/19695.01ms; individual dispatch p95 was 27.19/24.77/49.87/80.44ms. Fixture cleanup was verified. Model SHA-256 2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93; source archive SHA-256 4ba336b3d49994a51abaa6612bf2dbf16b7e59775931c37fa8e524076fa5301c.",
+          "limitations": "One isolated synthetic scale cohort only; these short workload windows do not measure sustained production availability or live-provider uptime. No external destination, owner infrastructure, production/shared database, provider-backed LLM/cache behavior, mobile TTI, media transcode, Relay delivery, cold-query/retrieval latency, host resource peaks, or infrastructure cost was measured. The synthetic provider fixture cannot establish the 99.5% real-provider availability target.",
+          "observedAt": "2026-10-26T09:19:37.3744120Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40297468512",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609",
+          "logSha256": "6841f72fd6ea6dfc34481c1f281033d2b8b3fa1b221e9fd0d99451060e6aec49",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:a8427feef4fe37ccd2866bc75875b7bbc6f41ef1716e24367dbbcc9fe567d076",
+            "sha256:33ed6f68a7c233fd20fd25499799dfd2d20b5ed8b0a7e69e9a261224f13684b8",
+            "sha256:963d559a4f3ab9ee2dca872d2c00d9649689beb770cb53acad2924550d922476",
+            "sha256:077735b5bc4342608766a33f88e14eb0dbd7395890356f8e1ea270d45002edde",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
@@ -3386,6 +3413,33 @@
             "sha256:351856a45752880016412154d1de1aaacf84a12fa28de59d8beb728dde822dc7",
             "sha256:1ed43bc62584fedfc9c73685650b2d5fcf45528a39769ab3986216d601d53aea",
             "sha256:2bd266f2b6977ec9b7f6a6aa6500b50e5694edfc16514f04492927f6c858dac1",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "e286c0943e7fdf20e4e0d880978a15473bd23048",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; owned network-disabled Docker/PostgreSQL fixtures with the pinned local vision model, synthetic consent/media, and local Discord provider fixture; no real provider credentials or paid quotas.",
+          "scope": "The 127-check L5 receipt contains one 1/5/10/20-model scale cohort with 4 text generation batches/model and 20 targets/model: 720 durable synthetic outcomes across denominators 20/100/200/400. p95 by scale (1/5/10/20 models): generation request 47.26/243.79/447.05/563.22ms; local ToS scan 346.08/1025.79/1966.67/4038.18ms; approval 15.81/33.73/56.83/110.08ms; scheduling 14.83/36.09/64.89/112.53ms; worker dispatch 27.19/24.77/49.87/80.44ms; queue wait from burst start 346.27/1875.09/6717.92/19695.01ms. The 20-model workload window was 2026-10-26T09:18:42.783Z-09:19:10.065Z (27294.24ms), including the 20.04708s publishing window. The second runtime repetition contributes checks but no second scale cohort. Fixture cleanup was verified. Model SHA-256 2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93; source archive SHA-256 4ba336b3d49994a51abaa6612bf2dbf16b7e59775931c37fa8e524076fa5301c.",
+          "limitations": "Partial synthetic evidence only. Per-job worker dispatch is not approval-to-dispatch, and queue wait from burst start is a separate measurement; the 20-model queue-wait p95 was 19.70 seconds. The local Discord provider fixture is not Relay card delivery and externalProviderMeasured=false. This does not establish any unmeasured L1.2/L4 gate, including sustained daily workload, mobile TTI, 60-second 1080p processing, actual Relay delivery, cold-query or retrieval latency, host resource peaks, provider-backed LLM/cache behavior, live-provider uptime, production availability, or infrastructure cost. Do not promote MATRIX-NFR-1 from this receipt.",
+          "observedAt": "2026-10-26T09:19:37.3744120Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40297468512",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609",
+          "logSha256": "6841f72fd6ea6dfc34481c1f281033d2b8b3fa1b221e9fd0d99451060e6aec49",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:a8427feef4fe37ccd2866bc75875b7bbc6f41ef1716e24367dbbcc9fe567d076",
+            "sha256:33ed6f68a7c233fd20fd25499799dfd2d20b5ed8b0a7e69e9a261224f13684b8",
+            "sha256:963d559a4f3ab9ee2dca872d2c00d9649689beb770cb53acad2924550d922476",
+            "sha256:077735b5bc4342608766a33f88e14eb0dbd7395890356f8e1ea270d45002edde",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
