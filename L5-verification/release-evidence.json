@@ -1416,7 +1416,7 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "The latest exact-main L5 runtime job 121749910065 on 1aeb26a8 records one isolated burst at 1/5/10/20 models, 4 generation batches per model, and 20 synthetic targets per model; it is partial capacity evidence. The updated L5 harness now records direct approval-response-completion to synthetic local Discord transport-start samples at worker concurrency 1; collect its exact-SHA receipt and keep that serial fixture result diagnostic rather than accepting it as deployed concurrency or actual provider/Relay performance. Measure sustained duration and host resource limits, then complete mobile TTI, 60-second 1080p processing, cold-query, retrieval, actual Relay, provider-cache, and infrastructure-cost measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
+      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is a diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance, so MATRIX-NFR-1 remains unverified. Measure sustained duration and host resource limits, then complete mobile TTI, 60-second 1080p processing, cold-query, retrieval, actual Relay, provider-cache, and infrastructure-cost measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-1",
@@ -1442,6 +1442,33 @@
             "sha256:5e8e58a9037ede5ebba8872526bac017c8a3308c973f234fadddf5b7ec343b6c",
             "sha256:bcbca7e8eeddf3eac0da2cb5f418b44d142c1a8d7fe54179699b4d95de42ff89",
             "sha256:07a30601eabd6782dfcd50152cf6f84b1905ded632a914191585577cf89bcbdd",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "8643685ea0b54a1c5f8b52445f91b94fb98aa374",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions Ubuntu 24.04.5, Node 22.23.3; owned network-disabled Docker/PostgreSQL/API/worker with the pinned local vision model and synthetic Discord fixture; worker ticks serial at concurrency 1; no external provider credentials or paid quotas.",
+          "scope": "127 checks passed, 0 failed, 0 skipped; cleanup verified. One synthetic burst cohort covered 1/5/10/20 models, four text generation batches per model, and 20 API-created publish targets per model (720/720 durable outcomes). Direct approval-response-completion to synthetic local Discord transport-start samples (p50/p95/p99/max ms; sample count) were: 1 model 525.74/703.60/722.18/722.18 (20); 5 models 2583.53/3754.02/3831.38/3849.50 (100); 10 models 6819.93/9691.41/9851.03/9892.31 (200); 20 models 21287.33/29644.06/29982.54/30058.59 (400). Against the 2000ms p95 budget, only the 1-model serial fixture scale passed. The measurement starts when the approval API response body is fully read and ends when the local synthetic Discord transport starts the publish request. Image IDs: Hono sha256:ca85a521dd2f83b537d96379d7839408bd66f876a670ec0723316451e2204299; egress sha256:63b420dea42338c5e52cfc9dc43bb9a50f35b009f6e6e3b2082a7d80af7fbbf3; vision sha256:38e978bcee7a6c9418b425d7404bd665b687531389cf32f5b42f692cf0638e80; media sha256:06fca6b65622f77f0788fef76e816f4986c4d77dba423eed8ec7ea397f45ec23; PostgreSQL timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a.",
+          "limitations": "Partial isolated serial-driver diagnostic only. Worker concurrency 1 does not establish the owned deployment's configured concurrency or capacity; the synthetic Discord transport is not actual provider or Relay delivery. Do not promote MATRIX-NFR-1 from this receipt. Sustained workload, host resource peaks, mobile TTI, 60-second 1080p processing, cold-query/retrieval, actual Relay, provider prompt-cache telemetry, infrastructure cost, and production availability remain unmeasured.",
+          "observedAt": "2026-10-26T19:58:10.6230820Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40389851927",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40389851927/job/121807671280",
+          "logSha256": "55261500284eecaf92b06735e548d79b6f37be08b76365364b995b3200af8882",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:ca85a521dd2f83b537d96379d7839408bd66f876a670ec0723316451e2204299",
+            "sha256:63b420dea42338c5e52cfc9dc43bb9a50f35b009f6e6e3b2082a7d80af7fbbf3",
+            "sha256:38e978bcee7a6c9418b425d7404bd665b687531389cf32f5b42f692cf0638e80",
+            "sha256:06fca6b65622f77f0788fef76e816f4986c4d77dba423eed8ec7ea397f45ec23",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
