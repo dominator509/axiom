@@ -2224,8 +2224,8 @@ for (const kind of Object.keys(defaultExecutors)) {
 
         const sourceProbe = await mediaRequest('/media/video/probe', { video_path: sourceRelativePath });
         assert.equal(sourceProbe.exists, true);
-        assert.equal(sourceProbe.width, 1920);
-        assert.equal(sourceProbe.height, 1080);
+        assert.equal(sourceProbe.width, 1920, 'Media-plane probe must retain the 1080p input width');
+        assert.equal(sourceProbe.height, 1080, 'Media-plane probe must retain the 1080p input height');
         assert.ok(Number.isFinite(sourceProbe.duration_seconds)
           && Math.abs(sourceProbe.duration_seconds - 60) < 0.1);
         assert.ok(Number.isSafeInteger(sourceProbe.size_bytes) && sourceProbe.size_bytes > 0);
@@ -2237,7 +2237,6 @@ for (const kind of Object.keys(defaultExecutors)) {
           watermark_path: watermarkRelativePath,
           output_path: watermarkedRelativePath,
           position: 'bottom-right',
-          scale: 50,
         });
         const watermarkMs = Number((performance.now() - watermarkStartedAt).toFixed(2));
         assert.ok(Number.isFinite(watermarkMs) && watermarkMs >= 0);
@@ -2256,14 +2255,14 @@ for (const kind of Object.keys(defaultExecutors)) {
         const watermarkedProbe = await mediaRequest('/media/video/probe', { video_path: watermarkedRelativePath });
         const outputProbe = await mediaRequest('/media/video/probe', { video_path: outputRelativePath });
         assert.equal(watermarkedProbe.exists, true);
-        assert.equal(watermarkedProbe.width, 1920);
-        assert.equal(watermarkedProbe.height, 1080);
+        assert.equal(watermarkedProbe.width, 1920, 'Watermarked output must retain the 1080p width');
+        assert.equal(watermarkedProbe.height, 1080, 'Watermarked output must retain the 1080p height');
         assert.ok(Number.isFinite(watermarkedProbe.duration_seconds)
           && Math.abs(watermarkedProbe.duration_seconds - 60) < 0.1);
         assert.ok(Number.isSafeInteger(watermarkedProbe.size_bytes) && watermarkedProbe.size_bytes > 0);
         assert.equal(outputProbe.exists, true);
-        assert.equal(outputProbe.width, 1920);
-        assert.equal(outputProbe.height, 1080);
+        assert.equal(outputProbe.width, 1920, 'Transcoded output must retain the 1080p width');
+        assert.equal(outputProbe.height, 1080, 'Transcoded output must retain the 1080p height');
         assert.ok(Number.isFinite(outputProbe.duration_seconds)
           && Math.abs(outputProbe.duration_seconds - 60) < 0.1);
         assert.ok(Number.isSafeInteger(outputProbe.size_bytes) && outputProbe.size_bytes > 0);
