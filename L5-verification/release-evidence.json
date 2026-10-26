@@ -986,7 +986,13 @@
             "unit": "tests"
           },
           "skips": [],
-          "images": []
+          "images": [
+            "sha256:b2ed5871dfcb2ddb6143c266ba81268b6836c649ae2ae07493d7712edf9fb53e",
+            "sha256:5094bc6240b86d69b6effc906840ca6e6cccc2af41d4aef1d3295bf5a7caf76b",
+            "sha256:e0257328deb757f318e945ce4e5b19b0df442f2f53b04c02139cc2f151a87864",
+            "sha256:f1909e9f7c1bee4c80ea7efc75d915b1a1db4e4845ad67952121213fb64b149a",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
@@ -1416,7 +1422,7 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is a diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. The L5 harness now also measures one synthetic 60-second 1080p 30fps clip through the authenticated Rust media-plane watermark and MP4 transcode routes, recording per-stage/combined time, output metadata, hashes, runner context, the 15-second budget result, and cleanup; hosted-runner performance does not establish target-host capacity. Keep MATRIX-NFR-1 unverified. Measure sustained daily load and target-host resource limits, then complete mobile TTI, cold-query, retrieval, actual Relay, provider-cache, and infrastructure-cost measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
+      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is a diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. M35 post-merge synthetic 60-second 1080p watermark+transcode measured 66,839.18ms against the 15,000ms target on a hosted runner; target-host capacity remains unverified. M36 post-merge job 121893306484 recorded synthetic retrieveCaptionGuidance p95 of 14.62/15.92/15.06/14.97ms at 1/5/10/20 models (50 samples per scale, 50 exemplars per model). Cache state was uncontrolled, so this is not cold-query evidence or target-host acceptance; retain it as the completed hosted retrieval submetric and do not repeat unchanged. Keep MATRIX-NFR-1 unverified. Next measure sustained daily load with target-host resource limits, mobile TTI, controlled cold-query, actual Relay, provider-cache telemetry, and actual infrastructure cost against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-1",
@@ -1471,10 +1477,54 @@
             "sha256:06fca6b65622f77f0788fef76e816f4986c4d77dba423eed8ec7ea397f45ec23",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "a163e3cbcd68c146b67028998ce82a81ba8eeb9f",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub Actions Ubuntu 24.04.5, Node 22.23.3; isolated network-disabled Docker/PostgreSQL/API/worker; Linux runner with 4 available CPUs and 16,766,414,848 host-visible memory bytes. The measurement client's cgroup CPU and memory limits were unlimited.",
+          "scope": "128 checks passed, 0 failed, 0 skipped; cleanup verified. One synthetic test-pattern 60-second 1920x1080 30fps clip was processed through the authenticated Rust media-plane routes. Watermark: 33,876.71ms; MP4 transcode: 32,962.45ms; combined: 66,839.18ms against the 15,000ms budget (not met). Input SHA-256 94e512c08eea59173c651057d4d25342fc428dd36b971c5c3a2277e6015cf539; output SHA-256 9fa8c19a57160cf983b537da0c9364eb3b6bf3a5e295303a3403340052f17a6f.",
+          "limitations": "One synthetic test-pattern sample on a hosted runner. It does not establish target-host capacity, sustained daily load, production media, R2 behavior, or provider performance. Fixture generation is timed separately and excluded from the media-plane budget interval; do not promote MATRIX-NFR-1 from this receipt.",
+          "observedAt": "2026-10-26T21:57:57.5891802Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40407054056",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40407054056/job/121867391824",
+          "logSha256": "04c7b5aab063f75afee5b719237c60dcbc431db5784655d5e4b75f4335bdc217",
+          "counts": {
+            "passed": 128,
+            "failed": 0,
+            "skipped": 0,
+            "total": 128,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": []
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "47378f8b418aeef0f3f36bf5e50ae018c2cf8bb4",
+          "command": "pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts",
+          "environment": "GitHub Actions Linux x64; Node v22.23.3, PostgreSQL 16.15, 4 CPUs and 16,766,414,848 host-visible memory bytes; cgroup CPU and memory limits were not reported. AXIOM_RETRIEVAL_PERFORMANCE=enabled and TESTED_SHA=47378f8b418aeef0f3f36bf5e50ae018c2cf8bb4.",
+          "scope": "Focused retrieval integration file: 11 tests passed, 0 failed, 0 skipped. The rollback-only synthetic workload used 1/5/10/20 models, 50 exemplars per model and 50 sequential samples per scale at concurrency 1; retrieveCaptionGuidance p95 was 14.62/15.92/15.06/14.97ms, all below the 30ms diagnostic target. PostgreSQL 16.15 fixture rows were rolled back and external provider calls were zero.",
+          "limitations": "Hosted synthetic diagnostic only. Cache state was uncontrolled and the first sample is not a cold-query measurement. This does not establish target-host latency, sustained daily capacity, actual Relay delivery, provider cache telemetry, infrastructure cost, or MATRIX-NFR-1 acceptance.",
+          "observedAt": "2026-10-26T22:52:56.4589965Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40414506516",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40414506516/job/121893306484",
+          "logSha256": "7cc95dc6442fce93fce7bf838f454bbb7fb4afba33d8ee9b40c4e50078b8cfc0",
+          "counts": {
+            "passed": 11,
+            "failed": 0,
+            "skipped": 0,
+            "total": 11,
+            "unit": "tests"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         }
       ],
       "verification": {
-        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. The isolated L5 harness directly measures approval-response completion to synthetic local Discord transport start at worker concurrency 1; preserve sample count, p50/p95/p99/max, boundary definitions, and the budget result, but treat it as diagnostic until declared deployed concurrency is measured. Complete mobile TTI, 60-second 1080p processing, actual Relay delivery, cold-query, and retrieval measurements at their required boundaries. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
+        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. The isolated L5 harness directly measures approval-response completion to synthetic local Discord transport start at worker concurrency 1; preserve sample count, p50/p95/p99/max, boundary definitions, and the budget result, but treat it as diagnostic until declared deployed concurrency is measured. Complete mobile TTI, 60-second 1080p processing, actual Relay delivery, and cold-query measurements at their required boundaries. M36 records hosted synthetic retrieveCaptionGuidance p95 across 1/5/10/20 models; retain it as partial retrieval evidence and do not repeat unchanged. Record target-boundary retrieval separately if deployment acceptance requires it. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
         "environment": "Owned isolated deployment with declared hardware limits, concurrency, duration and dataset; real native/mobile timing environment and specifically authorized Relay test destination where required. Synthetic/local and actual-provider measurements remain separate; existing credits/free quotas only.",
         "dependencies": [
           1,
