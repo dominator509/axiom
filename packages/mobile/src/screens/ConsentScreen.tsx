@@ -24,6 +24,7 @@ import {
   type MobileModelProfile,
 } from '../api/endpoints';
 import {
+  prepareConsentUploadDocument,
   validateConsentUploadDocument,
   type ConsentRecordUploadInput,
   type ConsentUploadDocument,
@@ -487,8 +488,9 @@ export default function ConsentScreen({ user }: { user: SessionUser }) {
         setUploadError(consentText(locale, 'consent.invalidDocument'));
         return;
       }
-      setSelectedDocument(picked);
+      setSelectedDocument(await prepareConsentUploadDocument(picked));
     } catch {
+      setSelectedDocument(null);
       // Picker errors may contain device-local paths; keep them out of the UI and logs.
       setUploadError(consentText(locale, 'consent.invalidDocument'));
     }
