@@ -16,6 +16,22 @@ statuses passed hosted receipt verification; this is not release approval.
 See [the scope audit](../docs/readiness/acceptance-scope.md) for evidence limits.
 The checkpoints below are historical, including their earlier acceptance counts.
 
+The post-M23 exact-main checkpoint (2026-10-26) is SHA
+`9c26d5726ca01ad59e9dded8fe74a76ee26b96d4`. Post-merge CI run
+[40291129200](https://github.com/dominator509/axiom/actions/runs/40291129200)
+completed with 12/12 jobs successful. Its `ci (test)` job ran
+`node scripts/rehearse-rls-catalog.mjs --isolated-fixture` against the pinned
+TimescaleDB PostgreSQL 16 image: 32 assertions passed, 0 failed, 0 skipped, and
+cleanup verified. Raw job-log SHA-256:
+`aaa9ad88eb5f5a61131b635f7c89bea0cc1e403f57ca6be1b78597f8ad32af60`. The
+source-bound RLS receipt is recorded for LBI-01, NONFUNCTIONAL-2, and SECURITY-2.
+It covers an owned disposable database only; deployed/shared database
+acceptance, exhaustive CRUD for every tenant table, and final-release-SHA replay
+remain open. The register remains 28 accepted and 26 open, valid, and **not
+release approval**. Full `--verify-receipts` at this SHA correctly fails closed
+at LBI-02 because its accepted receipt still has a stale evidence SHA; complete
+exact-SHA verification of the accepted set remains open.
+
 Application-code baseline for this evidence refresh (2026-10-24) is `f140fe0b2ec9b8c23fd15f6b0035f2e2e0954ebf`, merged from PR #203. A fresh fetch confirmed main and origin/main at this SHA with zero divergence and a clean checkout before the documentation change. `rtk node scripts/check-release-evidence.mjs --check` reports 54 criteria: 31 accepted and 23 open (20 unverified, 3 blocked); the register is valid and is **not release approval**. Hosted metadata readback confirms that exact-main [CI run 38366040912](https://github.com/dominator509/axiom/actions/runs/38366040912) completed with 12 successful jobs, 0 failed, 0 cancelled, and 0 skipped jobs. This is job-status readback, not a new assertion/log audit or an exact-SHA acceptance receipt. Accepted rows retain their actual tested SHAs and still need replay against the eventual final release SHA.
 
 PR #203 recorded the existing synthetic browser receipts for LBI-12 and
@@ -612,7 +628,7 @@ the owner's standing authorization. Recheck main CI after each merge.
 
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
-   crosswalk is validated. At current `origin/main` SHA
+   crosswalk is validated. At the pre-M23 main checkpoint SHA
    `7cfe25eafd779b52b607893b52e87e33ea072013`, the register is structurally
    valid with 28 accepted and 26 open (23 unverified, 3 blocked), and remains
    **not release approval**. Repeat all accepted rows at the final release SHA

@@ -331,6 +331,21 @@
           "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
           "skips": [],
           "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
+        },
+        {
+          "criterion": "LBI-01",
+          "sha": "9c26d5726ca01ad59e9dded8fe74a76ee26b96d4",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; network-disabled disposable PostgreSQL using the pinned TimescaleDB PostgreSQL 16 image",
+          "scope": "Effective migrated forced-RLS catalog and application-role privileges across schema-derived tenant tables; startup readiness with the runtime role; negative controls for missing schema/table/column/SELECT, disabled or unforced RLS, wrong role, BYPASSRLS and elevated membership; tenant reassignment and unset-context denials; cross-tenant read/write denials; cleanup verified",
+          "limitations": "Disposable CI database only; no deployed/shared/production database inspection, no exhaustive CRUD exercise for every tenant table, and no final release-SHA replay",
+          "observedAt": "2026-10-26T08:28:13.8124732Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200/job/121466186320",
+          "logSha256": "aaa9ad88eb5f5a61131b635f7c89bea0cc1e403f57ca6be1b78597f8ad32af60",
+          "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
+          "skips": [],
+          "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
         }
       ],
       "verification": {
@@ -2370,6 +2385,21 @@
           "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
           "skips": [],
           "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
+        },
+        {
+          "criterion": "NONFUNCTIONAL-2",
+          "sha": "9c26d5726ca01ad59e9dded8fe74a76ee26b96d4",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; network-disabled disposable PostgreSQL using the pinned TimescaleDB PostgreSQL 16 image",
+          "scope": "Effective migrated forced-RLS catalog and application-role privileges across schema-derived tenant tables; startup readiness with the runtime role; negative controls for missing schema/table/column/SELECT, disabled or unforced RLS, wrong role, BYPASSRLS and elevated membership; tenant reassignment and unset-context denials; cross-tenant read/write denials; cleanup verified",
+          "limitations": "Disposable CI database only; no deployed/shared/production database inspection, no exhaustive CRUD exercise for every tenant table, and no final release-SHA replay",
+          "observedAt": "2026-10-26T08:28:13.8124732Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200/job/121466186320",
+          "logSha256": "aaa9ad88eb5f5a61131b635f7c89bea0cc1e403f57ca6be1b78597f8ad32af60",
+          "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
+          "skips": [],
+          "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
         }
       ],
       "verification": {
@@ -2883,6 +2913,21 @@
           "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40285921937",
           "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40285921937/job/121449432107",
           "logSha256": "4c742ce399ddeadaca0f5ba96198eccecf492636d725d8c7ccf985139abf4195",
+          "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
+          "skips": [],
+          "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
+        },
+        {
+          "criterion": "SECURITY-2",
+          "sha": "9c26d5726ca01ad59e9dded8fe74a76ee26b96d4",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3; network-disabled disposable PostgreSQL using the pinned TimescaleDB PostgreSQL 16 image",
+          "scope": "Effective migrated forced-RLS catalog and application-role privileges across schema-derived tenant tables; startup readiness with the runtime role; negative controls for missing schema/table/column/SELECT, disabled or unforced RLS, wrong role, BYPASSRLS and elevated membership; tenant reassignment and unset-context denials; cross-tenant read/write denials; cleanup verified",
+          "limitations": "Disposable CI database only; no deployed/shared/production database inspection, no exhaustive CRUD exercise for every tenant table, and no final release-SHA replay",
+          "observedAt": "2026-10-26T08:28:13.8124732Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40291129200/job/121466186320",
+          "logSha256": "aaa9ad88eb5f5a61131b635f7c89bea0cc1e403f57ca6be1b78597f8ad32af60",
           "counts": { "passed": 32, "failed": 0, "skipped": 0, "total": 32, "unit": "assertions" },
           "skips": [],
           "images": ["timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"]
