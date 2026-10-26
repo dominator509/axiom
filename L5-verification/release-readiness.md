@@ -658,6 +658,11 @@ the owner's standing authorization. Recheck main CI after each merge.
    F-91 (Patreon), and F-92 (Beacon CRM), as specified by L5.0 and L5.2.
    Complete six-locale, desktop and native-mobile journeys, synthetic
    consent-vault controls, owner records attestation and release-specific sign-off.
+   A local Android operator rehearsal selected and persisted all six locales
+   and measured zero safe-area label overlaps; details and screenshot hashes are
+   recorded in [the partial native receipt](native-operator-locale-partial-2026-10-26.md).
+   This mixed-source, operator-only result does not close F-89; FUNCTIONAL-9
+   remains unverified pending complete parity, accessibility and final-source evidence.
 
 Lane 2's isolated effective-RLS acceptance passed at main SHA
 `d8bfb217b4549e8b53c513de71fd92c1ea499c95`: [CI run 37211855138](https://github.com/dominator509/axiom/actions/runs/37211855138),
