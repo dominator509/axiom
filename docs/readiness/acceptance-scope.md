@@ -54,6 +54,22 @@ KEK; they did not use Cloudflare R2, external KMS/KEK, production deployment or
 a real provider. These fixture timings do not establish production RPO/RTO, and
 NONFUNCTIONAL-6 remains unverified.
 
+The [latest current-main recovery job](https://github.com/dominator509/axiom/actions/runs/40343700326/job/121644874531)
+is bound to source SHA `21465791aeb7bcec74f1adb00c7bc9d827d144f5`; it passed 83
+assertions with zero failures or skips and verified cleanup, with 16 expected
+rejections. The two isolated PITR drills reported fixture RPOs of 295/296 ms and
+database/API/worker restore times of 16.577/16.722 seconds. Each fresh restore
+with an empty archived-WAL volume exited with code 1 after PostgreSQL reported
+that recovery ended before the configured target was reached. Both drills used
+10 archived WAL segments, separate disposable media volumes, synthetic
+operator/provider state, and an in-memory KEK. The missing-WAL control also
+requires the post-backup target marker to be absent because PostgreSQL may
+promote at the end of available WAL. Production still needs an operator-facing
+target-integrity gate, an interrupted-base-backup rehearsal, Cloudflare R2
+retention, external KMS, real provider reconciliation, and owner sign-off. These
+fixture timings do not establish production RPO/RTO, and NONFUNCTIONAL-6 remains
+unverified.
+
 The evidence validator now derives the matrix dependency set from the normative
 L5.0 requirement source. A passed `MATRIX-CI` requires every section 1–4 criterion
 to be passed. This prevents an all-green job receipt from overriding failed,

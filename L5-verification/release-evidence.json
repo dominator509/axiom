@@ -2610,7 +2610,7 @@
       "requirementSha256": "93a2e17e40caccfbc192ac778252db0043eb46fc2b90aa1b1edf40527988b324",
       "lane": 7,
       "status": "unverified",
-      "nextStep": "Latest current-main recovery run 40322076511 records two isolated PITR drills with fixture RPOs of 295/300ms and database/API/worker restore times of 14844/14872ms; 81 assertions include pg_verifybackup rejection when the external required-WAL directory is empty. Complete external R2 retention/KMS and application/provider reconciliation evidence; test a recovery blocked by missing archived WAL and an interrupted base backup; repeat full RPO/RTO acceptance on the final release SHA. These fixture measurements do not establish production RPO/RTO.",
+      "nextStep": "Latest current-main recovery run 40343700326 records two isolated PITR drills with fixture RPOs of 295/296ms and database/API/worker restore times of 16577/16722ms; 83 assertions include two fresh restores with empty archived-WAL volumes that exit fail-closed before reaching the requested target. Complete external R2 retention/KMS and real provider reconciliation evidence; rehearse an interrupted base backup; repeat full RPO/RTO acceptance on the final release SHA with the production target-integrity gate. These fixture measurements do not establish production RPO/RTO.",
       "evidence": [
         {
           "criterion": "NONFUNCTIONAL-6",
@@ -2661,6 +2661,32 @@
             "sha256:58bfef76daf17da7924d59cfe5abbb36d0044fe5cea0888d404ad9ee3f8bf71d",
             "sha256:5d7256369e1ba45cfd8ac0d138d67f1bb7844fcafd8ee5e6962e368b1d660cac",
             "sha256:35fd6728b18f347d8ae585804bbb57182bbe441a8e8c44f3549cfd53dc1055f3",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "NONFUNCTIONAL-6",
+          "sha": "21465791aeb7bcec74f1adb00c7bc9d827d144f5",
+          "command": "node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha 21465791aeb7bcec74f1adb00c7bc9d827d144f5",
+          "environment": "GitHub-hosted Ubuntu 24.04.5, Node 22.23.3; two fresh PostgreSQL 16 PITR clusters in Docker network=none; source/run-labeled API/worker images; separate disposable data, WAL, media backup and restore volumes; synthetic operator/provider state and in-memory KEK. No production data or external provider credentials.",
+          "scope": "83 assertions passed, 0 failed, 0 skipped; cleanup verified; 16 expected rejections. Two independent fresh-cluster drills each had 85 migrations, 91 public tables and 10 archived WAL segments. Fixture RPO was 295/296ms; database/API/worker restore time was 16577/16722ms. In each drill, a fresh restore with an empty external WAL volume exited fail-closed with exit code 1 and PostgreSQL reported that recovery ended before the configured target was reached. Restored API and worker became healthy; unauthenticated incident reads were rejected; synthetic operator reconciliation recorded an unknown publish outcome as not-published, kept the job dead and replay-required, and attempted no dispatch. Media was copied between distinct disposable volumes and its checksum verified. PostgreSQL image timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a (image ID sha256:58bfef76daf17da7924d59cfe5abbb36d0044fe5cea0888d404ad9ee3f8bf71d); API image ID sha256:3f0db0e4ca708d6fd11ec90fa91f7ff61b35689fe5c897613c6faf447fc5dc81; worker image ID sha256:83c98a5149da71518a862d4ecbe2ba887c2813febd1665b8303fa93c1cadc5ee. Migration archive SHA-256 d3c46fe9192866f8eb7b6e79d07735cab31f45db1c5d2c3dec91180bc3425447.",
+          "limitations": "No dashboard, reverse proxy, production deployment, Cloudflare R2 account/retention rule, external KMS/KEK, or real provider was used. Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy. Operator reconciliation uses synthetic provider-readback and does not contact a provider. PostgreSQL may promote at the end of available WAL before the requested recovery target; this isolated check verifies that the post-backup target marker is absent, while production still needs an operator-facing target-integrity gate. An interrupted pg_basebackup process was not rehearsed. This isolated recovery rehearsal is partial evidence; it does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.",
+          "observedAt": "2026-10-26T15:00:37.7204782Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40343700326",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40343700326/job/121644874531",
+          "logSha256": "9efa920ccd64b75a7731d1c1a06a474a3cc1afa67516c2f08dadb44bba23b810",
+          "counts": {
+            "passed": 83,
+            "failed": 0,
+            "skipped": 0,
+            "total": 83,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:58bfef76daf17da7924d59cfe5abbb36d0044fe5cea0888d404ad9ee3f8bf71d",
+            "sha256:3f0db0e4ca708d6fd11ec90fa91f7ff61b35689fe5c897613c6faf447fc5dc81",
+            "sha256:83c98a5149da71518a862d4ecbe2ba887c2813febd1665b8303fa93c1cadc5ee",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
