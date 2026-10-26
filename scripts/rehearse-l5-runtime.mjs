@@ -251,6 +251,18 @@ try {
           && scale.approvalAndSchedule.approvalLatencyMs.p95 >= 0);
         assert.ok(Number.isFinite(scale.approvalAndSchedule.scheduleLatencyMs.p95)
           && scale.approvalAndSchedule.scheduleLatencyMs.p95 >= 0);
+        assert.equal(scale.workerConcurrency, 1);
+        assert.equal(scale.approvalToDispatch.samples, scale.denominator);
+        assert.equal(scale.approvalToDispatch.workerConcurrency, scale.workerConcurrency);
+        assert.equal(scale.approvalToDispatch.startBoundary, 'approval API response body completed');
+        assert.equal(scale.approvalToDispatch.endBoundary,
+          'synthetic local Discord transport started the publish request');
+        assert.equal(scale.approvalToDispatch.budgetMs, 2_000);
+        assert.equal(scale.approvalToDispatch.externalProviderMeasured, false);
+        assert.ok(Number.isFinite(scale.approvalToDispatch.latencyMs.p95)
+          && scale.approvalToDispatch.latencyMs.p95 >= 0);
+        assert.equal(scale.approvalToDispatch.budgetMet,
+          scale.approvalToDispatch.latencyMs.p95 < scale.approvalToDispatch.budgetMs);
         assert.ok(Number.isFinite(scale.window.durationMs) && scale.window.durationMs > 0);
         assert.ok(Number.isFinite(scale.queueWaitFromBurstStartMs.p95) && scale.queueWaitFromBurstStartMs.p95 >= 0);
         assert.ok(Number.isFinite(scale.throughputTargetsPerSecond) && scale.throughputTargetsPerSecond > 0);
