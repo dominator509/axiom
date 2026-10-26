@@ -2610,8 +2610,35 @@
       "requirementSha256": "93a2e17e40caccfbc192ac778252db0043eb46fc2b90aa1b1edf40527988b324",
       "lane": 7,
       "status": "unverified",
-      "nextStep": "Complete the external R2 retention/KMS and application reconciliation evidence; repeat full RPO/RTO acceptance on the final release SHA.",
-      "evidence": [],
+      "nextStep": "Current-main recovery run 40307457559 records two isolated PITR drills with fixture RPOs of 250/259ms and database/API/worker restore times of 14265/14297ms. Complete external R2 retention/KMS and application/provider reconciliation evidence; repeat full RPO/RTO acceptance on the final release SHA. These fixture measurements do not establish production RPO/RTO.",
+      "evidence": [
+        {
+          "criterion": "NONFUNCTIONAL-6",
+          "sha": "6f6706099b869a17bf7372f33310b5cc46dff227",
+          "command": "node scripts/rehearse-pitr-recovery.mjs --isolated-fixture --tested-sha 6f6706099b869a17bf7372f33310b5cc46dff227",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; two fresh PostgreSQL PITR clusters with egress disabled in Docker network=none; run-labeled API/worker images, synthetic operator/provider state and disposable media backup/restore volumes. No production data, R2 account, external KMS or real provider credentials.",
+          "scope": "77 assertions passed, 0 failed, 0 skipped; cleanup verified; 12 expected rejections. Two independent fresh-cluster restores each contained 85 migrations, 91 public tables and 9 archived WAL segments. Fixture RPO was 250ms and 259ms; database/API/worker restore time was 14265ms and 14297ms. Restored API and worker became healthy; unauthenticated incident reads were rejected; synthetic operator reconciliation recorded an unknown publish outcome as not-published, kept the job dead and replay-required, and attempted no dispatch. Media was copied from a disposable backup volume to a distinct fresh volume and its checksum verified. The PostgreSQL image was timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a (image ID sha256:58bfef76daf17da7924d59cfe5abbb36d0044fe5cea0888d404ad9ee3f8bf71d); API image ID sha256:dda597ee33fcc2403d156a907436ff1cf03b8f4b4bdeaddf0b88ae4558f11e0a; worker image ID sha256:061410b42504e0a4bd8bed3ee47caf0de5206a4a34d155d79b2da33f1115a369. Migration archive SHA-256 b6b8dbcdaf25e9dc06125ad6f59aac6fc54e01fbfd537aa94d9a213225c917ec.",
+          "limitations": "No dashboard, reverse proxy, production deployment, Cloudflare R2 account/retention rule, external KMS/KEK, or real provider was used. Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy. Operator reconciliation uses a synthetic provider-readback assertion and does not contact a provider. This isolated recovery rehearsal is partial evidence; it does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.",
+          "observedAt": "2026-10-26T10:34:30.2643694Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40307457559",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40307457559/job/121519989622",
+          "logSha256": "5a132ac562514ccd3a34e23e0d6f728e6762c5e7e751183d62d49aa232d2513e",
+          "counts": {
+            "passed": 77,
+            "failed": 0,
+            "skipped": 0,
+            "total": 77,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "sha256:58bfef76daf17da7924d59cfe5abbb36d0044fe5cea0888d404ad9ee3f8bf71d",
+            "sha256:dda597ee33fcc2403d156a907436ff1cf03b8f4b4bdeaddf0b88ae4558f11e0a",
+            "sha256:061410b42504e0a4bd8bed3ee47caf0de5206a4a34d155d79b2da33f1115a369",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Run two fresh-cluster restores and measure WAL-derived RPO and elapsed RTO; verify objects/keys and reconcile uncertain work before test dispatch.",
         "environment": "Two owned fresh-cluster restore drills using synthetic PostgreSQL, object, and key material; egress disabled during recovery reconciliation.",
