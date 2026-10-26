@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import { restoreSession, type SessionUser } from './src/api/auth';
 import { getUiLocale } from './src/api/endpoints';
@@ -23,6 +24,16 @@ const TABS: Array<{ key: Tab; labelKey: string; icon: string }> = [
 const localeCatalog = new LocaleCatalog(CATALOGS);
 
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <SafeAreaView style={styles.root} edges={['top', 'right', 'bottom', 'left']}>
+        <AppContent />
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
   const [restoring, setRestoring] = useState(true);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
