@@ -73,6 +73,7 @@ const receipt = {
     'No dashboard, reverse proxy, production deployment, Cloudflare R2 account/retention rule, external KMS/KEK, or real provider was used.',
     'Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy.',
     'The operator reconciliation uses a synthetic provider-readback assertion; it does not contact a provider or establish external provider reconciliation.',
+    'PostgreSQL may promote at the end of available WAL before the requested recovery target; the missing-WAL control requires the post-backup target marker to remain absent, while production acceptance still needs an operator-facing target-integrity gate.',
     'This isolated recovery rehearsal is partial evidence and does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.',
   ],
 };
@@ -455,15 +456,35 @@ try {
     } while (Date.now() < missingWalProbeDeadline);
     missingWalContainerState = JSON.parse(docker(['inspect', '--format', '{{json .State}}', missingWalRestored]));
     const missingWalLogs = run('docker', ['logs', missingWalRestored], { env: dockerEnv, timeout: 8_000 });
+    const missingWalRecoveryState = missingWalProbe.status === 0 ? missingWalProbe.stdout.trim() : null;
+    const missingWalTargetMarkerCount = missingWalRecoveryState === 'f'
+      ? sql(missingWalRestored, "SELECT count(*) FROM dr_recovery.marker WHERE name='pitr-recoverable-marker'")
+      : null;
+    const missingWalDiagnostic = safeDiagnostic(`${missingWalLogs.stdout ?? ''}${missingWalLogs.stderr ?? ''}`);
     const missingWalRecoveryOutcome = missingWalContainerState.Running
-      ? (missingWalProbe.status === 0 ? 'waiting-in-recovery' : 'unavailable')
+      ? (missingWalProbe.status === 0
+        ? (missingWalRecoveryState === 't' ? 'waiting-in-recovery' : 'promoted-before-target')
+        : 'unavailable')
       : 'exited-fail-closed';
-    check(`drill ${drillNumber}: missing archived WAL cannot promote a fresh PITR restore`, () => {
+    receipt.missingWalControls ??= [];
+    receipt.missingWalControls.push({
+      drill: drillNumber,
+      outcome: missingWalRecoveryOutcome,
+      containerStatus: missingWalContainerState.Status,
+      exitCode: missingWalContainerState.ExitCode,
+      probeStatus: missingWalProbe.status,
+      recoveryState: missingWalRecoveryState,
+      targetMarkerCount: missingWalTargetMarkerCount,
+      diagnostic: missingWalDiagnostic,
+    });
+    check(`drill ${drillNumber}: missing archived WAL cannot recover the requested PITR target`, () => {
       assert.ok(missingWalContainerState.Running
         || (missingWalContainerState.Status === 'exited' && missingWalContainerState.ExitCode !== 0));
-      assert.match(`${missingWalLogs.stdout ?? ''}${missingWalLogs.stderr ?? ''}`, /wal|restore command|archive/i);
       if (missingWalContainerState.Running && missingWalProbe.status === 0) {
-        assert.equal(missingWalProbe.stdout.trim(), 't');
+        assert.ok(missingWalRecoveryState === 't' || missingWalRecoveryState === 'f');
+        if (missingWalRecoveryState === 'f') assert.equal(missingWalTargetMarkerCount, '0');
+      } else {
+        assert.match(missingWalDiagnostic, /wal|restore command|archive/i);
       }
     });
     receipt.expectedRejections++;
