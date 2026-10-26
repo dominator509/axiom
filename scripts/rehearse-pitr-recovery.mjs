@@ -428,6 +428,47 @@ try {
       assert.equal(mounts.some(mount => mount.Name === objectsVolume || mount.Name === objectBackupVolume), false);
     });
 
+    currentStep = `drill ${drillNumber} missing archived WAL recovery rejection`;
+    const missingWalRestored = `axiom-dr-${suffix}-missing-wal-restored`;
+    const missingWalRestoreVolume = volume(`axiom-dr-${suffix}-missing-wal-restore`);
+    runHelper(['--volume', `${backupVolume}:/source:ro`, '--volume', `${missingWalRestoreVolume}:/restore`, image,
+      'sh', '-c', 'cp -a /source/. /restore/']);
+    runHelper(['--interactive', '--volume', `${missingWalRestoreVolume}:/restore`, image, 'sh', '-c',
+      'touch /restore/recovery.signal && cat > /restore/postgresql.auto.conf'], { input: targetConfig });
+    docker(['run', '--detach', ...labeled([
+      '--name', missingWalRestored, '--network', 'none', '--volume', `${missingWalRestoreVolume}:/var/lib/postgresql/data`,
+      '--volume', `${missingWalVolume}:/wal-archive`, image,
+      'postgres', '-c', 'listen_addresses=localhost', '-c', 'timezone=UTC',
+    ])], { timeout: 120_000 });
+
+    const missingWalProbeDeadline = Date.now() + 15_000;
+    let missingWalProbe = { status: 1, stdout: '', stderr: '' };
+    let missingWalContainerState;
+    do {
+      missingWalContainerState = JSON.parse(docker(['inspect', '--format', '{{json .State}}', missingWalRestored]));
+      if (!missingWalContainerState.Running) break;
+      missingWalProbe = run('docker', ['exec', missingWalRestored, 'psql', '-X', '-q', '-U', 'axiom',
+        '-d', 'axiom_test', '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', 'SELECT pg_is_in_recovery()'],
+      { env: dockerEnv, timeout: 8_000 });
+      if (missingWalProbe.status === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 1_000));
+    } while (Date.now() < missingWalProbeDeadline);
+    missingWalContainerState = JSON.parse(docker(['inspect', '--format', '{{json .State}}', missingWalRestored]));
+    const missingWalLogs = run('docker', ['logs', missingWalRestored], { env: dockerEnv, timeout: 8_000 });
+    const missingWalRecoveryOutcome = missingWalContainerState.Running
+      ? (missingWalProbe.status === 0 ? 'waiting-in-recovery' : 'unavailable')
+      : 'exited-fail-closed';
+    check(`drill ${drillNumber}: missing archived WAL cannot promote a fresh PITR restore`, () => {
+      assert.ok(missingWalContainerState.Running
+        || (missingWalContainerState.Status === 'exited' && missingWalContainerState.ExitCode !== 0));
+      assert.match(`${missingWalLogs.stdout ?? ''}${missingWalLogs.stderr ?? ''}`, /wal|restore command|archive/i);
+      if (missingWalContainerState.Running && missingWalProbe.status === 0) {
+        assert.equal(missingWalProbe.stdout.trim(), 't');
+      }
+    });
+    receipt.expectedRejections++;
+    if (missingWalContainerState.Running) docker(['stop', '--time', '5', missingWalRestored]);
+
     const restoredSnapshot = archiveSnapshot(restored);
     check(`drill ${drillNumber}: fresh cluster restored the original system identifier`, () => assert.equal(restoredSnapshot.systemIdentifier, baseSnapshot.systemIdentifier));
     check(`drill ${drillNumber}: full migration ledger and roles survived physical restore`, () => {
@@ -586,6 +627,7 @@ try {
       systemIdentifier: restoredSnapshot.systemIdentifier,
       migrationCount: restoredSnapshot.migrationCount,
       publicTableCount: restoredSnapshot.publicTableCount,
+      missingWalRecoveryOutcome,
       archivedWalSegments: archivedWalCount,
       targetTime,
       rpoMs,
