@@ -73,6 +73,7 @@ const receipt = {
     'No dashboard, reverse proxy, production deployment, Cloudflare R2 account/retention rule, external KMS/KEK, or real provider was used.',
     'Media backup and restore use separate disposable Docker volumes; this does not test an S3/R2 API or object-retention policy.',
     'The operator reconciliation uses a synthetic provider-readback assertion; it does not contact a provider or establish external provider reconciliation.',
+    'PostgreSQL may promote at the end of available WAL before the requested recovery target; the missing-WAL control requires the post-backup target marker to remain absent, while production acceptance still needs an operator-facing target-integrity gate.',
     'This isolated recovery rehearsal is partial evidence and does not satisfy NONFUNCTIONAL-6 or establish production RPO/RTO.',
   ],
 };
@@ -123,9 +124,9 @@ function check(name, assertion) {
     assertion();
     receipt.passed++;
     receipt.assertions.push({ name, result: 'passed' });
-  } catch {
+  } catch (error) {
     receipt.failed++;
-    receipt.assertions.push({ name, result: 'failed' });
+    receipt.assertions.push({ name, result: 'failed', diagnostic: safeDiagnostic(error?.message ?? error) });
     throw new RehearsalAssertion(`Recovery assertion failed: ${name}`);
   }
 }
@@ -428,6 +429,69 @@ try {
       assert.equal(mounts.some(mount => mount.Name === objectsVolume || mount.Name === objectBackupVolume), false);
     });
 
+    currentStep = `drill ${drillNumber} missing archived WAL recovery rejection`;
+    const missingWalRestored = `axiom-dr-${suffix}-missing-wal-restored`;
+    const missingWalRestoreVolume = volume(`axiom-dr-${suffix}-missing-wal-restore`);
+    runHelper(['--volume', `${backupVolume}:/source:ro`, '--volume', `${missingWalRestoreVolume}:/restore`, image,
+      'sh', '-c', 'cp -a /source/. /restore/']);
+    runHelper(['--interactive', '--volume', `${missingWalRestoreVolume}:/restore`, image, 'sh', '-c',
+      'touch /restore/recovery.signal && cat > /restore/postgresql.auto.conf'], { input: targetConfig });
+    docker(['run', '--detach', ...labeled([
+      '--name', missingWalRestored, '--network', 'none', '--volume', `${missingWalRestoreVolume}:/var/lib/postgresql/data`,
+      '--volume', `${missingWalVolume}:/wal-archive`, image,
+      'postgres', '-c', 'listen_addresses=localhost', '-c', 'timezone=UTC',
+    ])], { timeout: 120_000 });
+
+    const missingWalProbeDeadline = Date.now() + 15_000;
+    let missingWalProbe = { status: 1, stdout: '', stderr: '' };
+    let missingWalContainerState;
+    do {
+      missingWalContainerState = JSON.parse(docker(['inspect', '--format', '{{json .State}}', missingWalRestored]));
+      if (!missingWalContainerState.Running) break;
+      missingWalProbe = run('docker', ['exec', missingWalRestored, 'psql', '-X', '-q', '-U', 'axiom',
+        '-d', 'axiom_test', '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', 'SELECT pg_is_in_recovery()'],
+      { env: dockerEnv, timeout: 8_000 });
+      if (missingWalProbe.status === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 1_000));
+    } while (Date.now() < missingWalProbeDeadline);
+    missingWalContainerState = JSON.parse(docker(['inspect', '--format', '{{json .State}}', missingWalRestored]));
+    const missingWalLogs = run('docker', ['logs', missingWalRestored], { env: dockerEnv, timeout: 8_000 });
+    const missingWalRecoveryState = missingWalProbe.status === 0 ? missingWalProbe.stdout.trim() : null;
+    const missingWalTargetMarkerCount = missingWalRecoveryState === 'f'
+      ? sql(missingWalRestored, "SELECT count(*) FROM dr_recovery.marker WHERE name='pitr-recoverable-marker'")
+      : null;
+    const missingWalDiagnostic = safeDiagnostic(`${missingWalLogs.stdout ?? ''}${missingWalLogs.stderr ?? ''}`);
+    const missingWalRecoveryOutcome = missingWalContainerState.Running
+      ? (missingWalProbe.status === 0
+        ? (missingWalRecoveryState === 't' ? 'waiting-in-recovery' : 'promoted-before-target')
+        : 'unavailable')
+      : 'exited-fail-closed';
+    receipt.missingWalControls ??= [];
+    receipt.missingWalControls.push({
+      drill: drillNumber,
+      outcome: missingWalRecoveryOutcome,
+      containerStatus: missingWalContainerState.Status,
+      exitCode: missingWalContainerState.ExitCode,
+      probeStatus: missingWalProbe.status,
+      recoveryState: missingWalRecoveryState,
+      targetMarkerCount: missingWalTargetMarkerCount,
+      diagnostic: missingWalDiagnostic,
+    });
+    check(`drill ${drillNumber}: missing archived WAL cannot recover the requested PITR target`, () => {
+      assert.ok(missingWalContainerState.Running
+        || (missingWalContainerState.Status === 'exited' && missingWalContainerState.ExitCode !== 0));
+      if (missingWalContainerState.Running && missingWalProbe.status === 0) {
+        assert.ok(missingWalRecoveryState === 't' || missingWalRecoveryState === 'f');
+        if (missingWalRecoveryState === 'f') assert.equal(missingWalTargetMarkerCount, '0');
+      } else if (missingWalContainerState.Status === 'exited') {
+        assert.match(missingWalDiagnostic, /FATAL:\s+recovery ended before configured recovery target was reached/i);
+      } else {
+        assert.match(missingWalDiagnostic, /wal|restore command|archive/i);
+      }
+    });
+    receipt.expectedRejections++;
+    if (missingWalContainerState.Running) docker(['stop', '--time', '5', missingWalRestored]);
+
     const restoredSnapshot = archiveSnapshot(restored);
     check(`drill ${drillNumber}: fresh cluster restored the original system identifier`, () => assert.equal(restoredSnapshot.systemIdentifier, baseSnapshot.systemIdentifier));
     check(`drill ${drillNumber}: full migration ledger and roles survived physical restore`, () => {
@@ -586,6 +650,7 @@ try {
       systemIdentifier: restoredSnapshot.systemIdentifier,
       migrationCount: restoredSnapshot.migrationCount,
       publicTableCount: restoredSnapshot.publicTableCount,
+      missingWalRecoveryOutcome,
       archivedWalSegments: archivedWalCount,
       targetTime,
       rpoMs,
