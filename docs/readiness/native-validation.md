@@ -66,6 +66,20 @@ database persistence, hash-preserving authorized download, tenant denial, and
 revocation with UI readback. An HTTP success alone does not close these checks.
 
 Official Expo references:
+- https://docs.expo.dev/versions/v57.0.0/sdk/safe-area-context/
 - https://docs.expo.dev/versions/latest/sdk/filesystem/
 - https://github.com/expo/expo/blob/main/docs/pages/more/expo-cli.mdx
 - https://github.com/expo/expo/blob/main/docs/pages/develop/development-builds/use-development-builds.mdx
+
+The native app root keeps one SafeAreaProvider mounted across restoration,
+login and authenticated screens. SafeAreaView applies all four device insets;
+screen spacing is additional content padding, not a guessed status-bar height.
+The SDK 57 dependency is `react-native-safe-area-context ~5.7.0`. Adding it
+requires rebuilding the native binary; a Metro reload alone is insufficient.
+
+Compare actual Android system-bar InsetsSource bounds with UI accessibility
+bounds and screenshots at normal and enlarged font sizes. Verify the header,
+all four tabs, login controls and authenticated actions remain usable in all six
+locales. Preserve the configured portrait orientation; a rejected rotation
+request is not landscape evidence. Android results and Hermes exports do not
+establish iOS runtime acceptance or close the full native release criterion.
