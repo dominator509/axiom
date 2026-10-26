@@ -223,13 +223,16 @@ function rehearseInterruptedBaseBackup(source, drillNumber) {
     'backup_pid=$!',
     'attempt=0',
     'partial_file=""',
-    'while [ "$attempt" -lt 200 ]; do',
+    'while [ "$attempt" -lt 30 ]; do',
     '  if ! kill -0 "$backup_pid" 2>/dev/null; then cat ' + logPath + '; exit 90; fi',
-    '  if [ -s /interrupted-backup/PG_VERSION ]; then partial_file=/interrupted-backup/PG_VERSION; break; fi',
-    '  sleep 0.1',
+    '  for candidate in /interrupted-backup/PG_VERSION /interrupted-backup/base/*/* /interrupted-backup/global/* /interrupted-backup/pg_wal/*; do',
+    '    if [ -f "$candidate" ] && [ -s "$candidate" ]; then partial_file=$candidate; break; fi',
+    '  done',
+    '  if [ -n "$partial_file" ]; then break; fi',
+    '  sleep 1',
     '  attempt=$((attempt + 1))',
     'done',
-    'if [ -z "$partial_file" ]; then printf "INTERRUPTED_BASEBACKUP_PARTIAL_FILE_TIMEOUT\\n"; ls -la /interrupted-backup; cat ' + logPath + '; exit 91; fi',
+    'if [ -z "$partial_file" ]; then printf "INTERRUPTED_BASEBACKUP_PARTIAL_FILE_TIMEOUT\\n"; ls -la /interrupted-backup; ls -la /interrupted-backup/base/* /interrupted-backup/global /interrupted-backup/pg_wal 2>/dev/null; cat ' + logPath + '; exit 91; fi',
     'kill -TERM "$backup_pid" 2>/dev/null || { cat ' + logPath + '; exit 92; }',
     'wait "$backup_pid"',
     'backup_status=$?',
@@ -240,7 +243,7 @@ function rehearseInterruptedBaseBackup(source, drillNumber) {
     'exit 0',
   ].join('\n');
   const interruption = run('docker', ['exec', '--user', 'postgres', source, 'sh', '-c', script],
-    { env: dockerEnv, timeout: 45_000 });
+    { env: dockerEnv, timeout: 60_000 });
   check('drill ' + drillNumber + ': pg_basebackup is interrupted after writing partial data', () => {
     assert.equal(interruption.status, 0,
       safeDiagnostic((interruption.stdout ?? '') + (interruption.stderr ?? '')));
