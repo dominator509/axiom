@@ -612,23 +612,27 @@ the owner's standing authorization. Recheck main CI after each merge.
 
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
-   crosswalk is validated. At baseline main SHA `f140fe0b2ec9b8c23fd15f6b0035f2e2e0954ebf`,
-   the register is structurally valid with 31 accepted and 23 open
-   (20 unverified, 3 blocked). Repeat all accepted rows at the final
-   release SHA and complete exact-SHA hosted readback.
+   crosswalk is validated. At current `origin/main` SHA
+   `06c46aeecc6b5572d18ecb4eeb7f174305a3cfd8`, the register is structurally
+   valid with 28 accepted and 26 open (23 unverified, 3 blocked), and remains
+   **not release approval**. Repeat all accepted rows at the final release SHA
+   and complete exact-SHA hosted readback.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
-   One historical exact-main isolated acceptance retained in the register is
-   SHA `8e83f183da91a49f07b29e67781038c57158cf6b`: the `ci (test)` job in
-   [run 38341605406](https://github.com/dominator509/axiom/actions/runs/38341605406/job/115113611817)
+   The earlier exact-main receipt on SHA `8e83f183da91a49f07b29e67781038c57158cf6b`
+   remains historical: [run 38341605406](https://github.com/dominator509/axiom/actions/runs/38341605406/job/115113611817)
    ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` with 20
-   assertions passed, 0 failed, 0 skipped, and cleanup verified. Its raw job-log
-   SHA-256 is `dc2550e83f73296e2eea1c67bed80fbc4cee7fe5960364a7e09c0bb870bb1b89`.
-   The overall workflow had 11 jobs pass and 1 fail (`l5-runtime`), so it was
-   not a green full run. The RLS receipt is recorded for LBI-01, NONFUNCTIONAL-2,
-   and SECURITY-2. The baseline main run linked above has a successful test job;
-   this narrative refresh does not promote its job status to a new RLS receipt.
-   Final-release-SHA replay and raw-log receipt verification remain required.
+   assertions passed, 0 failed, 0 skipped, and cleanup verified; its overall
+   workflow had 11 jobs pass and 1 fail (`l5-runtime`). The current-main receipt
+   on SHA `06c46aeecc6b5572d18ecb4eeb7f174305a3cfd8` is now recorded for
+   LBI-01, NONFUNCTIONAL-2, and SECURITY-2: [run 40273063709, test job
+   121409886723](https://github.com/dominator509/axiom/actions/runs/40273063709/job/121409886723)
+   ran the same isolated rehearsal with 32 assertions passed, 0 failed, 0
+   skipped, and cleanup verified; the raw job-log SHA-256 is
+   `0cad089081dab2d8c9b6688822c68240963aa0745a3f3b72f4d40b17510e21e2`.
+   This is current-source disposable-CI evidence, not deployed/shared database
+   acceptance. Final-release-SHA replay and raw-log receipt verification remain
+   required.
    Deployed/shared database state remains outside this lane.
 3. L5 matrix: close the remaining real isolated runtime/browser journeys and
    negative controls, including pinned-model inference, uncertain dispatch,
