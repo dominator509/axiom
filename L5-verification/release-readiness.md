@@ -297,6 +297,7 @@ This is partial evidence, not closure of `NONFUNCTIONAL-6`: the drill did not us
   separately from the synthetic core-path sample. Cost must be measured against
   the approved budget with existing free quotas only. No fixed 30-day window is
   required; record the actual sample window and denominator.
+  The exact-main [L5 runtime job](https://github.com/dominator509/axiom/actions/runs/40373417764/job/121749910065) on 1aeb26a records one 1/5/10/20-model burst with 720/720 synthetic outcomes. Burst-window durations were 1287.76/6904.81/15873.72/40919.67ms; queue-wait-from-burst-start p95 was 380.12/3114.15/8775.04/27153.61ms; individual dispatch p95 was 30.32/44.14/67.95/115.43ms. These are partial burst-capacity measurements: they do not establish sustained load, host resource limits or approval-to-dispatch. Mobile TTI, 1080p transcode, cold-query/retrieval, actual Relay delivery, provider cache telemetry, and infrastructure cost remain unmeasured.
 - **Native journeys and owner decisions (FEATURE-PRESERVATION,
   FUNCTIONAL-8/9/10, HUMAN-SIGNOFF):** remaining acceptance requires
   synthetic consent journeys on supported native iOS/Android devices, the F-90

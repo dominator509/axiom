@@ -1416,8 +1416,36 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Measure sustained and burst workloads against every applicable L1.2/L4 latency limit, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval. Synthetic queue wait and per-job dispatch are distinct measurements and do not establish the full gate.",
-      "evidence": [],
+      "nextStep": "The latest exact-main L5 runtime job 121749910065 on 1aeb26a8 records one isolated burst at 1/5/10/20 models, 4 generation batches per model, and 20 synthetic targets per model; it is partial capacity evidence. Measure sustained duration and host resource limits, then add direct approval-to-dispatch, mobile TTI, 60-second 1080p processing, cold-query, retrieval, and actual Relay measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain distinct from approval-to-dispatch.",
+      "evidence": [
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "1aeb26a8b2dd5800383f73daf4c53df64d71f1dd",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub-hosted Ubuntu 24.04.5, Node 22.23.3; isolated network-disabled Docker/PostgreSQL/API/worker with pinned local vision model and synthetic Discord provider fixture; no external provider credentials or paid quotas.",
+          "scope": "127 checks passed, 0 failed, 0 skipped; cleanup verified. One burst cohort at 1/5/10/20 models used 4 text generation batches per model (LLM enrichment not requested), 1 synthetic media bundle per model, and 20 API-created targets per model (720 targets total). Per-scale burst window duration was 1287.76/6904.81/15873.72/40919.67ms. Generation request p95 was 56.31/339.67/534.59/846.71ms; media-bundle request p95 16.86/67.88/74.95/161.77ms; worker ToS p95 467.99/2151.41/4200.45/8213.73ms; approval p95 19.87/46.71/95.39/175.22ms; scheduling p95 15.62/47.08/83.23/151.09ms; queue-wait-from-burst-start p95 380.12/3114.15/8775.04/27153.61ms; individual dispatch p95 30.32/44.14/67.95/115.43ms; throughput 48.23/30.92/22.22/14.5 targets/second. All 720 synthetic targets completed. Image digests: Hono sha256:50c263c4c7e175910f8d8a4ba078c9a07042850d8c3c56b91f027cbbb9c6c39c; egress sha256:5e8e58a9037ede5ebba8872526bac017c8a3308c973f234fadddf5b7ec343b6c; vision sha256:bcbca7e8eeddf3eac0da2cb5f418b44d142c1a8d7fe54179699b4d95de42ff89; media sha256:07a30601eabd6782dfcd50152cf6f84b1905ded632a914191585577cf89bcbdd; PostgreSQL timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a. Model SHA-256 2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93; source archive SHA-256 eaf0161d7cee17ed74c3d4b1c9d319502e8055f4953cfcfca86bbaf01ac2bc7b.",
+          "limitations": "Single burst cohort only; no sustained daily workload, host hardware limits or resource peaks were recorded. Queue wait from burst start and individual dispatch p95 do not establish the approval-to-dispatch boundary. This run did not measure mobile TTI, 60-second 1080p processing, cold-query or retrieval p95, actual Relay delivery, provider LLM/cache performance, live-provider availability, infrastructure cost, or production availability. Synthetic timing is partial capacity evidence and does not satisfy MATRIX-NFR-1.",
+          "observedAt": "2026-10-26T18:08:01.9071433Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40373417764",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40373417764/job/121749910065",
+          "logSha256": "3d8470bf6fc73154c9c6f1d3c4e4262e95a8c78094c3abd2ef78c7eecd92c93a",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:50c263c4c7e175910f8d8a4ba078c9a07042850d8c3c56b91f027cbbb9c6c39c",
+            "sha256:5e8e58a9037ede5ebba8872526bac017c8a3308c973f234fadddf5b7ec343b6c",
+            "sha256:bcbca7e8eeddf3eac0da2cb5f418b44d142c1a8d7fe54179699b4d95de42ff89",
+            "sha256:07a30601eabd6782dfcd50152cf6f84b1905ded632a914191585577cf89bcbdd",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ],
       "verification": {
         "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. Retain the existing isolated runtime canary as partial capacity evidence, and add direct approval-to-dispatch, mobile TTI, 60-second 1080p processing, actual Relay delivery, cold-query and retrieval measurements at their required boundaries. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
         "environment": "Owned isolated deployment with declared hardware limits, concurrency, duration and dataset; real native/mobile timing environment and specifically authorized Relay test destination where required. Synthetic/local and actual-provider measurements remain separate; existing credits/free quotas only.",
@@ -1444,7 +1472,7 @@
       "requirementSha256": "3837f7776fefece9b35a2353d988095879e1f5f3e567b49769ed9e9766181536",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Current-main hosted run 40297468512 records 720/720 durable synthetic outcomes and per-scale sample windows at 1/5/10/20 models. Measure permitted real-provider availability separately before closing this criterion; the synthetic fixture cannot establish external-provider availability. No fixed observation duration is required.",
+      "nextStep": "Latest exact-main run 40373417764 on 1aeb26a records 720/720 durable synthetic outcomes at 1/5/10/20 models, with internal availability 100% at each scale. Measure permitted real-provider availability separately before closing this criterion; the synthetic fixture cannot establish external-provider availability. No fixed observation duration is required.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-2",
@@ -1497,6 +1525,33 @@
             "sha256:33ed6f68a7c233fd20fd25499799dfd2d20b5ed8b0a7e69e9a261224f13684b8",
             "sha256:963d559a4f3ab9ee2dca872d2c00d9649689beb770cb53acad2924550d922476",
             "sha256:077735b5bc4342608766a33f88e14eb0dbd7395890356f8e1ea270d45002edde",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-2",
+          "sha": "1aeb26a8b2dd5800383f73daf4c53df64d71f1dd",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "GitHub-hosted Ubuntu 24.04.5, Node 22.23.3; isolated network-disabled Docker/PostgreSQL/API/worker with pinned local vision model and synthetic Discord provider fixture; no external provider credentials or paid quotas.",
+          "scope": "The 1/5/10/20-model windows used denominators 20/100/200/400 with 20/100/200/400 durable synthetic published outcomes (720/720 total) and internal availability of 100% at every scale. Window durations were 1287.76/6904.81/15873.72/40919.67ms. The synthetic Discord fixture returned successful responses and is marked externalProviderMeasured=false. Fixture cleanup verified.",
+          "limitations": "Short isolated synthetic workload windows only; no live-provider uptime, external destination, production/shared database, owner infrastructure, or sustained production availability was measured. This receipt does not establish the 99.5% external-provider availability target.",
+          "observedAt": "2026-10-26T18:08:01.9071433Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40373417764",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40373417764/job/121749910065",
+          "logSha256": "3d8470bf6fc73154c9c6f1d3c4e4262e95a8c78094c3abd2ef78c7eecd92c93a",
+          "counts": {
+            "passed": 127,
+            "failed": 0,
+            "skipped": 0,
+            "total": 127,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:50c263c4c7e175910f8d8a4ba078c9a07042850d8c3c56b91f027cbbb9c6c39c",
+            "sha256:5e8e58a9037ede5ebba8872526bac017c8a3308c973f234fadddf5b7ec343b6c",
+            "sha256:bcbca7e8eeddf3eac0da2cb5f418b44d142c1a8d7fe54179699b4d95de42ff89",
+            "sha256:07a30601eabd6782dfcd50152cf6f84b1905ded632a914191585577cf89bcbdd",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }
