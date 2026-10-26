@@ -47,6 +47,15 @@ Runtime validation must inspect server-session deletion, not just navigation bac
 to login: a rejected sign-out still clears local state. Also exercise re-login
 after sign-out and server revocation while the native process is stopped.
 
+Dashboard acceptance must cover both owners and operators. Organization settings
+remain owner-only; other roles must still load their permitted digests, crash
+reports and language preference. An individual panel failure must preserve the
+other successful responses and must not render a false empty/healthy result.
+After each language change, verify the confirmation is in the newly persisted
+language. Exercise Japanese and long account names on-device to check that the
+greeting wraps while sign-out remains fully visible. These checks do not replace
+system safe-area, other-screen, or iOS acceptance.
+
 Official Expo references:
 - https://github.com/expo/expo/blob/main/docs/pages/more/expo-cli.mdx
 - https://github.com/expo/expo/blob/main/docs/pages/develop/development-builds/use-development-builds.mdx

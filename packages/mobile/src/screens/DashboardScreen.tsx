@@ -11,13 +11,10 @@ import {
 
 import { signOut, type SessionUser } from '../api/auth';
 import { createIdempotencyKey } from '../api/client';
+import { loadDashboard } from '../api/dashboard';
 import {
-  getCrashReports,
-  getDigests,
-  getOrgSettings,
   generateDigest,
   patchViralSharing,
-  getUiLocale,
   patchUiLocale,
   type CrashReport,
   type DigestCard,
@@ -41,8 +38,8 @@ interface DashboardScreenProps {
 interface DashboardState {
   settings: OrgSettings | null;
   uiLocale: UiLocaleSnapshot | null;
-  digests: DigestCard[];
-  crashReports: CrashReport[];
+  digests: DigestCard[] | null;
+  crashReports: CrashReport[] | null;
   loading: boolean;
   error: string | null;
   actionMessage: string | null;
@@ -55,8 +52,8 @@ export interface DashboardViewProps {
   user: SessionUser;
   settings: OrgSettings | null;
   uiLocale: UiLocaleSnapshot | null;
-  digests: DigestCard[];
-  crashReports: CrashReport[];
+  digests: DigestCard[] | null;
+  crashReports: CrashReport[] | null;
   loading: boolean;
   error: string | null;
   actionMessage: string | null;
@@ -112,7 +109,7 @@ export function DashboardView({
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.eyebrow}>{t('mobile.studioOverview')}</Text>
           <Text style={styles.title}>{t('mobile.greeting', { name: user.email.split('@')[0] })}</Text>
           <Text style={styles.muted}>{t('mobile.privateWorkspace')}</Text>
@@ -126,6 +123,7 @@ export function DashboardView({
       {actionMessage ? <Text style={styles.actionMessage}>{actionMessage}</Text> : null}
 
       {/* Org settings */}
+      {user.role === 'owner' ? <>
       <Text style={styles.sectionTitle}>{t('mobile.orgSettings')}</Text>
       <View style={styles.card}>
         {settings ? (
@@ -162,6 +160,7 @@ export function DashboardView({
           <Text style={styles.muted}>{t('mobile.noOrgSettings')}</Text>
         )}
       </View>
+      </> : null}
 
       {uiLocale ? (
         <>
@@ -171,6 +170,7 @@ export function DashboardView({
       ) : null}
 
       {/* Weekly digests */}
+      {digests !== null ? <>
       <View style={styles.sectionRow}>
         <Text style={styles.sectionTitle}>{t('mobile.weeklyDigests')}</Text>
         <Pressable
@@ -205,7 +205,10 @@ export function DashboardView({
         )}
       </View>
 
+      </> : null}
+
       {/* Crash reports */}
+      {crashReports !== null ? <>
       <Text style={styles.sectionTitle}>{t('mobile.crashReports')}</Text>
       <View style={styles.card}>
         {crashReports.length === 0 ? (
@@ -225,6 +228,7 @@ export function DashboardView({
           ))
         )}
       </View>
+      </> : null}
     </ScrollView>
   );
 }
@@ -253,29 +257,9 @@ export default function DashboardScreen({ user, onSignOut, onLocaleChange }: Das
 
   const loadAll = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const [settings, digests, crashReports, uiLocale] = await Promise.all([
-        getOrgSettings(),
-        getDigests(),
-        getCrashReports(),
-        getUiLocale(),
-      ]);
-      setState((prev) => ({
-        ...prev,
-        settings,
-        uiLocale,
-        digests: digests.data,
-        crashReports: crashReports.data,
-        loading: false,
-      }));
-    } catch (err) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: err instanceof Error ? err.message : String(err),
-      }));
-    }
-  }, []);
+    const loaded = await loadDashboard(user.role);
+    setState((prev) => ({ ...prev, ...loaded, loading: false }));
+  }, [user.role]);
 
   useEffect(() => {
     void loadAll();
@@ -310,7 +294,7 @@ export default function DashboardScreen({ user, onSignOut, onLocaleChange }: Das
       if (updated.locale !== locale || updated.userLocale !== locale) throw new Error('unconfirmed language preference');
       localeIntent.current = null;
       onLocaleChange?.(updated.locale);
-      setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: t('mobile.languageSaved', { locale }) }));
+      setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: localeCatalog.t(updated.locale, 'mobile.languageSaved', { locale: updated.locale }) }));
     } catch (err) {
       setState((prev) => ({ ...prev, savingLocale: false, error: err instanceof Error ? err.message : String(err) }));
     }
@@ -381,7 +365,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 7,
     marginBottom: 22,
+    gap: 12,
   },
+  headerText: { flex: 1, minWidth: 0 },
   eyebrow: {
     color: palette.roseBright,
     fontSize: 9,
@@ -467,6 +453,7 @@ const styles = StyleSheet.create({
   itemSubtitle: { color: palette.textSoft, fontSize: 12, lineHeight: 17, marginTop: 3 },
   itemMeta: { color: palette.faint, fontSize: 10, marginTop: 6 },
   signOutButton: {
+    flexShrink: 0,
     borderWidth: 1,
     borderColor: palette.line,
     borderRadius: 11,
