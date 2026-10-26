@@ -5,7 +5,7 @@ export interface ConsentUploadDocument {
   name: string;
   mimeType?: string | null;
   size?: number;
-  /** Present on web; native uses the document picker's temporary URI. */
+  /** Browser File or an Expo File backed by the picked native URI. */
   file?: Blob | null;
 }
 
@@ -25,15 +25,32 @@ export type ConsentDocumentValidation = 'unsupported' | 'empty' | 'too-large' | 
 export function validateConsentUploadDocument(document: ConsentUploadDocument): ConsentDocumentValidation {
   if (!document.uri || !document.name.trim()
     || !consentDocumentUploadType(document.mimeType ?? '', document.name)) return 'unsupported';
-  const size = document.size ?? document.file?.size;
-  if (size !== undefined && (!Number.isFinite(size) || size <= 0)) return 'empty';
-  if (size !== undefined && size > MAX_CONSENT_DOCUMENT_BYTES) return 'too-large';
+  for (const size of [document.size, document.file?.size]) {
+    if (size !== undefined && (!Number.isFinite(size) || size <= 0)) return 'empty';
+    if (size !== undefined && size > MAX_CONSENT_DOCUMENT_BYTES) return 'too-large';
+  }
   return null;
+}
+
+/** Keep native file bytes readable by Expo fetch without creating a plaintext cache copy. */
+export async function prepareConsentUploadDocument(document: ConsentUploadDocument): Promise<ConsentUploadDocument> {
+  if (validateConsentUploadDocument(document) !== null) throw new Error('invalid consent document');
+  if (document.file) return document;
+  const { File } = await import('expo-file-system');
+  // Content-provider URIs can end in numeric IDs. Preserve the picker filename,
+  // including the DNG extension used by the server's MIME fallback.
+  class PickedConsentFile extends File {
+    override get name(): string { return document.name; }
+  }
+  const file = new PickedConsentFile(document.uri);
+  const prepared = { ...document, file, size: file.size };
+  if (validateConsentUploadDocument(prepared) !== null) throw new Error('invalid consent document');
+  return prepared;
 }
 
 /** Build the existing API multipart contract without serializing file bytes into JSON/base64. */
 export function consentRecordUploadFormData(input: ConsentRecordUploadInput): FormData {
-  if (validateConsentUploadDocument(input.document) !== null) {
+  if (!input.document.file || validateConsentUploadDocument(input.document) !== null) {
     throw new Error('invalid consent document');
   }
   const form = new FormData();
@@ -43,15 +60,6 @@ export function consentRecordUploadFormData(input: ConsentRecordUploadInput): Fo
   form.append('validFrom', input.validFrom);
   if (input.validTo) form.append('validTo', input.validTo);
   if (input.expiresAt) form.append('expiresAt', input.expiresAt);
-  if (input.document.file) {
-    form.append('document', input.document.file, input.document.name);
-  } else {
-    // React Native's FormData implementation reads a picked file from its URI.
-    form.append('document', {
-      uri: input.document.uri,
-      name: input.document.name,
-      type: input.document.mimeType || 'application/octet-stream',
-    } as unknown as Blob);
-  }
+  form.append('document', input.document.file, input.document.name);
   return form;
 }

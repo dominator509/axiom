@@ -56,6 +56,16 @@ language. Exercise Japanese and long account names on-device to check that the
 greeting wraps while sign-out remains fully visible. These checks do not replace
 system safe-area, other-screen, or iOS acceptance.
 
+Consent uploads must pass actual File/Blob bytes to Expo fetch. Legacy React
+Native `{ uri, name, type }` multipart parts are rejected by the installed Expo
+fetch converter before a request reaches the API. Preserve the picked filename
+when a native content-provider URI ends in an ID, check both picker metadata and
+the readable file size against 25 MiB, and avoid creating plaintext cache copies.
+Native acceptance must exercise real document selection, upload, encrypted
+database persistence, hash-preserving authorized download, tenant denial, and
+revocation with UI readback. An HTTP success alone does not close these checks.
+
 Official Expo references:
+- https://docs.expo.dev/versions/latest/sdk/filesystem/
 - https://github.com/expo/expo/blob/main/docs/pages/more/expo-cli.mdx
 - https://github.com/expo/expo/blob/main/docs/pages/develop/development-builds/use-development-builds.mdx
