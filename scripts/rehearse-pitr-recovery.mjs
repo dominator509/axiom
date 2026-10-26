@@ -219,18 +219,17 @@ function rehearseInterruptedBaseBackup(source, drillNumber) {
     'backup_pid=""',
     'cleanup_interrupted_backup() { if [ -n "$backup_pid" ] && kill -0 "$backup_pid" 2>/dev/null; then kill -TERM "$backup_pid" 2>/dev/null || true; wait "$backup_pid" 2>/dev/null || true; fi; }',
     'trap cleanup_interrupted_backup EXIT HUP INT TERM',
-    'pg_basebackup -h /var/run/postgresql -U axiom -D /interrupted-backup --format=plain --wal-method=stream --no-password --max-rate=32k --no-clean > ' + logPath + ' 2>&1 &',
+    'pg_basebackup -h /var/run/postgresql -U axiom -D /interrupted-backup --format=plain --wal-method=stream --no-password --checkpoint=fast --max-rate=32k --no-clean > ' + logPath + ' 2>&1 &',
     'backup_pid=$!',
     'attempt=0',
     'partial_file=""',
-    'while [ "$attempt" -lt 100 ]; do',
+    'while [ "$attempt" -lt 200 ]; do',
     '  if ! kill -0 "$backup_pid" 2>/dev/null; then cat ' + logPath + '; exit 90; fi',
-    '  partial_file=$(find /interrupted-backup -type f -size +0c -print -quit 2>/dev/null)',
-    '  if [ -n "$partial_file" ]; then break; fi',
+    '  if [ -s /interrupted-backup/PG_VERSION ]; then partial_file=/interrupted-backup/PG_VERSION; break; fi',
     '  sleep 0.1',
     '  attempt=$((attempt + 1))',
     'done',
-    'if [ -z "$partial_file" ]; then cat ' + logPath + '; exit 91; fi',
+    'if [ -z "$partial_file" ]; then printf "INTERRUPTED_BASEBACKUP_PARTIAL_FILE_TIMEOUT\\n"; ls -la /interrupted-backup; cat ' + logPath + '; exit 91; fi',
     'kill -TERM "$backup_pid" 2>/dev/null || { cat ' + logPath + '; exit 92; }',
     'wait "$backup_pid"',
     'backup_status=$?',
@@ -241,7 +240,7 @@ function rehearseInterruptedBaseBackup(source, drillNumber) {
     'exit 0',
   ].join('\n');
   const interruption = run('docker', ['exec', '--user', 'postgres', source, 'sh', '-c', script],
-    { env: dockerEnv, timeout: 30_000 });
+    { env: dockerEnv, timeout: 45_000 });
   check('drill ' + drillNumber + ': pg_basebackup is interrupted after writing partial data', () => {
     assert.equal(interruption.status, 0,
       safeDiagnostic((interruption.stdout ?? '') + (interruption.stderr ?? '')));
