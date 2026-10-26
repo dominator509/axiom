@@ -356,7 +356,8 @@ async function availabilityModelFixture() {
       await tx.insert(schema.consentRecord).values(syntheticConsentRows(org, model));
     });
     const cookie = await credentialOperatorCookie(org);
-    return { org, model, connection, asset, storageKey, cookie, generatedBundles: [], publishBundleId: null, targetIds: [] };
+    return { org, model, connection, asset, storageKey, cookie, generatedBundles: [], publishBundleId: null,
+      targetIds: [], approvalResponseCompletedAtMs: null };
   } catch (error) {
     await deleteAvailabilityAsset({ org, model, storageKey });
     throw error;
@@ -602,7 +603,8 @@ async function approveAndScheduleAvailabilityTargets(models, targetCountPerModel
     const responseText = await response.text();
     assert.equal(response.status, 200, `Bundle approval failed: ${responseText}`);
     assert.equal(JSON.parse(responseText).data.state, 'approved');
-    approvalLatenciesMs.push(performance.now() - responseStartedAt);
+    fixture.approvalResponseCompletedAtMs = performance.now();
+    approvalLatenciesMs.push(fixture.approvalResponseCompletedAtMs - responseStartedAt);
   }));
   const approvalDurationMs = performance.now() - approvalStartedAt;
 
@@ -772,6 +774,7 @@ async function localDiscordProvider(fixture, { holdResponse = false,
   webhookToken = process.env.AXIOM_L5_DISCORD_WEBHOOK_TOKEN } = {}) {
   const fixtures = Array.isArray(fixture) ? fixture : [fixture];
   const deliveries = [];
+  const dispatchStartedAtByModel = new Map(fixtures.map(owner => [owner.model, []]));
   let requestCount = 0;
   let successfulResponses = 0;
   let failedResponses = 0;
@@ -810,12 +813,15 @@ async function localDiscordProvider(fixture, { holdResponse = false,
     webhookUrl: `https://discord.com/api/webhooks/123456789012345678/${webhookToken}`,
     discordChannelId: '123456789012345678',
   } };
-  const transport = async (providerUrl, init) => {
+  const transportForModel = modelId => async (providerUrl, init) => {
     const url = new URL(String(providerUrl));
     assert.equal(url.protocol, 'https:');
     assert.equal(url.hostname, 'discord.com');
     assert.match(url.pathname, /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+$/);
     assert.equal(url.searchParams.get('wait'), 'true');
+    const dispatches = dispatchStartedAtByModel.get(modelId);
+    assert.ok(dispatches, 'Provider transport must be scoped to a canary model');
+    dispatches.push(performance.now());
     return fetch(`http://127.0.0.1:${address.port}/publish`, { ...init, redirect: 'error' });
   };
   const resolver = async (_tx, orgId, modelId, target) => {
@@ -823,10 +829,12 @@ async function localDiscordProvider(fixture, { holdResponse = false,
     const owner = fixtures.find(candidate => candidate.org === orgId
       && candidate.model === modelId && candidate.connection === target.connectionId);
     assert.ok(owner, 'Provider resolver must stay scoped to a canary model and connection');
-    return { connection: { id: owner.connection }, connector: createConnector('discord', auth, transport) };
+    return { connection: { id: owner.connection },
+      connector: createConnector('discord', auth, transportForModel(modelId)) };
   };
   return {
     deliveries,
+    dispatchStartedAtByModel,
     metrics: () => ({ requests: requestCount, successfulResponses, failedResponses }),
     accepted,
     transportPort: address.port,
@@ -1378,6 +1386,31 @@ for (const kind of Object.keys(defaultExecutors)) {
           const sortedQueueWaits = [...queueWaitsMs].sort((left, right) => left - right);
           const availabilityPercent = (published / denominator) * 100;
           const providerMetrics = provider.metrics();
+          const approvalToDispatchSamplesMs = models.flatMap(({ fixture }) => {
+            const dispatchStarts = provider.dispatchStartedAtByModel.get(fixture.model) ?? [];
+            assert.equal(dispatchStarts.length, fixture.targetIds.length,
+              'Every model target must have one transport dispatch timestamp');
+            assert.ok(Number.isFinite(fixture.approvalResponseCompletedAtMs),
+              'Every target must trace back to a completed approval response');
+            return dispatchStarts.map(dispatchStartedAtMs => {
+              const latencyMs = dispatchStartedAtMs - fixture.approvalResponseCompletedAtMs;
+              assert.ok(Number.isFinite(latencyMs) && latencyMs >= 0,
+                'Approval-to-dispatch samples must be finite and non-negative');
+              return latencyMs;
+            });
+          });
+          assert.equal(approvalToDispatchSamplesMs.length, denominator);
+          const approvalToDispatchLatencyMs = latencySummary(approvalToDispatchSamplesMs);
+          const approvalToDispatch = {
+            latencyMs: approvalToDispatchLatencyMs,
+            samples: approvalToDispatchSamplesMs.length,
+            workerConcurrency: 1,
+            startBoundary: 'approval API response body completed',
+            endBoundary: 'synthetic local Discord transport started the publish request',
+            budgetMs: 2_000,
+            budgetMet: approvalToDispatchLatencyMs.p95 < 2_000,
+            externalProviderMeasured: false,
+          };
           const scale = {
             window: { startedAt, endedAt, durationMs: Number(durationMs.toFixed(2)) },
             workloadWindow: {
@@ -1398,6 +1431,8 @@ for (const kind of Object.keys(defaultExecutors)) {
             durablePublishedTargets: published,
             failedTargets: denominator - published,
             availabilityPercent: Number(availabilityPercent.toFixed(2)),
+            workerConcurrency: 1,
+            approvalToDispatch,
             queueWaitFromBurstStartMs: {
               p50: percentile(sortedQueueWaits, 0.50),
               p95: percentile(sortedQueueWaits, 0.95),
@@ -1470,7 +1505,7 @@ for (const kind of Object.keys(defaultExecutors)) {
         },
         generationBatchesMeasured: true,
         localFixtureStorageCleaned: true,
-        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Dispatch uses the synthetic local Discord fixture. This does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
+        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Approval-to-dispatch is measured from completion of the approval API response to the synthetic local Discord transport starting its request; this harness runs worker ticks serially at concurrency 1, so the result is diagnostic for that isolated driver and does not establish deployed worker concurrency or actual provider/Relay latency. The harness does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
       };
     });
   }

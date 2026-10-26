@@ -1416,7 +1416,7 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "The latest exact-main L5 runtime job 121749910065 on 1aeb26a8 records one isolated burst at 1/5/10/20 models, 4 generation batches per model, and 20 synthetic targets per model; it is partial capacity evidence. Measure sustained duration and host resource limits, then add direct approval-to-dispatch, mobile TTI, 60-second 1080p processing, cold-query, retrieval, and actual Relay measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain distinct from approval-to-dispatch.",
+      "nextStep": "The latest exact-main L5 runtime job 121749910065 on 1aeb26a8 records one isolated burst at 1/5/10/20 models, 4 generation batches per model, and 20 synthetic targets per model; it is partial capacity evidence. The updated L5 harness now records direct approval-response-completion to synthetic local Discord transport-start samples at worker concurrency 1; collect its exact-SHA receipt and keep that serial fixture result diagnostic rather than accepting it as deployed concurrency or actual provider/Relay performance. Measure sustained duration and host resource limits, then complete mobile TTI, 60-second 1080p processing, cold-query, retrieval, actual Relay, provider-cache, and infrastructure-cost measurements against L1.2/L4. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-1",
@@ -1447,7 +1447,7 @@
         }
       ],
       "verification": {
-        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. Retain the existing isolated runtime canary as partial capacity evidence, and add direct approval-to-dispatch, mobile TTI, 60-second 1080p processing, actual Relay delivery, cold-query and retrieval measurements at their required boundaries. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
+        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. The isolated L5 harness directly measures approval-response completion to synthetic local Discord transport start at worker concurrency 1; preserve sample count, p50/p95/p99/max, boundary definitions, and the budget result, but treat it as diagnostic until declared deployed concurrency is measured. Complete mobile TTI, 60-second 1080p processing, actual Relay delivery, cold-query, and retrieval measurements at their required boundaries. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
         "environment": "Owned isolated deployment with declared hardware limits, concurrency, duration and dataset; real native/mobile timing environment and specifically authorized Relay test destination where required. Synthetic/local and actual-provider measurements remain separate; existing credits/free quotas only.",
         "dependencies": [
           1,
