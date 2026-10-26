@@ -613,7 +613,7 @@ the owner's standing authorization. Recheck main CI after each merge.
 1. Evidence register: all 54 rows have a test, environment, dependencies,
    evidence requirements and completion condition; the canonical invariant
    crosswalk is validated. At current `origin/main` SHA
-   `06c46aeecc6b5572d18ecb4eeb7f174305a3cfd8`, the register is structurally
+   `7cfe25eafd779b52b607893b52e87e33ea072013`, the register is structurally
    valid with 28 accepted and 26 open (23 unverified, 3 blocked), and remains
    **not release approval**. Repeat all accepted rows at the final release SHA
    and complete exact-SHA hosted readback.
@@ -623,13 +623,15 @@ the owner's standing authorization. Recheck main CI after each merge.
    remains historical: [run 38341605406](https://github.com/dominator509/axiom/actions/runs/38341605406/job/115113611817)
    ran `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` with 20
    assertions passed, 0 failed, 0 skipped, and cleanup verified; its overall
-   workflow had 11 jobs pass and 1 fail (`l5-runtime`). The current-main receipt
-   on SHA `06c46aeecc6b5572d18ecb4eeb7f174305a3cfd8` is now recorded for
-   LBI-01, NONFUNCTIONAL-2, and SECURITY-2: [run 40273063709, test job
-   121409886723](https://github.com/dominator509/axiom/actions/runs/40273063709/job/121409886723)
+   workflow had 11 jobs pass and 1 fail (`l5-runtime`). The prior exact-main
+   receipt on SHA `06c46aeecc6b5572d18ecb4eeb7f174305a3cfd8` remains in the
+   register. The latest exact-main receipt on SHA
+   `7cfe25eafd779b52b607893b52e87e33ea072013` is recorded for LBI-01,
+   NONFUNCTIONAL-2, and SECURITY-2: [run 40285921937, test job
+   121449432107](https://github.com/dominator509/axiom/actions/runs/40285921937/job/121449432107)
    ran the same isolated rehearsal with 32 assertions passed, 0 failed, 0
-   skipped, and cleanup verified; the raw job-log SHA-256 is
-   `0cad089081dab2d8c9b6688822c68240963aa0745a3f3b72f4d40b17510e21e2`.
+   skipped, and cleanup verified; raw job-log SHA-256
+   `4c742ce399ddeadaca0f5ba96198eccecf492636d725d8c7ccf985139abf4195`.
    This is current-source disposable-CI evidence, not deployed/shared database
    acceptance. Final-release-SHA replay and raw-log receipt verification remain
    required.
