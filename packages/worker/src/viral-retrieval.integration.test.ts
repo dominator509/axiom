@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { availableParallelism, cpus, totalmem } from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import { buildS2 } from '@axiom/llm-gateway';
@@ -48,6 +51,93 @@ async function fixture(check: (tx: Transaction, modelId: string, otherModel: str
       throw rollback;
     });
   } catch (error) { if (error !== rollback) throw error; }
+}
+function readOptionalLimit(path: string): string | null {
+  try { return readFileSync(path, 'utf8').trim() || null; }
+  catch { return null; }
+}
+function nearestRank(values: number[], percentile: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)];
+}
+async function measureRetrievalPerformance(tx: Transaction) {
+  const scaleLevels = [1, 5, 10, 20];
+  const exemplarsPerModel = 50;
+  const samplesPerScale = 50;
+  const modelIds: string[] = [];
+  const embedding = embedExemplarIntent('blue vase');
+  const measurements: Array<Record<string, number | boolean>> = [];
+
+  for (const modelCount of scaleLevels) {
+    const addedModelIds = Array.from({ length: modelCount - modelIds.length }, () => randomUUID());
+    await tx.insert(schema.modelProfile).values(addedModelIds.map(id => ({
+      id, orgId, handle: `retrieval-perf-${id}`, displayName: 'Synthetic retrieval performance fixture',
+    })));
+    modelIds.push(...addedModelIds);
+    const rows = addedModelIds.flatMap((modelId, modelIndex) => Array.from({ length: exemplarsPerModel }, (_, exemplarIndex) => ({
+      orgId, modelId, platform: 'instagram', label: 'viral', perfScore: 2, embedding,
+      features: {
+        caption: `Synthetic retrieval model ${modelIds.length - addedModelIds.length + modelIndex + 1} sample ${exemplarIndex}`,
+        evidence_source: 'published-provider-snapshot-v2', embedding_version: 'lexical-v1',
+      },
+    })));
+    await tx.insert(schema.viralExemplar).values(rows);
+
+    const latenciesMs: number[] = [];
+    const targetModelId = modelIds[modelCount - 1];
+    const queryStartedAt = performance.now();
+    for (let sample = 0; sample < samplesPerScale; sample++) {
+      const sampleStartedAt = performance.now();
+      const result = await retrieveCaptionGuidance(tx, orgId, targetModelId, 'instagram', 10, 'blue vase');
+      latenciesMs.push(performance.now() - sampleStartedAt);
+      if (result.exemplars.length === 0) throw new Error(`Synthetic retrieval returned no rows at ${modelCount} models`);
+    }
+    const p95Ms = nearestRank(latenciesMs, 0.95);
+    measurements.push({
+      modelCount,
+      datasetRows: modelCount * exemplarsPerModel,
+      sampleCount: latenciesMs.length,
+      firstSampleMs: Number(latenciesMs[0].toFixed(2)),
+      p50Ms: Number(nearestRank(latenciesMs, 0.50).toFixed(2)),
+      p95Ms: Number(p95Ms.toFixed(2)),
+      maxMs: Number(Math.max(...latenciesMs).toFixed(2)),
+      queryPhaseDurationMs: Number((performance.now() - queryStartedAt).toFixed(2)),
+      within30MsTarget: p95Ms < 30,
+    });
+  }
+
+  const databaseServerVersion = (await pool.query('SHOW server_version')).rows[0]?.server_version ?? null;
+  const receipt = {
+    kind: 'axiom-retrieval-performance-diagnostic',
+    version: 1,
+    testedSha: process.env.TESTED_SHA ?? null,
+    scope: 'synthetic workload in disposable PostgreSQL; diagnostic only',
+    measuredPath: 'retrieveCaptionGuidance end-to-end application path',
+    targetP95Ms: 30,
+    dataset: {
+      models: scaleLevels,
+      exemplarsPerModel,
+      totalSyntheticExemplars: Math.max(...scaleLevels) * exemplarsPerModel,
+      rollbackControlExemplars: 6,
+    },
+    workload: { samplesPerScale, concurrency: 1, intent: 'blue vase', externalProviderCalls: 0 },
+    percentileMethod: 'nearest-rank',
+    cacheState: 'uncontrolled; first sample is reported separately and is not a cold-query measurement',
+    runner: {
+      platform: process.platform,
+      architecture: process.arch,
+      nodeVersion: process.version,
+      availableParallelism: availableParallelism(),
+      logicalCpuCount: cpus().length,
+      hostMemoryBytes: totalmem(),
+      cgroupCpuMax: readOptionalLimit('/sys/fs/cgroup/cpu.max'),
+      cgroupMemoryMaxBytes: readOptionalLimit('/sys/fs/cgroup/memory.max'),
+    },
+    databaseServerVersion,
+    cleanup: 'all fixture rows are in the enclosing rollback-only transaction',
+    measurements,
+  };
+  console.log(`AXIOM_RETRIEVAL_PERFORMANCE_RECEIPT ${JSON.stringify(receipt)}`);
 }
 
 describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
@@ -139,8 +229,9 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const rows = await retrieveTopExemplars(tx, orgId, modelId, 'instagram', 10, 'blue vase');
       expect(rows).toHaveLength(1);
       expect(rows[0].caption).toBe('Private caption 0');
+      if (process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled') await measureRetrievalPerformance(tx);
     });
-  });
+  }, process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled' ? 30_000 : undefined);
   it('shares only abstract structure when explicitly enabled', async () => {
     await fixture(async (tx, modelId) => {
       await tx.execute(sql`UPDATE org_settings SET viral_sharing=true WHERE org_id=${orgId}`);
