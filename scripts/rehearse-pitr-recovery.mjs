@@ -483,6 +483,8 @@ try {
       if (missingWalContainerState.Running && missingWalProbe.status === 0) {
         assert.ok(missingWalRecoveryState === 't' || missingWalRecoveryState === 'f');
         if (missingWalRecoveryState === 'f') assert.equal(missingWalTargetMarkerCount, '0');
+      } else if (missingWalContainerState.Status === 'exited') {
+        assert.match(missingWalDiagnostic, /FATAL: recovery ended before configured recovery target was reached/i);
       } else {
         assert.match(missingWalDiagnostic, /wal|restore command|archive/i);
       }
