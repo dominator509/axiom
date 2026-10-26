@@ -10,6 +10,7 @@ are now unverified. Historical receipts are preserved in the register's
 | A1 | Native link-in-bio, provider configuration/composition and independent disable | Supported external FanLynks and Beacons.ai synchronization and lifecycle acceptance on dedicated authorized accounts |
 | MATRIX-NFR-1 | Current-main L5 receipt at 1/5/10/20 models: four text batches and twenty synthetic targets/model; generation, ToS scan, approval, scheduling, per-job dispatch and queue-wait p95 are recorded | Sustained and burst measurement against every applicable L1.2/L4 budget, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval |
 | MATRIX-NFR-2 | Current-main scale cohort: 720/720 durable synthetic outcomes and 100% fixture availability at each scale, with per-scale windows | Permitted real-provider availability and production measurement; synthetic fixture results cannot establish external-provider availability |
+| NONFUNCTIONAL-6 | Current-main isolated PITR run: two fresh-cluster drills, 77/77 assertions, fixture RPO 250/259ms and database/API/worker restore 14265/14297ms; cleanup verified | External R2 retention/KMS, production application/object recovery and real provider/job reconciliation; repeat full acceptance at the final release SHA |
 | MATRIX-CI | Exact-SHA successful readback of the existing twelve jobs | Full L5.0 sections 1–4 coverage and acceptance; open provider, performance and feature-preservation rows cannot be replaced by job counts |
 
 The [current-main runtime job](https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609)
@@ -28,6 +29,17 @@ The local Discord provider fixture is not Relay delivery, and external provider
 availability, mobile TTI, media transcode, cold-query/retrieval, provider-backed
 LLM/cache behavior, production resources and cost remain unmeasured. Both
 MATRIX-NFR-1 and MATRIX-NFR-2 remain open.
+
+The [current-main recovery job](https://github.com/dominator509/axiom/actions/runs/40307457559/job/121519989622)
+is bound to source SHA `6f6706099b869a17bf7372f33310b5cc46dff227`; it passed 77
+assertions with zero failures or skips and verified cleanup. Its two isolated
+PITR drills reported fixture RPOs of 250/259 ms and database/API/worker restore
+times of 14.265/14.297 seconds. The drills used Docker network isolation,
+synthetic operator/provider state, and separate disposable media volumes. They
+did not use Cloudflare R2, an external KMS/KEK, a production deployment or a
+real provider; the provider-readback assertion was synthetic and no dispatch was
+attempted. These fixture timings do not establish production RPO/RTO, and
+NONFUNCTIONAL-6 remains unverified.
 
 The evidence validator now derives the matrix dependency set from the normative
 L5.0 requirement source. A passed `MATRIX-CI` requires every section 1–4 criterion
