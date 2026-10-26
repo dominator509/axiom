@@ -267,9 +267,10 @@ try {
     const objectBackupVolume = volume(`axiom-dr-${suffix}-object-backup`);
     const objectRestoreVolume = volume(`axiom-dr-${suffix}-object-restore`);
     const missingObjectsVolume = volume(`axiom-dr-${suffix}-missing-objects`);
+    const missingWalVolume = volume('axiom-dr-' + suffix + '-missing-wal');
     const corruptVolume = volume(`axiom-dr-${suffix}-corrupt-backup`);
     for (const target of [backupVolume, restoreVolume, archiveVolume, objectsVolume,
-      objectBackupVolume, objectRestoreVolume, corruptVolume]) {
+      objectBackupVolume, objectRestoreVolume, corruptVolume, missingWalVolume]) {
       runHelper(['--user', '0:0', '--volume', `${target}:/owned`, image, 'chown', '-R', 'postgres:postgres', '/owned']);
     }
     docker(['run', '--detach', ...labeled([
@@ -333,6 +334,24 @@ try {
       assert.equal(run('docker', ['exec', '--user', 'postgres', source, 'pg_verifybackup', '/backup'],
         { env: dockerEnv, timeout: 120_000 }).status, 0);
     });
+
+    currentStep = 'drill ' + drillNumber + ' missing-WAL negative control';
+    const emptyWalCheck = run('docker', ['run', '--rm', ...labeled([
+      '--network', 'none', '--volume', missingWalVolume + ':/wal:ro', image,
+      'sh', '-c', 'test -z "$(ls -A /wal)"',
+    ])], { env: dockerEnv, timeout: 30_000 });
+    check('drill ' + drillNumber + ': missing-WAL control starts with an empty archive',
+      () => assert.equal(emptyWalCheck.status, 0));
+    const missingWalBackupCheck = run('docker', ['run', '--rm', ...labeled([
+      '--network', 'none', '--volume', backupVolume + ':/backup:ro',
+      '--volume', missingWalVolume + ':/wal:ro', image, 'pg_verifybackup',
+      '--wal-directory=/wal', '/backup',
+    ])], { env: dockerEnv, timeout: 120_000 });
+    expectedReject('drill ' + drillNumber + ': pg_verifybackup rejects a backup when required WAL is missing',
+      () => missingWalBackupCheck, value => {
+        assert.notEqual(value.status, 0);
+        assert.match(`${value.stdout ?? ''}${value.stderr ?? ''}`, /WAL|pg_waldump/i);
+      });
 
     const kek = randomBytes(32);
     const dek = randomBytes(32);
