@@ -10,7 +10,7 @@ are now unverified. Historical receipts are preserved in the register's
 | A1 | Native link-in-bio, provider configuration/composition and independent disable | Supported external FanLynks and Beacons.ai synchronization and lifecycle acceptance on dedicated authorized accounts |
 | MATRIX-NFR-1 | Current-main L5 receipt at 1/5/10/20 models: four text batches and twenty synthetic targets/model; generation, ToS scan, approval, scheduling, per-job dispatch and queue-wait p95 are recorded | Sustained and burst measurement against every applicable L1.2/L4 budget, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval |
 | MATRIX-NFR-2 | Current-main scale cohort: 720/720 durable synthetic outcomes and 100% fixture availability at each scale, with per-scale windows | Permitted real-provider availability and production measurement; synthetic fixture results cannot establish external-provider availability |
-| NONFUNCTIONAL-6 | Current-main isolated PITR run: two fresh-cluster drills, 77/77 assertions, fixture RPO 250/259ms and database/API/worker restore 14265/14297ms; cleanup verified | External R2 retention/KMS, production application/object recovery and real provider/job reconciliation; repeat full acceptance at the final release SHA |
+| NONFUNCTIONAL-6 | Latest current-main isolated PITR run: 81/81 assertions, 14 expected rejections, cleanup verified; fixture RPO 295/300ms and database/API/worker restore 14844/14872ms; empty-WAL pg_verifybackup rejection passed in both drills | External R2 retention/KMS, production application/object recovery, real provider reconciliation, missing archived WAL during actual restore, and interrupted-base-backup behavior; repeat full acceptance at the final release SHA |
 | MATRIX-CI | Exact-SHA successful readback of the existing twelve jobs | Full L5.0 sections 1–4 coverage and acceptance; open provider, performance and feature-preservation rows cannot be replaced by job counts |
 
 The [current-main runtime job](https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609)
@@ -39,6 +39,19 @@ synthetic operator/provider state, and separate disposable media volumes. They
 did not use Cloudflare R2, an external KMS/KEK, a production deployment or a
 real provider; the provider-readback assertion was synthetic and no dispatch was
 attempted. These fixture timings do not establish production RPO/RTO, and
+NONFUNCTIONAL-6 remains unverified.
+
+The [latest current-main recovery job](https://github.com/dominator509/axiom/actions/runs/40322076511/job/121569250600)
+is bound to source SHA `a8506a8d757e523ab99a88be18f868838ac42729`; it passed 81
+assertions with zero failures or skips and verified cleanup. Both isolated drills
+reported fixture RPOs of 295/300 ms and database/API/worker restore times of
+14.844/14.872 seconds. Each drill verified an empty external WAL directory and
+confirmed pg_verifybackup rejects the base backup when required WAL is absent.
+The new check does not simulate a PITR server blocked on a missing archived
+segment or an interrupted pg_basebackup process. The runs used separate
+disposable media volumes, synthetic operator/provider state and an in-memory
+KEK; they did not use Cloudflare R2, external KMS/KEK, production deployment or
+a real provider. These fixture timings do not establish production RPO/RTO, and
 NONFUNCTIONAL-6 remains unverified.
 
 The evidence validator now derives the matrix dependency set from the normative
