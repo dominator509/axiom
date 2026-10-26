@@ -212,6 +212,52 @@ function archiveSnapshot(container) {
     systemIdentifier: sql(container, 'SELECT system_identifier::text FROM pg_control_system()'),
   };
 }
+function rehearseInterruptedBaseBackup(source, drillNumber) {
+  const logPath = '/tmp/axiom-pitr-interrupted-basebackup-' + drillNumber + '.log';
+  const script = [
+    'set -u',
+    'backup_pid=""',
+    'cleanup_interrupted_backup() { if [ -n "$backup_pid" ] && kill -0 "$backup_pid" 2>/dev/null; then kill -TERM "$backup_pid" 2>/dev/null || true; wait "$backup_pid" 2>/dev/null || true; fi; }',
+    'trap cleanup_interrupted_backup EXIT HUP INT TERM',
+    'pg_basebackup -h /var/run/postgresql -U axiom -D /interrupted-backup --format=plain --wal-method=stream --no-password --checkpoint=fast --max-rate=32k --no-clean > ' + logPath + ' 2>&1 &',
+    'backup_pid=$!',
+    'attempt=0',
+    'partial_file=""',
+    'while [ "$attempt" -lt 30 ]; do',
+    '  if ! kill -0 "$backup_pid" 2>/dev/null; then cat ' + logPath + '; exit 90; fi',
+    '  for candidate in /interrupted-backup/PG_VERSION /interrupted-backup/base/*/* /interrupted-backup/global/* /interrupted-backup/pg_wal/*; do',
+    '    if [ -f "$candidate" ] && [ -s "$candidate" ]; then partial_file=$candidate; break; fi',
+    '  done',
+    '  if [ -n "$partial_file" ]; then break; fi',
+    '  sleep 1',
+    '  attempt=$((attempt + 1))',
+    'done',
+    'if [ -z "$partial_file" ]; then printf "INTERRUPTED_BASEBACKUP_PARTIAL_FILE_TIMEOUT\\n"; ls -la /interrupted-backup; ls -la /interrupted-backup/base/* /interrupted-backup/global /interrupted-backup/pg_wal 2>/dev/null; cat ' + logPath + '; exit 91; fi',
+    'kill -TERM "$backup_pid" 2>/dev/null || { cat ' + logPath + '; exit 92; }',
+    'wait "$backup_pid"',
+    'backup_status=$?',
+    'printf "INTERRUPTED_BASEBACKUP_EXIT=%s\\n" "$backup_status"',
+    'printf "INTERRUPTED_BASEBACKUP_PARTIAL_FILE=%s\\n" "$partial_file"',
+    'cat ' + logPath,
+    'if [ "$backup_status" -eq 0 ]; then exit 93; fi',
+    'exit 0',
+  ].join('\n');
+  const interruption = run('docker', ['exec', '--user', 'postgres', source, 'sh', '-c', script],
+    { env: dockerEnv, timeout: 60_000 });
+  check('drill ' + drillNumber + ': pg_basebackup is interrupted after writing partial data', () => {
+    assert.equal(interruption.status, 0,
+      safeDiagnostic((interruption.stdout ?? '') + (interruption.stderr ?? '')));
+    assert.match(interruption.stdout, /INTERRUPTED_BASEBACKUP_EXIT=[1-9]\d*/);
+    assert.match(interruption.stdout, /INTERRUPTED_BASEBACKUP_PARTIAL_FILE=\/interrupted-backup\/[^\n]+/);
+  });
+  const verification = run('docker', ['exec', '--user', 'postgres', source, 'pg_verifybackup', '/interrupted-backup'],
+    { env: dockerEnv, timeout: 120_000 });
+  expectedReject('drill ' + drillNumber + ': pg_verifybackup rejects an interrupted base backup', () => verification,
+    value => {
+      assert.notEqual(value.status, 0);
+      assert.match((value.stdout ?? '') + (value.stderr ?? ''), /pg_verifybackup:/i);
+    });
+}
 function sqlLiteral(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 
 let failure = null;
@@ -262,6 +308,7 @@ try {
     const restored = `axiom-dr-${suffix}-restored`;
     const dataVolume = volume(`axiom-dr-${suffix}-data`);
     const backupVolume = volume(`axiom-dr-${suffix}-backup`);
+    const interruptedBackupVolume = volume(`axiom-dr-${suffix}-interrupted-backup`);
     const restoreVolume = volume(`axiom-dr-${suffix}-restore`);
     const archiveVolume = volume(`axiom-dr-${suffix}-wal`);
     const objectsVolume = volume(`axiom-dr-${suffix}-objects`);
@@ -270,13 +317,14 @@ try {
     const missingObjectsVolume = volume(`axiom-dr-${suffix}-missing-objects`);
     const missingWalVolume = volume('axiom-dr-' + suffix + '-missing-wal');
     const corruptVolume = volume(`axiom-dr-${suffix}-corrupt-backup`);
-    for (const target of [backupVolume, restoreVolume, archiveVolume, objectsVolume,
+    for (const target of [backupVolume, interruptedBackupVolume, restoreVolume, archiveVolume, objectsVolume,
       objectBackupVolume, objectRestoreVolume, corruptVolume, missingWalVolume]) {
       runHelper(['--user', '0:0', '--volume', `${target}:/owned`, image, 'chown', '-R', 'postgres:postgres', '/owned']);
     }
     docker(['run', '--detach', ...labeled([
       '--name', source, '--network', 'none', '--volume', `${dataVolume}:/var/lib/postgresql/data`,
-      '--volume', `${backupVolume}:/backup`, '--volume', `${archiveVolume}:/wal-archive`,
+      '--volume', `${backupVolume}:/backup`, '--volume', `${interruptedBackupVolume}:/interrupted-backup`,
+      '--volume', `${archiveVolume}:/wal-archive`,
       '--volume', `${objectsVolume}:/objects`, '--env', 'POSTGRES_USER=axiom', '--env', 'POSTGRES_DB=axiom_test',
       '--env', 'POSTGRES_HOST_AUTH_METHOD=trust', '--env', 'POSTGRES_INITDB_ARGS=--auth-local=trust', image,
       'postgres', '-c', 'listen_addresses=localhost', '-c', 'timezone=UTC', '-c', 'wal_level=replica',
@@ -323,6 +371,8 @@ try {
         VALUES (${sqlLiteral(targetId)}, ${sqlLiteral(orgId)}, ${sqlLiteral(bundleId)}, 'discord', 'pending', decode(${sqlLiteral(idempotencyKey)}, 'hex'));`);
 
     docker(['exec', '--user', 'postgres', source, 'sh', '-c', 'printf "\\nlocal replication axiom trust\\n" >> "$PGDATA/pg_hba.conf" && pg_ctl -D "$PGDATA" reload']);
+    currentStep = 'drill ' + drillNumber + ' interrupted base backup control';
+    rehearseInterruptedBaseBackup(source, drillNumber);
     docker(['exec', '--user', 'postgres', source, 'pg_basebackup', '-h', '/var/run/postgresql', '-U', 'axiom',
       '-D', '/backup', '--format=plain', '--wal-method=stream', '--no-password'], { timeout: 300_000 });
     const baseSnapshot = archiveSnapshot(source);
