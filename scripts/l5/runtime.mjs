@@ -1,12 +1,12 @@
 // Runs only inside the owned network-disabled fixture, against real production code.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { existsSync, mkdtempSync, readFileSync, rmSync, rmdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { Hono } from 'hono';
 import { db, pool, schema } from '@axiom/db';
 import { createConnector } from '@axiom/connectors';
@@ -30,7 +30,8 @@ for (const [key, user] of [['DATABASE_URL', 'axiom_app'], ['L5_OWNER_DATABASE_UR
 const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
-const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0, availability: null };
+const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0,
+  availability: null, mediaTranscode: null };
 let credentialApiFixture = null;
 function safeFixtureError(error) {
   const message = String(error ?? '');
@@ -2167,6 +2168,135 @@ for (const kind of Object.keys(defaultExecutors)) {
     assert.equal(result.fullyVerified, true, JSON.stringify(result));
     assert.equal(result.legacyRows, 0, JSON.stringify(result));
   });
+  if (process.env.AXIOM_L5_MEDIA_PERFORMANCE === 'enabled') {
+    await check('Rust media plane measures one 60-second 1080p watermark and transcode', async () => {
+      const serviceUrl = new URL(process.env.MEDIA_PLANE_URL ?? '');
+      const token = process.env.MEDIA_PLANE_AUTH_TOKEN;
+      assert.equal(serviceUrl.protocol, 'http:');
+      assert.equal(serviceUrl.hostname, '127.0.0.1');
+      assert.equal(serviceUrl.port, '8100');
+      assert.ok(token, 'The owned fixture media-plane token is required');
+
+      const fixtureName = 'l5-media-performance-' + randomUUID();
+      const fixtureDirectory = join('/app', 'var', 'media', fixtureName);
+      const sourcePath = join(fixtureDirectory, 'source.mp4');
+      const watermarkPath = join(fixtureDirectory, 'watermark.png');
+      const watermarkedPath = join(fixtureDirectory, 'watermarked.mp4');
+      const outputPath = join(fixtureDirectory, 'transcoded.mp4');
+      const sourceRelativePath = fixtureName + '/source.mp4';
+      const watermarkRelativePath = fixtureName + '/watermark.png';
+      const watermarkedRelativePath = fixtureName + '/watermarked.mp4';
+      const outputRelativePath = fixtureName + '/transcoded.mp4';
+      mkdirSync(fixtureDirectory, { recursive: true, mode: 0o700 });
+
+      const ffmpegEnv = Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'TEMP', 'TMP']
+        .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+      const generate = args => {
+        const child = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-xerror', ...args], {
+          cwd: '/app', env: ffmpegEnv, windowsHide: true, timeout: 180_000, stdio: 'ignore',
+        });
+        assert.equal(child.status, 0, 'Synthetic 1080p media fixture generation must complete');
+      };
+      const mediaRequest = async (path, payload) => {
+        const response = await fetch(new URL(path, serviceUrl), {
+          method: 'POST',
+          headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(180_000),
+        });
+        const responseText = await response.text();
+        assert.equal(response.status, 200, 'Rust media-plane ' + path + ' returned HTTP ' + response.status);
+        return JSON.parse(responseText);
+      };
+      const sha256File = path => createHash('sha256').update(readFileSync(path)).digest('hex');
+      const readLimit = path => {
+        try { return readFileSync(path, 'utf8').trim(); } catch { return null; }
+      };
+      let fixturePreparationMs;
+      try {
+        const fixturePreparationStartedAt = performance.now();
+        generate(['-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=30:duration=60',
+          '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2',
+          '-pix_fmt', 'yuv420p', '-movflags', '+faststart', sourcePath]);
+        generate(['-f', 'lavfi', '-i', 'color=c=blue:s=128x128:d=1',
+          '-frames:v', '1', '-threads', '1', watermarkPath]);
+        fixturePreparationMs = Number((performance.now() - fixturePreparationStartedAt).toFixed(2));
+
+        const sourceProbe = await mediaRequest('/media/video/probe', { video_path: sourceRelativePath });
+        assert.equal(sourceProbe.exists, true);
+        assert.equal(sourceProbe.width, 1920);
+        assert.equal(sourceProbe.height, 1080);
+        assert.ok(Number.isFinite(sourceProbe.duration_seconds)
+          && Math.abs(sourceProbe.duration_seconds - 60) < 0.1);
+        assert.ok(Number.isSafeInteger(sourceProbe.size_bytes) && sourceProbe.size_bytes > 0);
+
+        const startedAt = performance.now();
+        const watermarkStartedAt = performance.now();
+        await mediaRequest('/media/video/watermark', {
+          video_path: sourceRelativePath,
+          watermark_path: watermarkRelativePath,
+          output_path: watermarkedRelativePath,
+          position: 'bottom-right',
+          scale: 50,
+        });
+        const watermarkMs = Number((performance.now() - watermarkStartedAt).toFixed(2));
+        assert.ok(Number.isFinite(watermarkMs) && watermarkMs >= 0);
+        const transcodeStartedAt = performance.now();
+        await mediaRequest('/media/video/transcode', {
+          input_path: watermarkedRelativePath,
+          target_format: 'mp4',
+          output_path: outputRelativePath,
+          video_bitrate: '4M',
+          scale: '1920:1080',
+        });
+        const transcodeMs = Number((performance.now() - transcodeStartedAt).toFixed(2));
+        const combinedMs = Number((performance.now() - startedAt).toFixed(2));
+        assert.ok(Number.isFinite(transcodeMs) && transcodeMs >= 0);
+        assert.ok(Number.isFinite(combinedMs) && combinedMs > 0);
+        const watermarkedProbe = await mediaRequest('/media/video/probe', { video_path: watermarkedRelativePath });
+        const outputProbe = await mediaRequest('/media/video/probe', { video_path: outputRelativePath });
+        assert.equal(watermarkedProbe.exists, true);
+        assert.equal(watermarkedProbe.width, 1920);
+        assert.equal(watermarkedProbe.height, 1080);
+        assert.ok(Number.isFinite(watermarkedProbe.duration_seconds)
+          && Math.abs(watermarkedProbe.duration_seconds - 60) < 0.1);
+        assert.ok(Number.isSafeInteger(watermarkedProbe.size_bytes) && watermarkedProbe.size_bytes > 0);
+        assert.equal(outputProbe.exists, true);
+        assert.equal(outputProbe.width, 1920);
+        assert.equal(outputProbe.height, 1080);
+        assert.ok(Number.isFinite(outputProbe.duration_seconds)
+          && Math.abs(outputProbe.duration_seconds - 60) < 0.1);
+        assert.ok(Number.isSafeInteger(outputProbe.size_bytes) && outputProbe.size_bytes > 0);
+        assert.ok([sourcePath, watermarkPath, watermarkedPath, outputPath].every(existsSync));
+
+        report.mediaTranscode = {
+          workload: { source: 'synthetic ffmpeg testsrc2', durationSeconds: 60, width: 1920,
+            height: 1080, framesPerSecond: 30, operations: ['Rust media-plane watermark', 'Rust media-plane MP4 transcode'] },
+          input: { durationSeconds: sourceProbe.duration_seconds, width: sourceProbe.width,
+            height: sourceProbe.height, sizeBytes: sourceProbe.size_bytes, sha256: sha256File(sourcePath) },
+          watermarked: { durationSeconds: watermarkedProbe.duration_seconds, width: watermarkedProbe.width,
+            height: watermarkedProbe.height, sizeBytes: watermarkedProbe.size_bytes, sha256: sha256File(watermarkedPath) },
+          output: { durationSeconds: outputProbe.duration_seconds, width: outputProbe.width,
+            height: outputProbe.height, sizeBytes: outputProbe.size_bytes, sha256: sha256File(outputPath) },
+          timingMs: { sampleCount: 1, fixturePreparation: fixturePreparationMs, watermark: watermarkMs,
+            transcode: transcodeMs, combined: combinedMs, budget: 15_000, budgetMet: combinedMs < 15_000 },
+          environment: { platform: process.platform, node: process.versions.node,
+            availableParallelism: availableParallelism(), totalMemoryBytes: totalmem(),
+            measurementClientCgroupCpuMax: readLimit('/sys/fs/cgroup/cpu.max'),
+            measurementClientCgroupMemoryMax: readLimit('/sys/fs/cgroup/memory.max') },
+          startBoundary: 'Immediately before the authenticated Rust media-plane watermark HTTP request.',
+          endBoundary: 'After the authenticated Rust media-plane MP4 transcode response body is read.',
+          externalProviderMeasured: false,
+          cleanupVerified: false,
+          limitations: 'Single synthetic test-pattern sample in the hosted isolated runner. It does not establish target-host capacity, sustained daily load, production media, R2 behavior, or provider performance. Fixture generation is timed separately and excluded from the media-plane budget interval.',
+        };
+      } finally {
+        rmSync(fixtureDirectory, { recursive: true, force: true });
+        assert.equal(existsSync(fixtureDirectory), false, 'Synthetic 1080p media files must be removed');
+      }
+      report.mediaTranscode.cleanupVerified = true;
+    });
+  }
 } finally {
   await pool.end(); await admin.end();
   report.total = report.passed + report.failed + report.skipped;
