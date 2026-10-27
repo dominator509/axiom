@@ -28,6 +28,7 @@ const container = focusedColdRetrieval ? `axiom-cold-retrieval-db-${coldRunId}` 
 const network = `axiom-cold-retrieval-net-${coldRunId}`;
 const postgresImage = 'timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a';
 const adminPassword = randomBytes(24).toString('hex');
+const appPassword = focusedColdRetrieval ? randomBytes(24).toString('hex') : 'axiom_app';
 let coldResourcesMayExist = false;
 function docker(args, input, timeout = 60_000) {
   const result = spawnSync('docker', args, { input, encoding: 'utf8', windowsHide: true,
@@ -140,9 +141,12 @@ try {
   const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   const seed = workflow.match(/<<'SQL'\r?\n([\s\S]*?)\r?\n\s+SQL\r?\n/)?.[1];
   assert.ok(seed?.includes('CI Test Model'), 'CI seed not found');
-  sql(seed.replace(/ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app';/, ''));
+  const seedSql = focusedColdRetrieval
+    ? seed.replace("ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app';", `ALTER ROLE axiom_app WITH LOGIN PASSWORD '${appPassword}';`)
+    : seed.replace(/ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app';/, '');
+  sql(seedSql);
   assert.equal(sql("SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname='axiom_app';"), 't');
-  const url = `postgresql://axiom_app:axiom_app@127.0.0.1:${hostPort}/${database}`;
+  const url = `postgresql://axiom_app:${appPassword}@127.0.0.1:${hostPort}/${database}`;
   const adminDatabaseUrl = `postgresql://axiom:${adminPassword}@127.0.0.1:${hostPort}/${database}`;
   console.log(JSON.stringify({ isolated_fixture: database, migrations: migrations.length, running_workspace_tests: true }));
   const command = focused ? process.execPath : process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'pnpm';
