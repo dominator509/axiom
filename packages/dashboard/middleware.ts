@@ -6,7 +6,17 @@ import { authRedirectUrl } from './lib/auth-redirect';
 const API_ORIGIN = resolveApiOrigin();
 export const SESSION_REQUEST_TIMEOUT_MS = 3_000;
 
+// Exact-match public legal pages. A Set (not startsWith) so /privacy/x or
+// /termsx stay behind the session check.
+const PUBLIC_LEGAL_PATHS = new Set(['/privacy', '/terms']);
+
 export async function middleware(request: NextRequest) {
+  // Public legal pages: Reddit's API appeal requires /privacy and /terms to be
+  // reachable without a session. Exact match only, so /privacy/x and lookalikes
+  // such as /termsx still fall through to the auth check below.
+  if (PUBLIC_LEGAL_PATHS.has(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
   // This namespace is served by the API's intentionally public Native page
   // router. Keep the private /models/:id/linkbio editor behind session auth.
   if (request.nextUrl.pathname === '/linkbio' || request.nextUrl.pathname.startsWith('/linkbio/')) {
