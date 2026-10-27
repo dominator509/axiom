@@ -225,6 +225,8 @@ async function measureColdRetrievalPerformance() {
             const evictionStartedAt = performance.now();
             let residentApplicationPages = Number.POSITIVE_INFINITY;
             let evictionAttempts = 0;
+            const residentPagesByAttempt: number[] = [];
+            const cacheBusterBlocksLoadedByAttempt: number[] = [];
             while (residentApplicationPages !== 0 && evictionAttempts < 4) {
               const firstBlock = cacheBusterCursor;
               const lastBlock = Math.min(cacheBusterTotalBlocks - 1, firstBlock + cacheBusterWindowBlocks - 1);
@@ -234,6 +236,7 @@ async function measureColdRetrievalPerformance() {
                 [cacheBusterRelation, 'buffer', 'main', firstBlock, lastBlock],
               );
               cacheBusterBlocksLoaded = Number(warmed.rows[0]?.blocks_loaded ?? 0);
+              cacheBusterBlocksLoadedByAttempt.push(cacheBusterBlocksLoaded);
               if (cacheBusterBlocksLoaded <= 0) throw new Error('PostgreSQL did not load the run-owned cache-buster relation into shared buffers');
               const resident = await adminPool.query(`
               WITH application_relations AS (
@@ -263,10 +266,61 @@ async function measureColdRetrievalPerformance() {
                 AND pg_filenode_relation(b.reltablespace, b.relfilenode) IN (SELECT oid FROM application_relations)
             `, [cacheBusterName]);
               residentApplicationPages = Number(resident.rows[0]?.resident ?? -1);
+              residentPagesByAttempt.push(residentApplicationPages);
               evictionAttempts++;
             }
             evictionSetupMs.push(performance.now() - evictionStartedAt);
             if (residentApplicationPages !== 0) {
+              const remainingPages = await adminPool.query(`
+                WITH application_relations AS (
+                  SELECT c.oid
+                  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = 'public' AND c.relname <> $1
+                  UNION
+                  SELECT c.reltoastrelid
+                  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = 'public' AND c.relname <> $1 AND c.reltoastrelid <> 0
+                  UNION
+                  SELECT i.indexrelid
+                  FROM pg_index i
+                  JOIN pg_class c ON c.oid = i.indrelid
+                  JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = 'public' AND c.relname <> $1
+                  UNION
+                  SELECT i.indexrelid
+                  FROM pg_class parent
+                  JOIN pg_namespace n ON n.oid = parent.relnamespace
+                  JOIN pg_index i ON i.indrelid = parent.reltoastrelid
+                  WHERE n.nspname = 'public' AND parent.relname <> $1 AND parent.reltoastrelid <> 0
+                ), remaining_application_buffers AS (
+                  SELECT c.relname, b.relforknumber, b.usagecount, b.pinning_backends
+                  FROM pg_buffercache b
+                  JOIN pg_class c ON c.oid = pg_filenode_relation(b.reltablespace, b.relfilenode)
+                  JOIN application_relations a ON a.oid = c.oid
+                  WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                )
+                SELECT relname, relforknumber, count(*)::int AS resident,
+                  count(*) FILTER (WHERE pinning_backends > 0)::int AS pinned,
+                  max(pinning_backends)::int AS max_pinning_backends,
+                  array_agg(DISTINCT usagecount ORDER BY usagecount) AS usage_counts
+                FROM remaining_application_buffers
+                GROUP BY relname, relforknumber
+                ORDER BY count(*) DESC, relname, relforknumber
+                LIMIT 20
+              `, [cacheBusterName]);
+              const evictionDiagnostic = {
+                sample: sample + 1,
+                modelCount,
+                sharedBuffers: sharedBuffersSetting,
+                cacheBusterBytes,
+                cacheBusterWindowBytes: cacheBusterWindowBlocks * blockSizeBytes,
+                evictionAttempts,
+                cacheBusterBlocksLoadedByAttempt,
+                residentPagesByAttempt,
+                residentApplicationPages,
+                remainingRelations: remainingPages.rows,
+              };
+              console.log(`AXIOM_RETRIEVAL_COLD_EVICTION_DIAGNOSTIC ${JSON.stringify(evictionDiagnostic)}`);
               throw new Error(`Could not establish cold PostgreSQL shared buffers before sample ${sample + 1} at ${modelCount} models; ${residentApplicationPages} application pages remain`);
             }
 
