@@ -1416,7 +1416,7 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. M35 post-merge synthetic 60-second 1080p watermark+transcode measured 66,839.18ms against the 15,000ms target on a hosted runner; target-host capacity remains unverified. M36 post-merge job 121893306484 recorded synthetic retrieveCaptionGuidance p95 of 14.62/15.92/15.06/14.97ms at 1/5/10/20 models (50 samples per scale, 50 exemplars per model). Cache state was uncontrolled; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 exact-main run 40453900013 on SHA 06e65613698d56cbdf71ce07eef77977f5390af1 measured shared-buffer-cold retrieveCaptionGuidance p95 of 12.00/11.56/11.51/9.91ms at 1/5/10/20 models (50 samples/scale, 50 exemplars/model, concurrency 1); all were below 20ms. pg_buffercache verified application table, index and TOAST pages absent except free-space-map forks; OS page cache was not cleared and cgroup CPU/memory limits were not reported. This is a hosted submetric only, not target-host evidence. Keep MATRIX-NFR-1 unverified. Next measure sustained daily load with target-host resource limits, mobile TTI, actual Relay delivery, provider-cache telemetry and actual infrastructure cost against L1.2/L4; record target-boundary retrieval separately if deployment acceptance requires it. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
+      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. M35 post-merge synthetic 60-second 1080p watermark+transcode measured 66,839.18ms against the 15,000ms target on a hosted runner; target-host capacity remains unverified. M36 post-merge job 121893306484 recorded synthetic retrieveCaptionGuidance p95 of 14.62/15.92/15.06/14.97ms at 1/5/10/20 models (50 samples per scale, 50 exemplars per model). Cache state was uncontrolled; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 post-merge exact-main run 40459799462 on SHA c199efb30dfc5941791dc8aa22a7a530dbfeba6f measured shared-buffer-cold retrieveCaptionGuidance p95 of 12.04/11.46/10.87/9.61ms at 1/5/10/20 models (50 samples/scale, 50 exemplars/model, concurrency 1); all were below 20ms. pg_buffercache verified application table, index and TOAST pages absent except free-space-map forks; OS page cache was not cleared and cgroup CPU/memory limits were not reported. This is a hosted submetric only, not target-host evidence. Keep MATRIX-NFR-1 unverified. Next measure sustained daily load with target-host resource limits, mobile TTI, actual Relay delivery, provider-cache telemetry and actual infrastructure cost against L1.2/L4; record target-boundary retrieval separately if deployment acceptance requires it. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-1",
@@ -1524,7 +1524,7 @@
         }
       ],
       "verification": {
-        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. The isolated L5 harness directly measures approval-response completion to synthetic local Discord transport start at worker concurrency 1; preserve sample count, p50/p95/p99/max, boundary definitions, and the budget result, but treat it as diagnostic until declared deployed concurrency is measured. Complete mobile TTI, 60-second 1080p processing, and actual Relay delivery at their required boundaries. M36 records hosted synthetic retrieveCaptionGuidance p95 across 1/5/10/20 models; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 records exact-main hosted shared-buffer-cold retrieveCaptionGuidance p95 of 12.00/11.56/11.51/9.91ms at 1/5/10/20 models; OS page cache remains uncontrolled and this is not target-host acceptance. Record target-boundary retrieval separately if deployment acceptance requires it. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
+        "test": "Measure sustained and burst workloads at 1/5/10/20 models, four generation batches and twenty targets per model, against all applicable L1.2/L4 latency budgets. The isolated L5 harness directly measures approval-response completion to synthetic local Discord transport start at worker concurrency 1; preserve sample count, p50/p95/p99/max, boundary definitions, and the budget result, but treat it as diagnostic until declared deployed concurrency is measured. Complete mobile TTI, 60-second 1080p processing, and actual Relay delivery at their required boundaries. M36 records hosted synthetic retrieveCaptionGuidance p95 across 1/5/10/20 models; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 records post-merge exact-main run 40459799462 on SHA c199efb30dfc5941791dc8aa22a7a530dbfeba6f with hosted shared-buffer-cold retrieveCaptionGuidance p95 of 12.04/11.46/10.87/9.61ms at 1/5/10/20 models; OS page cache remains uncontrolled and this is not target-host acceptance. Record target-boundary retrieval separately if deployment acceptance requires it. Do not substitute per-job processing time for approval-to-dispatch or synthetic provider responses for actual Relay delivery.",
         "environment": "Owned isolated deployment with declared hardware limits, concurrency, duration and dataset; real native/mobile timing environment and specifically authorized Relay test destination where required. Synthetic/local and actual-provider measurements remain separate; existing credits/free quotas only.",
         "dependencies": [
           1,
@@ -3737,6 +3737,29 @@
             "freezes an automatic winner from mature fixed evidence and ignores later metric changes",
             "decays published evidence, not poll age, and selects fresh posteriors rather than stale cache"
           ],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "c199efb30dfc5941791dc8aa22a7a530dbfeba6f",
+          "command": "node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval-cold",
+          "environment": "GitHub Actions ubuntu-latest, Node 22.23.3; run-owned Linux/x64 PostgreSQL 16.15 container, 4 available/logical CPUs, host memory 16766410752 bytes, cgroup CPU/memory limits not reported; PostgreSQL shared_buffers=128MB; pinned TimescaleDB image; zero external provider calls.",
+          "scope": "Post-merge exact-main hosted synthetic retrieveCaptionGuidance shared-buffer-cold diagnostic at 1/5/10/20 models, 50 exemplars/model and 50 sequential samples/scale at concurrency 1. The focused cold retrieval test passed with 0 failed and 0 skipped; 32 fixture assertions passed with cleanup true. p50/p95/max ms by scale: 1=9.29/12.04/30.59; 5=9.30/11.46/31.87; 10=9.22/10.87/11.08; 20=9.05/9.61/10.35. All p95 values were below 20ms. pg_buffercache verified all public application table, index and TOAST pages except free-space-map forks absent before each sample. Four fixture checkpoints totaled 2722.98ms (maximum 1615.99ms); eviction setup p95 was 282.58ms. Fixture rows remained in the run-owned database; cache-buster table, container and network cleanup were verified.",
+          "limitations": "Hosted synthetic submetric only. OS page cache was not cleared and cgroup CPU/memory limits were not reported. This does not establish target-host retrieval, sustained load, approval-to-dispatch, mobile TTI, 60-second 1080p target-host processing, actual Relay delivery, provider-reported prompt-token cache hits, host resource peaks, infrastructure cost or availability. MATRIX-NFR-1 remains unverified; record target-boundary retrieval separately if L1.2/L4 deployment acceptance requires it.",
+          "observedAt": "2026-10-27T06:16:46.4881433Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40459799462",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40459799462/job/122041435775",
+          "logSha256": "c864d9fbef1ba5c7d6878e5309d7a3215199a5fa59a5eaba1d6d6c586d55bb6f",
+          "counts": {
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "total": 1,
+            "unit": "tests"
+          },
+          "skips": [],
           "images": [
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
