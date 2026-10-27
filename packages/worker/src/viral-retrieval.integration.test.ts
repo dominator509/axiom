@@ -308,6 +308,7 @@ async function measureColdRetrievalPerformance() {
                 FROM pg_buffercache b
                 WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
                   AND b.relfilenode IS NOT NULL
+                  AND b.relforknumber <> 1
               )
               SELECT count(*) FILTER (WHERE relation_oid IN (SELECT oid FROM application_relations))::int AS resident,
                 count(*) FILTER (WHERE relation_oid = $2::regclass)::int AS cache_buster_resident
@@ -347,6 +348,7 @@ async function measureColdRetrievalPerformance() {
                 JOIN pg_class c ON c.oid = pg_filenode_relation(b.reltablespace, b.relfilenode)
                 JOIN application_relations a ON a.oid = c.oid
                 WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relforknumber <> 1
               )
               SELECT relname, relforknumber, count(*)::int AS resident,
                 count(*) FILTER (WHERE pinning_backends > 0)::int AS pinned,
@@ -423,7 +425,8 @@ async function measureColdRetrievalPerformance() {
       workload: { samplesPerScale, concurrency: 1, intent: 'blue vase', externalProviderCalls: 0 },
       percentileMethod: 'nearest-rank',
       cacheState: {
-        postgresqlSharedBuffers: 'all public application table, index and toast pages verified absent before each sample using pg_buffercache; pg_prewarm rotated a bounded window through the larger run-owned cache-buster relation',
+        postgresqlSharedBuffers: 'all public application table, index and toast pages other than free-space-map forks verified absent before each sample using pg_buffercache; pg_prewarm selects bounded windows with the most absent cache-buster pages and visits each window before repeating',
+        excludedFork: 'free-space-map pages track space for future tuple allocation and are not read by the retrieveCaptionGuidance SELECT path',
         operatingSystemPageCache: 'not cleared; this receipt proves shared-buffer cold only',
       },
       evictionSetup: {
