@@ -652,7 +652,32 @@ try {
       assert.ok(sharedNamespaceModes.has(docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', workerContainer])));
       assert.equal(docker(['inspect', '--format', '{{.State.Status}}', workerContainer]), 'running');
     });
-    check(`drill ${drillNumber}: worker restart does not claim or replay the reconciled interrupted job`, () => {
+    check(`drill ${drillNumber}: worker startup leaves the reconciled interrupted job dead and replay-required`, () => {
+      assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
+        FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true');
+      assert.equal(sql(restored, `SELECT count(*) FROM job WHERE org_id=${sqlLiteral(orgId)} AND state='ready'
+        AND kind IN ('publish.target','relay.card')`), '0');
+    });
+
+    const workerInterruptionAtMs = Date.now();
+    docker(['kill', '--signal', 'KILL', workerContainer]);
+    check(`drill ${drillNumber}: SIGKILL stops the restored worker container`, () => {
+      assert.equal(docker(['inspect', '--format', '{{.State.Status}}', workerContainer]), 'exited');
+      assert.equal(docker(['inspect', '--format', '{{.State.ExitCode}}', workerContainer]), '137');
+    });
+    check(`drill ${drillNumber}: reconciled publish state stays durable during worker interruption`, () => {
+      assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
+        FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true');
+      assert.equal(sql(restored, `SELECT count(*) FROM job WHERE org_id=${sqlLiteral(orgId)} AND state='ready'
+        AND kind IN ('publish.target','relay.card')`), '0');
+    });
+
+    docker(['start', workerContainer]);
+    await waitForContainerHealth(workerContainer, 120_000, [relaySecret]);
+    const workerInterruptionMs = Date.now() - workerInterruptionAtMs;
+    check(`drill ${drillNumber}: worker recovers after interruption without replaying the reconciled publish`, () => {
+      assert.equal(docker(['inspect', '--format', '{{.State.Status}}', workerContainer]), 'running');
+      assert.ok(sharedNamespaceModes.has(docker(['inspect', '--format', '{{.HostConfig.NetworkMode}}', workerContainer])));
       assert.equal(sql(restored, `SELECT state || ':' || (last_error LIKE 'provider-reconciled-not-published:%')::text
         FROM job WHERE id=${sqlLiteral(jobId)}`), 'dead:true');
       assert.equal(sql(restored, `SELECT count(*) FROM job WHERE org_id=${sqlLiteral(orgId)} AND state='ready'
@@ -705,6 +730,8 @@ try {
       targetTime,
       rpoMs,
       databaseApiWorkerRtoMs: rtoMs,
+      workerInterruptionMs,
+      workerInterruption: 'SIGKILL of the healthy restored worker after provider reconciliation; worker restarted healthy and the publish job remained dead/replay-required with no ready publish or relay jobs; idle-worker interruption only',
       egress: 'disabled (Docker network=none)',
       restoredApi: 'healthy; unauthenticated incident read rejected; synthetic operator session issued',
       restoredWorker: 'healthy; shared only the restored PostgreSQL network=none namespace',

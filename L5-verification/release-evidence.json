@@ -2742,7 +2742,7 @@
       "requirementSha256": "93a2e17e40caccfbc192ac778252db0043eb46fc2b90aa1b1edf40527988b324",
       "lane": 7,
       "status": "unverified",
-      "nextStep": "The latest exact-main run 40363517206 on 1827fdd completed 12/12 CI jobs successfully. Its recovery job adds two interrupted-base-backup controls to the isolated PITR evidence. Keep NONFUNCTIONAL-6 unverified until external R2 retention, external KMS/KEK recovery, real provider reconciliation, and final-release RPO/RTO with an operator-facing target-integrity gate are evidenced. These fixture measurements do not establish production RPO/RTO.",
+      "nextStep": "M37 extends the isolated PITR fixture with an idle restored-worker SIGKILL/restart after synthetic reconciliation; it checks that the publish job remains dead/replay-required and the worker returns healthy in the network=none namespace. Exact-head recovery-dr CI is pending. This exercises post-reconciliation worker interruption, not a crash during provider I/O. Keep NONFUNCTIONAL-6 unverified until external R2 retention, external KMS/KEK recovery, real provider reconciliation, and final-release RPO/RTO with an operator-facing target-integrity gate are evidenced; fixture measurements do not establish production RPO/RTO.",
       "evidence": [
         {
           "criterion": "NONFUNCTIONAL-6",
