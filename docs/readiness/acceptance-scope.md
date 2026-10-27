@@ -8,12 +8,12 @@ are now unverified. Historical receipts are preserved in the register's
 | Criterion | Established evidence | Still required |
 | --- | --- | --- |
 | A1 | Native link-in-bio, provider configuration/composition and independent disable | Supported external FanLynks and Beacons.ai synchronization and lifecycle acceptance on dedicated authorized accounts |
-| MATRIX-NFR-1 | Current-main L5 receipt at 1/5/10/20 models: four text batches and twenty synthetic targets/model; generation, ToS scan, approval, scheduling, per-job dispatch and queue-wait p95 are recorded | Sustained and burst measurement against every applicable L1.2/L4 budget, including approval-to-dispatch, mobile TTI, transcode, Relay delivery and retrieval |
-| MATRIX-NFR-2 | Current-main scale cohort: 720/720 durable synthetic outcomes and 100% fixture availability at each scale, with per-scale windows | Permitted real-provider availability and production measurement; synthetic fixture results cannot establish external-provider availability |
-| NONFUNCTIONAL-6 | Latest current-main isolated PITR run: 81/81 assertions, 14 expected rejections, cleanup verified; fixture RPO 295/300ms and database/API/worker restore 14844/14872ms; empty-WAL pg_verifybackup rejection passed in both drills | External R2 retention/KMS, production application/object recovery, real provider reconciliation, missing archived WAL during actual restore, and interrupted-base-backup behavior; repeat full acceptance at the final release SHA |
-| MATRIX-CI | Exact-SHA successful readback of the existing twelve jobs | Full L5.0 sections 1–4 coverage and acceptance; open provider, performance and feature-preservation rows cannot be replaced by job counts |
+| MATRIX-NFR-1 | Recorded L5 scale receipt at 1/5/10/20 models: four text batches and twenty synthetic targets/model; generation, ToS scan, approval, scheduling, per-job dispatch and queue-wait p95 are recorded. Exact-main M38 hosted shared-buffer-cold retrieval p95 was 12.00/11.56/11.51/9.91ms at 1/5/10/20 models (50 samples/scale; all below 20ms). | Sustained and burst measurement against every applicable L1.2/L4 budget, including approval-to-dispatch, mobile TTI, target-host transcode/resources, actual Relay delivery, provider-backed cache telemetry and infrastructure cost; target-boundary retrieval if required |
+| MATRIX-NFR-2 | Recorded scale cohort: 720/720 durable synthetic outcomes and 100% fixture availability at each scale, with per-scale windows | Permitted real-provider availability and production measurement; synthetic fixture results cannot establish external-provider availability |
+| NONFUNCTIONAL-6 | Recorded isolated PITR run: 81/81 assertions, 14 expected rejections, cleanup verified; fixture RPO 295/300ms and database/API/worker restore 14844/14872ms; empty-WAL pg_verifybackup rejection passed in both drills | External R2 retention/KMS, production application/object recovery, real provider reconciliation, missing archived WAL during actual restore, and interrupted-base-backup behavior; repeat full acceptance at the final release SHA |
+| MATRIX-CI | Exact-main run 40453900013 at SHA `06e65613698d56cbdf71ce07eef77977f5390af1`: all twelve jobs succeeded | Full L5.0 sections 1–4 coverage and acceptance; open provider, performance and feature-preservation rows cannot be replaced by job counts |
 
-The [current-main runtime job](https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609)
+The [prior exact-main runtime job](https://github.com/dominator509/axiom/actions/runs/40297468512/job/121486918609)
 is bound to source SHA `e286c0943e7fdf20e4e0d880978a15473bd23048`; its receipt
 passed 127 checks with zero failures or skips and verified fixture cleanup. One
 scale cohort completed 720/720 durable synthetic targets at 1/5/10/20 models.
@@ -26,11 +26,16 @@ contributes checks but no second scale cohort. This receipt does not measure
 approval-to-dispatch directly: worker dispatch and queue wait have separate
 boundaries, and future schedule timestamps are advanced only for fixture IDs.
 The local Discord provider fixture is not Relay delivery, and external provider
-availability, mobile TTI, media transcode, cold-query/retrieval, provider-backed
-LLM/cache behavior, production resources and cost remain unmeasured. Both
-MATRIX-NFR-1 and MATRIX-NFR-2 remain open.
+availability, mobile TTI, media transcode, provider-backed LLM/cache behavior,
+production resources and cost remain unmeasured. The exact-main [M38 cold retrieval job](https://github.com/dominator509/axiom/actions/runs/40453900013/job/122022644829)
+measured shared-buffer-cold retrieval p95 of 12.00/11.56/11.51/9.91ms at
+1/5/10/20 synthetic models. `pg_buffercache` verified application table, index
+and TOAST pages absent before each sample, excluding free-space-map forks; the
+hosted runner's OS page cache was not cleared and target-host resources were not
+measured. This closes only the hosted retrieval submetric. Both MATRIX-NFR-1 and
+MATRIX-NFR-2 remain open.
 
-The [current-main recovery job](https://github.com/dominator509/axiom/actions/runs/40307457559/job/121519989622)
+The [prior exact-main recovery job](https://github.com/dominator509/axiom/actions/runs/40307457559/job/121519989622)
 is bound to source SHA `6f6706099b869a17bf7372f33310b5cc46dff227`; it passed 77
 assertions with zero failures or skips and verified cleanup. Its two isolated
 PITR drills reported fixture RPOs of 250/259 ms and database/API/worker restore

@@ -192,7 +192,10 @@ async function measureColdRetrievalPerformance() {
       throw new Error(`Cache-buster relation (${cacheBusterBytes} bytes) is not larger than 2x shared_buffers (${sharedBuffersBytes} bytes)`);
     }
     cacheBusterTotalBlocks = Math.floor(cacheBusterBytes / blockSizeBytes);
-    cacheBusterWindowBlocks = Math.min(cacheBusterTotalBlocks, Math.max(1, Math.ceil(Math.max(32 * 1024 * 1024, sharedBuffersBytes / 2) / blockSizeBytes)));
+    // Use smaller windows so each bounded pass can revisit more distinct cache-buster
+    // ranges before starting another cycle. The 64 MiB windows left two application
+    // pages resident after both complete passes in the hosted 128 MiB fixture.
+    cacheBusterWindowBlocks = Math.min(cacheBusterTotalBlocks, Math.max(1, Math.ceil(Math.max(16 * 1024 * 1024, sharedBuffersBytes / 4) / blockSizeBytes)));
     const windowsPerPass = Math.ceil(cacheBusterTotalBlocks / cacheBusterWindowBlocks);
     const maxEvictionAttempts = windowsPerPass * 2;
 
