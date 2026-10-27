@@ -73,9 +73,17 @@ async function waitForPostgres() {
   const deadline = Date.now() + 120_000;
   let consecutiveReady = 0;
   while (Date.now() < deadline) {
-    const result = spawnSync('docker', ['exec', container, 'pg_isready', '-U', 'axiom', '-d', 'axiom_test'], {
+    // The official image starts a temporary initialization server before it
+    // shuts that server down and execs the final postmaster. pg_isready can
+    // accept the temporary server, so require the final postgres process as PID 1.
+    const postmaster = spawnSync('docker', ['exec', container, 'cat', '/proc/1/comm'], {
       encoding: 'utf8', windowsHide: true, timeout: 10_000, maxBuffer: 1024 * 1024,
     });
+    const result = postmaster.status === 0 && postmaster.stdout.trim() === 'postgres'
+      ? spawnSync('docker', ['exec', container, 'pg_isready', '-U', 'axiom', '-d', 'axiom_test'], {
+        encoding: 'utf8', windowsHide: true, timeout: 10_000, maxBuffer: 1024 * 1024,
+      })
+      : { status: 1, error: postmaster.error };
     if (result.status === 0) {
       consecutiveReady++;
       if (consecutiveReady === 2) return;
