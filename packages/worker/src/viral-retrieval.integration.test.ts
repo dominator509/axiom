@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { availableParallelism, cpus, totalmem } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { eq, sql } from 'drizzle-orm';
+import pg from 'pg';
 import { db, pool, schema } from '@axiom/db';
 import { buildS2 } from '@axiom/llm-gateway';
 import { retrieveTopExemplars, retrieveCaptionGuidance } from './viral-retrieval.js';
@@ -18,6 +19,15 @@ import { digestWeekly } from './executors/digest.js';
 import { enqueueWeeklyDigest, nextDigestAt } from './digest-schedule.js';
 
 const url = process.env.TEST_DATABASE_URL;
+const coldPerformance = process.env.AXIOM_RETRIEVAL_COLD_PERFORMANCE === 'enabled';
+const adminUrl = process.env.AXIOM_RETRIEVAL_ADMIN_DATABASE_URL;
+const adminPool = coldPerformance && adminUrl ? new pg.Pool({
+  connectionString: adminUrl,
+  max: 1,
+  connectionTimeoutMillis: 5_000,
+  statement_timeout: 120_000,
+  application_name: 'axiom-cold-retrieval-observer',
+}) : undefined;
 const orgId = '11111111-1111-4111-8111-111111111111';
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 function digestJob(orgId: string, payload: Record<string, unknown> = {}): JobRow {
@@ -59,6 +69,14 @@ function readOptionalLimit(path: string): string | null {
 function nearestRank(values: number[], percentile: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)];
+}
+function postgresBytes(value: string): number {
+  if (/^\d+$/.test(value.trim())) return Number(value);
+  const match = /^(\d+)\s*(bytes|kB|MB|GB)$/i.exec(value.trim());
+  if (!match) throw new Error(`Unsupported PostgreSQL size setting: ${value}`);
+  const unit = match[2].toLowerCase();
+  const multiplier = unit === 'bytes' ? 1 : unit === 'kb' ? 1024 : unit === 'mb' ? 1024 ** 2 : 1024 ** 3;
+  return Number(match[1]) * multiplier;
 }
 async function measureRetrievalPerformance(tx: Transaction) {
   const scaleLevels = [1, 5, 10, 20];
@@ -140,6 +158,310 @@ async function measureRetrievalPerformance(tx: Transaction) {
   console.log(`AXIOM_RETRIEVAL_PERFORMANCE_RECEIPT ${JSON.stringify(receipt)}`);
 }
 
+async function measureColdRetrievalPerformance() {
+  if (!adminPool) throw new Error('Cold retrieval requires the run-owned PostgreSQL administrator connection');
+  const scaleLevels = [1, 5, 10, 20];
+  const exemplarsPerModel = 50;
+  const samplesPerScale = 50;
+  const modelIds: string[] = [];
+  const embedding = embedExemplarIntent('blue vase');
+  const measurements: Array<Record<string, number | boolean>> = [];
+  const evictionSetupMs: number[] = [];
+  const fixtureCheckpointMs: number[] = [];
+  const cacheBusterName = `m38_cache_buster_${randomUUID().replaceAll('-', '')}`;
+  const cacheBusterRelation = `public.${cacheBusterName}`;
+  const sharedBuffersSetting = String((await adminPool.query('SHOW shared_buffers')).rows[0]?.shared_buffers ?? '');
+  const blockSizeSetting = String((await adminPool.query('SHOW block_size')).rows[0]?.block_size ?? '');
+  const sharedBuffersBytes = postgresBytes(sharedBuffersSetting);
+  const blockSizeBytes = postgresBytes(blockSizeSetting);
+  const cacheBusterTargetBytes = Math.max(sharedBuffersBytes * 2, 32 * 1024 * 1024);
+  const cacheBusterRows = Math.ceil(cacheBusterTargetBytes / 1024);
+  let cacheBusterBytes = 0;
+  let cacheBusterBlocksLoaded = 0;
+  let cacheBusterTotalBlocks = 0;
+  let cacheBusterWindowBlocks = 0;
+
+  await adminPool.query(`CREATE UNLOGGED TABLE ${cacheBusterRelation} (payload text NOT NULL)`);
+  try {
+    await adminPool.query(
+      `INSERT INTO ${cacheBusterRelation} (payload) SELECT repeat('x', 1024) FROM generate_series(1, $1::int)`,
+      [cacheBusterRows],
+    );
+    cacheBusterBytes = Number((await adminPool.query('SELECT pg_relation_size($1::regclass) AS bytes', [cacheBusterRelation])).rows[0]?.bytes ?? 0);
+    if (cacheBusterBytes <= sharedBuffersBytes * 2) {
+      throw new Error(`Cache-buster relation (${cacheBusterBytes} bytes) is not larger than 2x shared_buffers (${sharedBuffersBytes} bytes)`);
+    }
+    cacheBusterTotalBlocks = Math.floor(cacheBusterBytes / blockSizeBytes);
+    cacheBusterWindowBlocks = Math.min(cacheBusterTotalBlocks, Math.max(1, Math.ceil(Math.max(32 * 1024 * 1024, sharedBuffersBytes / 2) / blockSizeBytes)));
+    const windowsPerPass = Math.ceil(cacheBusterTotalBlocks / cacheBusterWindowBlocks);
+    const maxEvictionAttempts = windowsPerPass * 2;
+
+    await db.transaction(async tx => {
+      await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+      await tx.insert(schema.orgSettings).values({ orgId, viralSharing: false }).onConflictDoUpdate({
+        target: schema.orgSettings.orgId,
+        set: { viralSharing: false },
+      });
+    });
+
+    for (const modelCount of scaleLevels) {
+      console.log(`AXIOM_RETRIEVAL_COLD_SCALE_START ${JSON.stringify({ modelCount, datasetRows: modelCount * exemplarsPerModel, samplesPerScale })}`);
+      const modelOffset = modelIds.length;
+      const addedModelIds = Array.from({ length: modelCount - modelOffset }, () => randomUUID());
+      const rows = addedModelIds.flatMap((modelId, modelIndex) => Array.from({ length: exemplarsPerModel }, (_, exemplarIndex) => ({
+        orgId, modelId, platform: 'instagram', label: 'viral', perfScore: 2, embedding,
+        features: {
+          caption: `Synthetic cold retrieval model ${modelOffset + modelIndex + 1} sample ${exemplarIndex}`,
+          evidence_source: 'published-provider-snapshot-v2', embedding_version: 'lexical-v1',
+        },
+      })));
+      await db.transaction(async tx => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+        await tx.insert(schema.modelProfile).values(addedModelIds.map(id => ({
+          id, orgId, handle: `cold-retrieval-${id}`, displayName: 'Synthetic cold retrieval fixture',
+        })));
+        await tx.insert(schema.viralExemplar).values(rows);
+      });
+      modelIds.push(...addedModelIds);
+
+      // Fixture rows live only in the run-owned database. Commit and flush this scale
+      // before measuring so dirty fixture pages do not defeat buffer eviction.
+      const checkpointStartedAt = performance.now();
+      await adminPool.query('CHECKPOINT');
+      const checkpointMs = performance.now() - checkpointStartedAt;
+      fixtureCheckpointMs.push(checkpointMs);
+      console.log(`AXIOM_RETRIEVAL_COLD_FIXTURE_CHECKPOINT ${JSON.stringify({ modelCount, checkpointMs: Number(checkpointMs.toFixed(2)) })}`);
+
+      const latenciesMs: number[] = [];
+      const targetModelId = modelIds[modelCount - 1];
+      await db.transaction(async tx => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+        for (let sample = 0; sample < samplesPerScale; sample++) {
+          const evictionStartedAt = performance.now();
+          let residentApplicationPages = Number.POSITIVE_INFINITY;
+          let evictionAttempts = 0;
+          const residentPagesByAttempt: number[] = [];
+          const cacheBusterBlocksLoadedByAttempt: number[] = [];
+          const cacheBusterResidentPagesByAttempt: number[] = [];
+          const warmedBlockRanges: Array<{ firstBlock: number; lastBlock: number }> = [];
+          const warmedWindowStarts: number[] = [];
+          while (residentApplicationPages !== 0 && evictionAttempts < maxEvictionAttempts) {
+            if (warmedWindowStarts.length === windowsPerPass) warmedWindowStarts.length = 0;
+            const candidateWindow = await adminPool.query(`
+              WITH candidate_windows AS (
+                SELECT first_block,
+                  LEAST($2::bigint - 1, first_block + $3::bigint - 1) AS last_block
+                FROM generate_series(0::bigint, $2::bigint - 1, $3::bigint) AS starts(first_block)
+              ), cache_buster_buffers AS MATERIALIZED (
+                SELECT b.relblocknumber AS blocknum
+                FROM pg_buffercache b
+                WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relfilenode IS NOT NULL
+                  AND b.relforknumber = 0
+                  AND pg_filenode_relation(b.reltablespace, b.relfilenode) = $1::regclass
+              )
+              SELECT w.first_block, w.last_block
+              FROM candidate_windows w
+              LEFT JOIN cache_buster_buffers b ON b.blocknum BETWEEN w.first_block AND w.last_block
+              WHERE w.first_block <> ALL($4::bigint[])
+              GROUP BY w.first_block, w.last_block
+              ORDER BY (w.last_block - w.first_block + 1) - count(b.blocknum) DESC, w.first_block
+              LIMIT 1
+            `, [cacheBusterRelation, cacheBusterTotalBlocks, cacheBusterWindowBlocks, warmedWindowStarts]);
+            const firstBlock = Number(candidateWindow.rows[0]?.first_block ?? -1);
+            const lastBlock = Number(candidateWindow.rows[0]?.last_block ?? -1);
+            if (!Number.isSafeInteger(firstBlock) || !Number.isSafeInteger(lastBlock) || firstBlock < 0 || lastBlock < firstBlock) {
+              throw new Error('Could not choose a valid cache-buster window from the run-owned relation');
+            }
+            warmedBlockRanges.push({ firstBlock, lastBlock });
+            warmedWindowStarts.push(firstBlock);
+            const warmed = await adminPool.query(
+              'SELECT pg_prewarm($1::regclass, $2::text, $3::text, $4::bigint, $5::bigint) AS blocks_loaded',
+              [cacheBusterRelation, 'buffer', 'main', firstBlock, lastBlock],
+            );
+            cacheBusterBlocksLoaded = Number(warmed.rows[0]?.blocks_loaded ?? 0);
+            cacheBusterBlocksLoadedByAttempt.push(cacheBusterBlocksLoaded);
+            if (cacheBusterBlocksLoaded <= 0) throw new Error('PostgreSQL did not load the run-owned cache-buster relation into shared buffers');
+            const resident = await adminPool.query(`
+              WITH application_relations AS (
+                SELECT c.oid
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1
+                UNION
+                SELECT c.reltoastrelid
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1 AND c.reltoastrelid <> 0
+                UNION
+                SELECT i.indexrelid
+                FROM pg_index i
+                JOIN pg_class c ON c.oid = i.indrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1
+                UNION
+                SELECT i.indexrelid
+                FROM pg_class parent
+                JOIN pg_namespace n ON n.oid = parent.relnamespace
+                JOIN pg_index i ON i.indrelid = parent.reltoastrelid
+                WHERE n.nspname = 'public' AND parent.relname <> $1 AND parent.reltoastrelid <> 0
+              ), buffer_relations AS MATERIALIZED (
+                SELECT pg_filenode_relation(b.reltablespace, b.relfilenode) AS relation_oid
+                FROM pg_buffercache b
+                WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relfilenode IS NOT NULL
+                  AND b.relforknumber <> 1
+              )
+              SELECT count(*) FILTER (WHERE relation_oid IN (SELECT oid FROM application_relations))::int AS resident,
+                count(*) FILTER (WHERE relation_oid = $2::regclass)::int AS cache_buster_resident
+              FROM buffer_relations
+            `, [cacheBusterName, cacheBusterRelation]);
+            residentApplicationPages = Number(resident.rows[0]?.resident ?? -1);
+            residentPagesByAttempt.push(residentApplicationPages);
+            cacheBusterResidentPagesByAttempt.push(Number(resident.rows[0]?.cache_buster_resident ?? -1));
+            evictionAttempts++;
+          }
+          evictionSetupMs.push(performance.now() - evictionStartedAt);
+          if (residentApplicationPages !== 0) {
+            const remainingPages = await adminPool.query(`
+              WITH application_relations AS (
+                SELECT c.oid
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1
+                UNION
+                SELECT c.reltoastrelid
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1 AND c.reltoastrelid <> 0
+                UNION
+                SELECT i.indexrelid
+                FROM pg_index i
+                JOIN pg_class c ON c.oid = i.indrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname <> $1
+                UNION
+                SELECT i.indexrelid
+                FROM pg_class parent
+                JOIN pg_namespace n ON n.oid = parent.relnamespace
+                JOIN pg_index i ON i.indrelid = parent.reltoastrelid
+                WHERE n.nspname = 'public' AND parent.relname <> $1 AND parent.reltoastrelid <> 0
+              ), remaining_application_buffers AS (
+                SELECT c.relname, b.relforknumber, b.usagecount, b.pinning_backends, b.isdirty
+                FROM pg_buffercache b
+                JOIN pg_class c ON c.oid = pg_filenode_relation(b.reltablespace, b.relfilenode)
+                JOIN application_relations a ON a.oid = c.oid
+                WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relforknumber <> 1
+              )
+              SELECT relname, relforknumber, count(*)::int AS resident,
+                count(*) FILTER (WHERE pinning_backends > 0)::int AS pinned,
+                count(*) FILTER (WHERE isdirty)::int AS dirty,
+                max(pinning_backends)::int AS max_pinning_backends,
+                array_agg(DISTINCT usagecount ORDER BY usagecount) AS usage_counts
+              FROM remaining_application_buffers
+              GROUP BY relname, relforknumber
+              ORDER BY count(*) DESC, relname, relforknumber
+              LIMIT 20
+            `, [cacheBusterName]);
+            const evictionDiagnostic = {
+              sample: sample + 1,
+              modelCount,
+              sharedBuffers: sharedBuffersSetting,
+              cacheBusterBytes,
+              cacheBusterWindowBytes: cacheBusterWindowBlocks * blockSizeBytes,
+              evictionAttempts,
+              warmedBlockRanges,
+              cacheBusterBlocksLoadedByAttempt,
+              cacheBusterResidentPagesByAttempt,
+              residentPagesByAttempt,
+              residentApplicationPages,
+              remainingRelations: remainingPages.rows,
+            };
+            console.log(`AXIOM_RETRIEVAL_COLD_EVICTION_DIAGNOSTIC ${JSON.stringify(evictionDiagnostic)}`);
+            throw new Error(`Could not establish cold PostgreSQL shared buffers before sample ${sample + 1} at ${modelCount} models; ${residentApplicationPages} application pages remain`);
+          }
+
+          const sampleStartedAt = performance.now();
+          const result = await retrieveCaptionGuidance(tx, orgId, targetModelId, 'instagram', 10, 'blue vase');
+          latenciesMs.push(performance.now() - sampleStartedAt);
+          if (result.exemplars.length === 0) throw new Error(`Cold synthetic retrieval returned no rows at ${modelCount} models`);
+          if ((sample + 1) % 10 === 0) {
+            console.log(`AXIOM_RETRIEVAL_COLD_PROGRESS ${JSON.stringify({ modelCount, completedSamples: sample + 1, samplesPerScale })}`);
+          }
+        }
+      });
+
+      const p95Ms = nearestRank(latenciesMs, 0.95);
+      const measurement = {
+        modelCount,
+        datasetRows: modelCount * exemplarsPerModel,
+        sampleCount: latenciesMs.length,
+        p50Ms: Number(nearestRank(latenciesMs, 0.50).toFixed(2)),
+        p95Ms: Number(p95Ms.toFixed(2)),
+        maxMs: Number(Math.max(...latenciesMs).toFixed(2)),
+        within20MsTarget: p95Ms < 20,
+      };
+      measurements.push(measurement);
+      console.log(`AXIOM_RETRIEVAL_COLD_SCALE_RECEIPT ${JSON.stringify(measurement)}`);
+    }
+
+    const databaseServerVersion = (await adminPool.query('SHOW server_version')).rows[0]?.server_version ?? null;
+    const receipt = {
+      kind: 'axiom-retrieval-cold-performance-diagnostic',
+      version: 1,
+      criterion: 'MATRIX-NFR-1',
+      command: 'node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval-cold',
+      baselineSha: process.env.BASELINE_SHA ?? null,
+      testedSha: process.env.TESTED_SHA ?? null,
+      targetP95Ms: 20,
+      scope: 'synthetic workload in a run-owned disposable PostgreSQL 16 container; item-6 submetric only',
+      measuredPath: 'retrieveCaptionGuidance end-to-end application path',
+      dataset: {
+        models: scaleLevels,
+        exemplarsPerModel,
+        totalSyntheticExemplars: Math.max(...scaleLevels) * exemplarsPerModel,
+        cacheBusterRows,
+        cacheBusterBytes,
+        cacheBusterWindowBytes: cacheBusterWindowBlocks * blockSizeBytes,
+        cacheBusterBlocksLoadedPerAttempt: cacheBusterBlocksLoaded,
+      },
+      workload: { samplesPerScale, concurrency: 1, intent: 'blue vase', externalProviderCalls: 0 },
+      percentileMethod: 'nearest-rank',
+      cacheState: {
+        postgresqlSharedBuffers: 'all public application table, index and toast pages other than free-space-map forks verified absent before each sample using pg_buffercache; pg_prewarm selects bounded windows with the most absent cache-buster pages and visits each window before repeating',
+        excludedFork: 'free-space-map pages track space for future tuple allocation and are not read by the retrieveCaptionGuidance SELECT path',
+        operatingSystemPageCache: 'not cleared; this receipt proves shared-buffer cold only',
+      },
+      evictionSetup: {
+        sharedBuffers: sharedBuffersSetting,
+        sharedBuffersBytes,
+        blockSizeBytes,
+        attemptsPerSampleMaximum: maxEvictionAttempts,
+        distinctWindowsPerPass: windowsPerPass,
+        fixtureCheckpointCount: fixtureCheckpointMs.length,
+        fixtureCheckpointTotalMs: Number(fixtureCheckpointMs.reduce((total, value) => total + value, 0).toFixed(2)),
+        fixtureCheckpointMaxMs: Number(Math.max(...fixtureCheckpointMs).toFixed(2)),
+        p95Ms: Number(nearestRank(evictionSetupMs, 0.95).toFixed(2)),
+      },
+      runner: {
+        platform: process.platform,
+        architecture: process.arch,
+        nodeVersion: process.version,
+        availableParallelism: availableParallelism(),
+        logicalCpuCount: cpus().length,
+        hostMemoryBytes: totalmem(),
+        cgroupCpuMax: readOptionalLimit('/sys/fs/cgroup/cpu.max'),
+        cgroupMemoryMaxBytes: readOptionalLimit('/sys/fs/cgroup/memory.max'),
+        containerImage: process.env.AXIOM_RETRIEVAL_CONTAINER_IMAGE ?? null,
+      },
+      databaseServerVersion,
+      cleanup: 'synthetic fixture rows were committed only in the run-owned database and discarded with its container; cache-buster table dropped; parent harness verifies removal of the run-owned container and internal network',
+      measurements,
+    };
+    console.log(`AXIOM_RETRIEVAL_COLD_PERFORMANCE_RECEIPT ${JSON.stringify(receipt)}`);
+    expect(measurements.every(measurement => measurement.within20MsTarget)).toBe(true);
+  } finally {
+    await adminPool.query(`DROP TABLE IF EXISTS ${cacheBusterRelation}`);
+  }
+}
+
 describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
   beforeAll(async () => {
     const target = new URL(url!);
@@ -149,8 +471,28 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
     expect(target.pathname).toMatch(/^\/(?:axiom_test|axiom_workspace_test_[0-9a-f]{16})$/);
     const role = await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user');
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    if (coldPerformance) {
+      expect(adminUrl).toBeTruthy();
+      const adminTarget = new URL(adminUrl!);
+      expect(['localhost', '127.0.0.1']).toContain(adminTarget.hostname);
+      expect(adminTarget.username).toBe('axiom');
+      expect(adminTarget.pathname).toBe(target.pathname);
+      expect(adminTarget.port).toBe(target.port);
+      const adminRole = await adminPool!.query('SELECT rolsuper FROM pg_roles WHERE rolname=current_user');
+      expect(adminRole.rows[0]?.rolsuper).toBe(true);
+      await adminPool!.query('CREATE EXTENSION IF NOT EXISTS pg_buffercache');
+      await adminPool!.query('CREATE EXTENSION IF NOT EXISTS pg_prewarm');
+    }
   });
-  afterAll(async () => { await pool.end(); });
+  afterAll(async () => {
+    try { if (adminPool) await adminPool.end(); }
+    finally { await pool.end(); }
+  });
+  if (coldPerformance) {
+    it('measures controlled shared-buffer-cold retrieval across the 1-20-model envelope', async () => {
+      await measureColdRetrievalPerformance();
+    }, 10 * 60_000);
+  }
   it('builds digest cards only from matching published provider snapshots, with truthful units', async () => {
     await fixture(async tx => {
       const tenant = randomUUID(), modelId = randomUUID(), bundleId = randomUUID();
