@@ -241,10 +241,13 @@ async function measureColdRetrievalPerformance() {
           let evictionAttempts = 0;
           const residentPagesByAttempt: number[] = [];
           const cacheBusterBlocksLoadedByAttempt: number[] = [];
+          const cacheBusterResidentPagesByAttempt: number[] = [];
+          const warmedBlockRanges: Array<{ firstBlock: number; lastBlock: number }> = [];
           while (residentApplicationPages !== 0 && evictionAttempts < 4) {
             const firstBlock = cacheBusterCursor;
             const lastBlock = Math.min(cacheBusterTotalBlocks - 1, firstBlock + cacheBusterWindowBlocks - 1);
             cacheBusterCursor = lastBlock + 1 >= cacheBusterTotalBlocks ? 0 : lastBlock + 1;
+            warmedBlockRanges.push({ firstBlock, lastBlock });
             const warmed = await adminPool.query(
               'SELECT pg_prewarm($1::regclass, $2::text, $3::text, $4::bigint, $5::bigint) AS blocks_loaded',
               [cacheBusterRelation, 'buffer', 'main', firstBlock, lastBlock],
@@ -273,14 +276,19 @@ async function measureColdRetrievalPerformance() {
                 JOIN pg_namespace n ON n.oid = parent.relnamespace
                 JOIN pg_index i ON i.indrelid = parent.reltoastrelid
                 WHERE n.nspname = 'public' AND parent.relname <> $1 AND parent.reltoastrelid <> 0
+              ), buffer_relations AS MATERIALIZED (
+                SELECT pg_filenode_relation(b.reltablespace, b.relfilenode) AS relation_oid
+                FROM pg_buffercache b
+                WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relfilenode IS NOT NULL
               )
-              SELECT count(*)::int AS resident
-              FROM pg_buffercache b
-              WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
-                AND pg_filenode_relation(b.reltablespace, b.relfilenode) IN (SELECT oid FROM application_relations)
-            `, [cacheBusterName]);
+              SELECT count(*) FILTER (WHERE relation_oid IN (SELECT oid FROM application_relations))::int AS resident,
+                count(*) FILTER (WHERE relation_oid = $2::regclass)::int AS cache_buster_resident
+              FROM buffer_relations
+            `, [cacheBusterName, cacheBusterRelation]);
             residentApplicationPages = Number(resident.rows[0]?.resident ?? -1);
             residentPagesByAttempt.push(residentApplicationPages);
+            cacheBusterResidentPagesByAttempt.push(Number(resident.rows[0]?.cache_buster_resident ?? -1));
             evictionAttempts++;
           }
           evictionSetupMs.push(performance.now() - evictionStartedAt);
@@ -330,7 +338,9 @@ async function measureColdRetrievalPerformance() {
               cacheBusterBytes,
               cacheBusterWindowBytes: cacheBusterWindowBlocks * blockSizeBytes,
               evictionAttempts,
+              warmedBlockRanges,
               cacheBusterBlocksLoadedByAttempt,
+              cacheBusterResidentPagesByAttempt,
               residentPagesByAttempt,
               residentApplicationPages,
               remainingRelations: remainingPages.rows,
