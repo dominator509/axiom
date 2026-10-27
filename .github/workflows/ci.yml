@@ -612,6 +612,13 @@ jobs:
           AXIOM_RETRIEVAL_PERFORMANCE: enabled
         run: pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts
 
+      - name: Measure controlled cold retrieval p95 in a run-owned PostgreSQL fixture
+        if: matrix.task == 'test'
+        env:
+          BASELINE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval-cold
+
       - name: Rust cargo check
         if: matrix.task == 'test'
         run: |
