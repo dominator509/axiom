@@ -100,7 +100,7 @@ try {
       '--label', 'axiom.purpose=isolated-cold-retrieval', '--label', `axiom.run_id=${coldRunId}`,
       '--network', network, '--publish', '127.0.0.1::5432',
       '--env', 'POSTGRES_USER=axiom', '--env', `POSTGRES_PASSWORD=${adminPassword}`, '--env', 'POSTGRES_DB=axiom_test',
-      postgresImage], undefined, 600_000);
+      postgresImage, 'postgres', '-c', 'shared_buffers=128MB'], undefined, 600_000);
     docker(['start', container]);
     await waitForPostgres();
     const mapping = docker(['port', container, '5432/tcp']);
