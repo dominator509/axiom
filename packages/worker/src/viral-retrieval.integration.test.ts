@@ -250,7 +250,7 @@ async function measureColdRetrievalPerformance() {
                   LEAST($2::bigint - 1, first_block + $3::bigint - 1) AS last_block
                 FROM generate_series(0::bigint, $2::bigint - 1, $3::bigint) AS starts(first_block)
               ), cache_buster_buffers AS MATERIALIZED (
-                SELECT b.blocknum
+                SELECT b.relblocknumber AS blocknum
                 FROM pg_buffercache b
                 WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
                   AND b.relfilenode IS NOT NULL
