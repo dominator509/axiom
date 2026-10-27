@@ -1416,7 +1416,7 @@
       "requirementSha256": "460f6831ab6662ae88eaf749f8a68cb8fe8e67ef94bd2373302b7d67c84baebb",
       "lane": 6,
       "status": "unverified",
-      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. M35 post-merge synthetic 60-second 1080p watermark+transcode measured 66,839.18ms against the 15,000ms target on a hosted runner; target-host capacity remains unverified. M36 post-merge job 121893306484 recorded synthetic retrieveCaptionGuidance p95 of 14.62/15.92/15.06/14.97ms at 1/5/10/20 models (50 samples per scale, 50 exemplars per model). Cache state was uncontrolled; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 post-merge exact-main run 40459799462 on SHA c199efb30dfc5941791dc8aa22a7a530dbfeba6f measured shared-buffer-cold retrieveCaptionGuidance p95 of 12.04/11.46/10.87/9.61ms at 1/5/10/20 models (50 samples/scale, 50 exemplars/model, concurrency 1); all were below 20ms. pg_buffercache verified application table, index and TOAST pages absent except free-space-map forks; OS page cache was not cleared and cgroup CPU/memory limits were not reported. This is a hosted submetric only, not target-host evidence. Keep MATRIX-NFR-1 unverified. Next measure sustained daily load with target-host resource limits, mobile TTI, actual Relay delivery, provider-cache telemetry and actual infrastructure cost against L1.2/L4; record target-boundary retrieval separately if deployment acceptance requires it. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
+      "nextStep": "Exact-head L5 job 121807671280 on candidate 8643685e recorded direct approval-response-completion to synthetic local Discord transport-start p95 of 704/3754/9691/29644ms at 1/5/10/20 models, with serial worker concurrency 1; the 2000ms budget was met only at 1 model. This is diagnostic for the serial synthetic driver, not deployed concurrency or actual provider/Relay performance. M35 post-merge synthetic 60-second 1080p watermark+transcode measured 66,839.18ms against the 15,000ms target on a hosted runner; target-host capacity remains unverified. M36 post-merge job 121893306484 recorded synthetic retrieveCaptionGuidance p95 of 14.62/15.92/15.06/14.97ms at 1/5/10/20 models (50 samples per scale, 50 exemplars per model). Cache state was uncontrolled; retain it as warm/uncontrolled partial retrieval evidence and do not repeat unchanged. M38 post-merge exact-main run 40459799462 on SHA c199efb30dfc5941791dc8aa22a7a530dbfeba6f measured shared-buffer-cold retrieveCaptionGuidance p95 of 12.04/11.46/10.87/9.61ms at 1/5/10/20 models (50 samples/scale, 50 exemplars/model, concurrency 1); all were below 20ms. pg_buffercache verified application table, index and TOAST pages absent except free-space-map forks; OS page cache was not cleared and cgroup CPU/memory limits were not reported. M39 post-merge exact-main run 40474294882/job 122088587874 on SHA 784617ef283dbed3e89934608fe64abfec577bff measured approval-response-completion to synthetic local Discord transport-start p95 of 828.58/2377.11/5790.95/16801.59ms at 1/5/10/20 models with one serial worker loop per model egress scope executing concurrently in one test process; only the 1-model scale met 2000ms. It completed 720/720 synthetic targets. The hosted 60-second 1080p30 watermark+transcode sample took 67944.21ms against 15000ms; runner client cgroup CPU/memory limits were max. This remains hosted synthetic evidence, not target-host capacity or real provider/Relay performance. Keep MATRIX-NFR-1 unverified. Next measure sustained daily load with target-host resource limits, mobile TTI, actual Relay delivery, provider-cache telemetry and actual infrastructure cost against L1.2/L4; record target-boundary retrieval separately if deployment acceptance requires it. Queue wait from burst start and per-job dispatch latency remain separate metrics.",
       "evidence": [
         {
           "criterion": "MATRIX-NFR-1",
@@ -3761,6 +3761,33 @@
           },
           "skips": [],
           "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        },
+        {
+          "criterion": "MATRIX-NFR-1",
+          "sha": "784617ef283dbed3e89934608fe64abfec577bff",
+          "command": "node scripts/rehearse-l5-runtime.mjs --isolated-fixture",
+          "environment": "Post-merge GitHub Actions Ubuntu 24.04, Node 22.23.3; owned network-disabled Docker/PostgreSQL/API/worker fixtures; Linux runner availableParallelism=4, totalMemoryBytes=16766414848, measurement-client cgroup CPU/memory limits reported as max; synthetic local Discord transport; no external provider credentials or provider calls.",
+          "scope": "Post-merge exact-main L5 runtime job 122088587874 in run 40474294882: 128 checks passed, 0 failed, 0 skipped; cleanup verified. Two harness repetitions measured the 1/5/10/20-model burst with 20 targets per model (20/100/200/400 samples by scale), for 720/720 durable synthetic outcomes. The diagnostic used one serial worker loop per model egress scope with model scopes executing concurrently in one test process. Approval-response-completion to synthetic local Discord transport-start p95 was 828.58/2377.11/5790.95/16801.59ms at 1/5/10/20 models; the 2000ms submetric was met only at 1 model. Queue-wait-from-burst-start p95 was 481.85/1529.88/4193.26/13657.21ms; throughput was 38.15/61.12/45.53/28.42 targets/second. One synthetic 60-second 1080p30 media sample took 34533.41ms for watermark and 33410.78ms for transcode, 67944.21ms combined against 15000ms. Model SHA-256 2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93; source archive SHA-256 ea9dd123b28f6c8f28c97ff928f99464320f9bd0038f2299bc50d68f29d15006. Image digests: Hono sha256:91e7953c1ce2a94e7b372b87719d3403996eb5e526b542c34e3a9591714ff852; egress sha256:e47e585d0f579bb86776c595c8907c33d290b5ad8f8477db936361ad80333ae6; vision sha256:1fc3f78076c0041720af75d62c4252e3df69b0bbc9d1c6b230224a119233e8b0; media sha256:3bc265c294c8a28e7626ad4e9f54892faadba5cfa38e808327365a186d79fb14; PostgreSQL timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a.",
+          "limitations": "Partial hosted synthetic evidence only. Logical model-scoped loops run concurrently in one test process; this does not prove separate Linux network-namespace enforcement or target-host capacity. The synthetic Discord transport does not establish actual provider or Relay delivery/latency/availability. The single media sample ran without CPU or memory cgroup limits. This does not measure sustained daily load, target-host resource peaks, mobile TTI, actual Relay delivery, provider-reported prompt-cache counters, infrastructure cost, or production availability. MATRIX-NFR-1 remains unverified.",
+          "observedAt": "2026-10-27T08:43:23.137Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/40474294882",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/40474294882/job/122088587874",
+          "logSha256": "af2d8eb166b925e9eed33188f0b6c78cbbbf9d1207282f716cfa50db69224da9",
+          "counts": {
+            "passed": 128,
+            "failed": 0,
+            "skipped": 0,
+            "total": 128,
+            "unit": "checks"
+          },
+          "skips": [],
+          "images": [
+            "sha256:91e7953c1ce2a94e7b372b87719d3403996eb5e526b542c34e3a9591714ff852",
+            "sha256:e47e585d0f579bb86776c595c8907c33d290b5ad8f8477db936361ad80333ae6",
+            "sha256:1fc3f78076c0041720af75d62c4252e3df69b0bbc9d1c6b230224a119233e8b0",
+            "sha256:3bc265c294c8a28e7626ad4e9f54892faadba5cfa38e808327365a186d79fb14",
             "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
           ]
         }

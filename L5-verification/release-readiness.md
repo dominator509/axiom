@@ -9,6 +9,14 @@ original receipts remain in `partialEvidenceAppendix` with their actual SHAs.
 No normative requirement was weakened. The validator now rejects a passed
 `MATRIX-CI` while any criterion in L5.0 sections 1–4 is open.
 
+Latest verified main checkpoint (2026-10-27): [PR #243](https://github.com/dominator509/axiom/pull/243)
+merged at `784617ef283dbed3e89934608fe64abfec577bff`; exact-main
+[CI run 40474294882](https://github.com/dominator509/axiom/actions/runs/40474294882)
+passed all 12 jobs. The register remains 54 criteria, 28 accepted and 26 open
+(23 unverified, 3 blocked), valid and **not release approval**. The new
+performance receipt is partial; see the
+[2026-10-27 checkpoint](#2026-10-27-current-main-performance-checkpoint).
+
 The application baseline is `d963c1c1a0585a9dd41c4eb585dd0432ec99fded`:
 [post-merge CI](https://github.com/dominator509/axiom/actions/runs/40178065406)
 passed all 12 jobs. An external source-bound packet with these conservative
@@ -765,3 +773,32 @@ is genuine. The signoff field cannot grant permission or authorize deployment.
 Re-run acceptance for a changed release SHA; do not copy historical receipts into
 new acceptance rows. If a candidate passes and is then merged into a new commit,
 post-merge execution supplies the release receipts for that new SHA.
+
+## 2026-10-27 current-main performance checkpoint
+
+PR #243 updated the isolated L5 runtime fixture to run one sequential worker
+loop per model egress scope, with model scopes executing concurrently in one
+test process. Its post-merge [L5 runtime job](https://github.com/dominator509/axiom/actions/runs/40474294882/job/122088587874)
+on main SHA `784617ef283dbed3e89934608fe64abfec577bff` passed 128 checks, with
+0 failures, 0 skips, and cleanup verified. The fixture completed 720/720
+synthetic targets. Direct approval-response-completion to synthetic local
+Discord transport-start p95 at 1/5/10/20 models was
+828.58/2377.11/5790.95/16801.59ms; the 2-second submetric was met only at one
+model. Queue-wait-from-burst-start p95 was 481.85/1529.88/4193.26/13657.21ms.
+The throughput readings were 38.15/61.12/45.53/28.42 targets per second.
+
+The same run measured one synthetic 60-second 1080p30 media sample. Watermark
+took 34,533.41ms and transcode took 33,410.78ms, for 67,944.21ms combined
+against 15,000ms. The Linux runner reported four available parallelism slots
+and 16,766,414,848 bytes of memory, while the measurement client's CPU and
+memory cgroup limits were `max`. Raw L5 job-log SHA-256:
+`af2d8eb166b925e9eed33188f0b6c78cbbbf9d1207282f716cfa50db69224da9`.
+
+This updates the earlier serial-driver diagnostic. It remains a hosted
+synthetic measurement: it does not prove separate Linux network-namespace
+enforcement, target-host capacity, or real provider/Relay performance. The
+2-second budget misses at 5/10/20 models, and media exceeds its budget.
+`MATRIX-NFR-1` stays unverified pending target-host resource limits, sustained
+daily load, mobile TTI, actual Relay delivery, provider cache telemetry, and
+infrastructure cost evidence. The overall register remains 28 accepted and 26
+open.
