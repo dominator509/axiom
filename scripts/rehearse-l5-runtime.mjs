@@ -262,7 +262,9 @@ try {
           && scale.approvalAndSchedule.approvalLatencyMs.p95 >= 0);
         assert.ok(Number.isFinite(scale.approvalAndSchedule.scheduleLatencyMs.p95)
           && scale.approvalAndSchedule.scheduleLatencyMs.p95 >= 0);
-        assert.equal(scale.workerConcurrency, 1);
+        assert.equal(scale.workerConcurrency, scale.models);
+        assert.equal(scale.workerTopology,
+          'one serial worker loop per model egress scope; model scopes execute concurrently');
         assert.equal(scale.approvalToDispatch.samples, scale.denominator);
         assert.equal(scale.approvalToDispatch.workerConcurrency, scale.workerConcurrency);
         assert.equal(scale.approvalToDispatch.startBoundary, 'approval API response body completed');

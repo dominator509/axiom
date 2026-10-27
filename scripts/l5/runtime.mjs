@@ -1363,19 +1363,23 @@ for (const kind of Object.keys(defaultExecutors)) {
           let completed = 0;
           const executors = { ...defaultExecutors, 'publish.target': ctx => publishTarget(ctx, provider.resolver) };
 
-          for (const { model } of work) {
-            const requestStart = performance.now();
-            queueWaitsMs.push(requestStart - queuedAt);
-            const stats = await workerTick({
-              workerId: 'l5-availability-worker',
-              egressScope: { modelId: model.fixture.model },
-              executors,
-            });
-            latenciesMs.push(performance.now() - requestStart);
-            assert.equal(stats.claimed, 1, 'Scale ' + modelCount + ' worker must claim one queued job per target');
-            assert.equal(stats.done, 1, 'Scale ' + modelCount + ' worker must durably finish each target');
-            completed += stats.done;
-          }
+          await Promise.all(models.map(async ({ fixture }, modelIndex) => {
+            for (let targetIndex = 0; targetIndex < fixture.targetIds.length; targetIndex += 1) {
+              const requestStart = performance.now();
+              queueWaitsMs.push(requestStart - queuedAt);
+              const stats = await workerTick({
+                workerId: 'l5-availability-worker-' + (modelIndex + 1),
+                egressScope: { modelId: fixture.model },
+                executors,
+              });
+              latenciesMs.push(performance.now() - requestStart);
+              assert.equal(stats.claimed, 1,
+                'Scale ' + modelCount + ' model worker must claim one queued job per target');
+              assert.equal(stats.done, 1,
+                'Scale ' + modelCount + ' model worker must durably finish each target');
+              completed += stats.done;
+            }
+          }));
 
           const endedAt = new Date().toISOString();
           const durationMs = performance.now() - clockStart;
@@ -1405,7 +1409,7 @@ for (const kind of Object.keys(defaultExecutors)) {
           const approvalToDispatch = {
             latencyMs: approvalToDispatchLatencyMs,
             samples: approvalToDispatchSamplesMs.length,
-            workerConcurrency: 1,
+            workerConcurrency: modelCount,
             startBoundary: 'approval API response body completed',
             endBoundary: 'synthetic local Discord transport started the publish request',
             budgetMs: 2_000,
@@ -1432,7 +1436,8 @@ for (const kind of Object.keys(defaultExecutors)) {
             durablePublishedTargets: published,
             failedTargets: denominator - published,
             availabilityPercent: Number(availabilityPercent.toFixed(2)),
-            workerConcurrency: 1,
+            workerConcurrency: modelCount,
+            workerTopology: 'one serial worker loop per model egress scope; model scopes execute concurrently',
             approvalToDispatch,
             queueWaitFromBurstStartMs: {
               p50: percentile(sortedQueueWaits, 0.50),
@@ -1506,7 +1511,7 @@ for (const kind of Object.keys(defaultExecutors)) {
         },
         generationBatchesMeasured: true,
         localFixtureStorageCleaned: true,
-        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Approval-to-dispatch is measured from completion of the approval API response to the synthetic local Discord transport starting its request; this harness runs worker ticks serially at concurrency 1, so the result is diagnostic for that isolated driver and does not establish deployed worker concurrency or actual provider/Relay latency. The harness does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
+        limitations: 'The real prompt-engine API is exercised for four text-only batches per model, with LLM enrichment explicitly unrequested. One synthetic fixture.png bundle per model is created through the saved-media API, scanned by the pinned local vision worker, and approved before 20 API-created targets are dispatched. Future schedule timestamps are advanced only for created fixture IDs before dispatch. Approval-to-dispatch is measured from completion of the approval API response to the synthetic local Discord transport starting its request. The fixture runs one serial worker-tick loop per model-scoped egress queue and executes model scopes concurrently in one test process; it does not prove separate Linux network-namespace enforcement or target-host capacity. The synthetic local Discord transport does not establish actual provider/Relay latency. The harness does not measure provider-backed LLM inference/cache rates, model-backed media generation, host resource peaks, live-provider uptime, mobile TTI, media transcode latency, or production availability.',
       };
     });
   }
