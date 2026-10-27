@@ -177,6 +177,9 @@ async function measureColdRetrievalPerformance() {
   const cacheBusterRows = Math.ceil(cacheBusterTargetBytes / 1024);
   let cacheBusterBytes = 0;
   let cacheBusterBlocksLoaded = 0;
+  let cacheBusterTotalBlocks = 0;
+  let cacheBusterWindowBlocks = 0;
+  let cacheBusterCursor = 0;
 
   await adminPool.query(`CREATE UNLOGGED TABLE ${cacheBusterRelation} (payload text NOT NULL)`);
   try {
@@ -188,6 +191,8 @@ async function measureColdRetrievalPerformance() {
     if (cacheBusterBytes <= sharedBuffersBytes * 2) {
       throw new Error(`Cache-buster relation (${cacheBusterBytes} bytes) is not larger than 2x shared_buffers (${sharedBuffersBytes} bytes)`);
     }
+    cacheBusterTotalBlocks = Math.floor(cacheBusterBytes / blockSizeBytes);
+    cacheBusterWindowBlocks = Math.min(cacheBusterTotalBlocks, Math.max(1, Math.ceil(Math.max(32 * 1024 * 1024, sharedBuffersBytes / 2) / blockSizeBytes)));
 
     const rollback = new Error('cold retrieval fixture rollback');
     try {
@@ -199,6 +204,7 @@ async function measureColdRetrievalPerformance() {
         });
 
         for (const modelCount of scaleLevels) {
+          console.log(`AXIOM_RETRIEVAL_COLD_SCALE_START ${JSON.stringify({ modelCount, datasetRows: modelCount * exemplarsPerModel, samplesPerScale })}`);
           const addedModelIds = Array.from({ length: modelCount - modelIds.length }, () => randomUUID());
           await tx.insert(schema.modelProfile).values(addedModelIds.map(id => ({
             id, orgId, handle: `cold-retrieval-${id}`, displayName: 'Synthetic cold retrieval fixture',
@@ -220,8 +226,13 @@ async function measureColdRetrievalPerformance() {
             let residentApplicationPages = Number.POSITIVE_INFINITY;
             let evictionAttempts = 0;
             while (residentApplicationPages !== 0 && evictionAttempts < 4) {
-              await adminPool.query('CHECKPOINT');
-              const warmed = await adminPool.query('SELECT pg_prewarm($1::regclass, $2::text) AS blocks_loaded', [cacheBusterRelation, 'buffer']);
+              const firstBlock = cacheBusterCursor;
+              const lastBlock = Math.min(cacheBusterTotalBlocks - 1, firstBlock + cacheBusterWindowBlocks - 1);
+              cacheBusterCursor = lastBlock + 1 >= cacheBusterTotalBlocks ? 0 : lastBlock + 1;
+              const warmed = await adminPool.query(
+                'SELECT pg_prewarm($1::regclass, $2::text, $3::text, $4::bigint, $5::bigint) AS blocks_loaded',
+                [cacheBusterRelation, 'buffer', 'main', firstBlock, lastBlock],
+              );
               cacheBusterBlocksLoaded = Number(warmed.rows[0]?.blocks_loaded ?? 0);
               if (cacheBusterBlocksLoaded <= 0) throw new Error('PostgreSQL did not load the run-owned cache-buster relation into shared buffers');
               const resident = await adminPool.query(`
@@ -263,10 +274,13 @@ async function measureColdRetrievalPerformance() {
             const result = await retrieveCaptionGuidance(tx, orgId, targetModelId, 'instagram', 10, 'blue vase');
             latenciesMs.push(performance.now() - sampleStartedAt);
             if (result.exemplars.length === 0) throw new Error(`Cold synthetic retrieval returned no rows at ${modelCount} models`);
+            if ((sample + 1) % 10 === 0) {
+              console.log(`AXIOM_RETRIEVAL_COLD_PROGRESS ${JSON.stringify({ modelCount, completedSamples: sample + 1, samplesPerScale })}`);
+            }
           }
 
           const p95Ms = nearestRank(latenciesMs, 0.95);
-          measurements.push({
+          const measurement = {
             modelCount,
             datasetRows: modelCount * exemplarsPerModel,
             sampleCount: latenciesMs.length,
@@ -274,7 +288,9 @@ async function measureColdRetrievalPerformance() {
             p95Ms: Number(p95Ms.toFixed(2)),
             maxMs: Number(Math.max(...latenciesMs).toFixed(2)),
             within20MsTarget: p95Ms < 20,
-          });
+          };
+          measurements.push(measurement);
+          console.log(`AXIOM_RETRIEVAL_COLD_SCALE_RECEIPT ${JSON.stringify(measurement)}`);
         }
         throw rollback;
       });
@@ -299,12 +315,13 @@ async function measureColdRetrievalPerformance() {
         totalSyntheticExemplars: Math.max(...scaleLevels) * exemplarsPerModel,
         cacheBusterRows,
         cacheBusterBytes,
+        cacheBusterWindowBytes: cacheBusterWindowBlocks * blockSizeBytes,
         cacheBusterBlocksLoadedPerAttempt: cacheBusterBlocksLoaded,
       },
       workload: { samplesPerScale, concurrency: 1, intent: 'blue vase', externalProviderCalls: 0 },
       percentileMethod: 'nearest-rank',
       cacheState: {
-        postgresqlSharedBuffers: 'all public application table, index and toast pages verified absent before each sample using pg_buffercache; pg_prewarm loaded a larger run-owned cache-buster relation',
+        postgresqlSharedBuffers: 'all public application table, index and toast pages verified absent before each sample using pg_buffercache; pg_prewarm rotated a bounded window through the larger run-owned cache-buster relation',
         operatingSystemPageCache: 'not cleared; this receipt proves shared-buffer cold only',
       },
       evictionSetup: {
