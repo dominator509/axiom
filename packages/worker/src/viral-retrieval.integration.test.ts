@@ -180,7 +180,6 @@ async function measureColdRetrievalPerformance() {
   let cacheBusterBlocksLoaded = 0;
   let cacheBusterTotalBlocks = 0;
   let cacheBusterWindowBlocks = 0;
-  let cacheBusterCursor = 0;
 
   await adminPool.query(`CREATE UNLOGGED TABLE ${cacheBusterRelation} (payload text NOT NULL)`);
   try {
@@ -194,6 +193,7 @@ async function measureColdRetrievalPerformance() {
     }
     cacheBusterTotalBlocks = Math.floor(cacheBusterBytes / blockSizeBytes);
     cacheBusterWindowBlocks = Math.min(cacheBusterTotalBlocks, Math.max(1, Math.ceil(Math.max(32 * 1024 * 1024, sharedBuffersBytes / 2) / blockSizeBytes)));
+    const maxEvictionAttempts = Math.ceil(cacheBusterTotalBlocks / cacheBusterWindowBlocks);
 
     await db.transaction(async tx => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
@@ -243,10 +243,32 @@ async function measureColdRetrievalPerformance() {
           const cacheBusterBlocksLoadedByAttempt: number[] = [];
           const cacheBusterResidentPagesByAttempt: number[] = [];
           const warmedBlockRanges: Array<{ firstBlock: number; lastBlock: number }> = [];
-          while (residentApplicationPages !== 0 && evictionAttempts < 4) {
-            const firstBlock = cacheBusterCursor;
-            const lastBlock = Math.min(cacheBusterTotalBlocks - 1, firstBlock + cacheBusterWindowBlocks - 1);
-            cacheBusterCursor = lastBlock + 1 >= cacheBusterTotalBlocks ? 0 : lastBlock + 1;
+          while (residentApplicationPages !== 0 && evictionAttempts < maxEvictionAttempts) {
+            const candidateWindow = await adminPool.query(`
+              WITH candidate_windows AS (
+                SELECT first_block,
+                  LEAST($2::bigint - 1, first_block + $3::bigint - 1) AS last_block
+                FROM generate_series(0::bigint, $2::bigint - 1, $3::bigint) AS starts(first_block)
+              ), cache_buster_buffers AS MATERIALIZED (
+                SELECT b.blocknum
+                FROM pg_buffercache b
+                WHERE b.reldatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND b.relfilenode IS NOT NULL
+                  AND b.relforknumber = 0
+                  AND pg_filenode_relation(b.reltablespace, b.relfilenode) = $1::regclass
+              )
+              SELECT w.first_block, w.last_block
+              FROM candidate_windows w
+              LEFT JOIN cache_buster_buffers b ON b.blocknum BETWEEN w.first_block AND w.last_block
+              GROUP BY w.first_block, w.last_block
+              ORDER BY (w.last_block - w.first_block + 1) - count(b.blocknum) DESC, w.first_block
+              LIMIT 1
+            `, [cacheBusterRelation, cacheBusterTotalBlocks, cacheBusterWindowBlocks]);
+            const firstBlock = Number(candidateWindow.rows[0]?.first_block ?? -1);
+            const lastBlock = Number(candidateWindow.rows[0]?.last_block ?? -1);
+            if (!Number.isSafeInteger(firstBlock) || !Number.isSafeInteger(lastBlock) || firstBlock < 0 || lastBlock < firstBlock) {
+              throw new Error('Could not choose a valid cache-buster window from the run-owned relation');
+            }
             warmedBlockRanges.push({ firstBlock, lastBlock });
             const warmed = await adminPool.query(
               'SELECT pg_prewarm($1::regclass, $2::text, $3::text, $4::bigint, $5::bigint) AS blocks_loaded',
@@ -403,7 +425,7 @@ async function measureColdRetrievalPerformance() {
         sharedBuffers: sharedBuffersSetting,
         sharedBuffersBytes,
         blockSizeBytes,
-        attemptsPerSampleMaximum: 4,
+        attemptsPerSampleMaximum: maxEvictionAttempts,
         fixtureCheckpointCount: fixtureCheckpointMs.length,
         fixtureCheckpointTotalMs: Number(fixtureCheckpointMs.reduce((total, value) => total + value, 0).toFixed(2)),
         fixtureCheckpointMaxMs: Number(Math.max(...fixtureCheckpointMs).toFixed(2)),
