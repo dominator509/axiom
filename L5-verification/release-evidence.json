@@ -986,13 +986,7 @@
             "unit": "tests"
           },
           "skips": [],
-          "images": [
-            "sha256:b2ed5871dfcb2ddb6143c266ba81268b6836c649ae2ae07493d7712edf9fb53e",
-            "sha256:5094bc6240b86d69b6effc906840ca6e6cccc2af41d4aef1d3295bf5a7caf76b",
-            "sha256:e0257328deb757f318e945ce4e5b19b0df442f2f53b04c02139cc2f151a87864",
-            "sha256:f1909e9f7c1bee4c80ea7efc75d915b1a1db4e4845ad67952121213fb64b149a",
-            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
-          ]
+          "images": []
         }
       ],
       "verification": {
@@ -1497,7 +1491,13 @@
             "unit": "checks"
           },
           "skips": [],
-          "images": []
+          "images": [
+            "sha256:b2ed5871dfcb2ddb6143c266ba81268b6836c649ae2ae07493d7712edf9fb53e",
+            "sha256:5094bc6240b86d69b6effc906840ca6e6cccc2af41d4aef1d3295bf5a7caf76b",
+            "sha256:e0257328deb757f318e945ce4e5b19b0df442f2f53b04c02139cc2f151a87864",
+            "sha256:f1909e9f7c1bee4c80ea7efc75d915b1a1db4e4845ad67952121213fb64b149a",
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
         },
         {
           "criterion": "MATRIX-NFR-1",
