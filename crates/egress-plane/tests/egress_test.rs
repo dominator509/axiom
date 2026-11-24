@@ -2254,9 +2254,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let _ = Command::new("ip")
         .args(["link", "del", "wg-host-test"])
         .output();
-    std::fs::remove_file(&key_files.private_key).expect("remove test private key");
-    std::fs::remove_file(&key_files.preshared_key).expect("remove test preshared key");
-    std::fs::remove_dir(&key_files.directory).expect("remove private test key directory");
+    drop(key_files); // The same owned-file cleanup also runs during panic unwinding.
 }
 
 #[cfg(target_os = "linux")]
