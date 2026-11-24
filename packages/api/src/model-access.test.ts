@@ -1,9 +1,37 @@
 import { expect, it } from 'vitest';
-import { isScopedHumanRole, isScopedPatreonMetadataRead, isScopedSocialAccountRead, scopedReadTarget } from './model-access.js';
+import { isScopedHumanRole, isScopedPatreonMetadataRead, isScopedSocialAccountRead, modelAccessCondition, scopedReadTarget } from './model-access.js';
 import { enforceModelAccess } from './model-access.js';
 import { Hono } from 'hono';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import type { AppBindings } from './index.js';
 const id = '11111111-1111-4111-8111-111111111111';
+it.each([null, undefined, 'invalid-role'])('builds a deny condition for invalid role %s', role => {
+  const condition = modelAccessCondition(role, 'synthetic-org', 'synthetic-user');
+  expect(condition).toBeDefined();
+  expect(new PgDialect().sqlToQuery(condition!).sql).toBe('false');
+});
+it.each([null, undefined, 'invalid-role'])('denies an authenticated session with role %s before model read', async role => {
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => { c.set('userId', 'synthetic-user'); c.set('orgId', 'synthetic-org'); c.set('role', role as AppBindings['Variables']['role']); await next(); });
+  app.use('*', enforceModelAccess);
+  let reached = false;
+  app.get('/api/v1/models', c => { reached = true; return c.json({ data: ['synthetic-model'] }); });
+  expect((await app.request('/api/v1/models')).status).toBe(403);
+  expect(reached).toBe(false);
+});
+it('leaves an unauthenticated public protocol route to its own verifier', async () => {
+  const app = new Hono<AppBindings>();
+  app.use('*', enforceModelAccess);
+  app.post('/api/v1/webhooks/synthetic', c => c.json({ verifiedByFixture: true }));
+  expect((await app.request('/api/v1/webhooks/synthetic', { method: 'POST' })).status).toBe(200);
+});
+it.each(['owner', 'manager', 'operator', 'analyst', 'agent'] as const)('preserves existing unscoped role %s', async role => {
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => { c.set('userId', 'synthetic-user'); c.set('orgId', 'synthetic-org'); c.set('role', role); await next(); });
+  app.use('*', enforceModelAccess);
+  app.get('/api/v1/models', c => c.json({ ok: true }));
+  expect((await app.request('/api/v1/models')).status).toBe(200);
+});
 it('permits Chatter reply preparation only on the exact scoped conversation route', () => {
   const path = `/api/v1/models/${id}/inbox/replies`;
   for (const method of ['GET', 'HEAD', 'POST']) expect(scopedReadTarget('chatter', method, path)).toBe(id);

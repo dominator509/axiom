@@ -5,6 +5,7 @@ import type { AppBindings } from './index.js';
 import { apiError, statusTitle, withOrgContext } from './routes/helpers.js';
 
 export type ScopedHumanRole = 'chatter' | 'content_creator' | 'model';
+const unscopedRoles = new Set<unknown>(['owner', 'manager', 'operator', 'analyst', 'agent']);
 export function isScopedHumanRole(role: unknown): role is ScopedHumanRole {
   return role === 'chatter' || role === 'content_creator' || role === 'model';
 }
@@ -16,7 +17,8 @@ export function modelAccessCondition(
   userId: string | undefined,
   modelColumn: SQLWrapper = schema.modelProfile.id,
 ): SQL | undefined {
-  if (!isScopedHumanRole(role)) return undefined;
+  if (unscopedRoles.has(role)) return undefined;
+  if (!isScopedHumanRole(role)) return sql`false`;
   if (!userId || !orgId) return sql`false`;
   const assignment = sql`EXISTS (
     SELECT 1 FROM model_user_assignment mua
@@ -222,6 +224,10 @@ export function isScopedSocialAccountRead(method: string, path: string): boolean
 // receive explicitly classified operations; new route shapes default to denial.
 export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   const role = c.get('role');
+  // Public protocol routes may not have an authenticated user at all. When a
+  // session exists, an absent or unrecognized role must not become unscoped.
+  if (c.get('userId') && !unscopedRoles.has(role) && !isScopedHumanRole(role))
+    return apiError(c, 403, statusTitle(403), 'workspace role required');
   if (!isScopedHumanRole(role)) return next();
   const orgId = c.get('orgId'),
     userId = c.get('userId');
