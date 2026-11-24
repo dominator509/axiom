@@ -577,6 +577,26 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       if (process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled') await measureRetrievalPerformance(tx);
     });
   }, process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled' ? 30_000 : undefined);
+  it('preserves cosine ranking for database vectors with negative and scientific coefficients', async () => {
+    await fixture(async (tx, modelId) => {
+      await tx.update(schema.viralExemplar).set({ label: 'weak' })
+        .where(eq(schema.viralExemplar.modelId, modelId));
+      const aligned = embedExemplarIntent('blue vase');
+      const tinyIndex = aligned.findIndex(value => value === 0);
+      expect(tinyIndex).toBeGreaterThanOrEqual(0);
+      aligned[tinyIndex] = 1e-20;
+      const opposed = aligned.map(value => -value);
+      await tx.insert(schema.viralExemplar).values([
+        { caption: 'Synthetic aligned vector', embedding: aligned },
+        { caption: 'Synthetic opposed vector', embedding: opposed },
+      ].map(({ caption, embedding }) => ({
+        orgId, modelId, platform: 'instagram', label: 'viral', perfScore: 2, embedding,
+        features: { caption, evidence_source: 'published-provider-snapshot-v2', embedding_version: 'lexical-v1' },
+      })));
+      const rows = await retrieveTopExemplars(tx, orgId, modelId, 'instagram', 2, 'blue vase');
+      expect(rows.map(row => row.caption)).toEqual(['Synthetic aligned vector', 'Synthetic opposed vector']);
+    });
+  });
   it('shares only abstract structure when explicitly enabled', async () => {
     await fixture(async (tx, modelId) => {
       await tx.execute(sql`UPDATE org_settings SET viral_sharing=true WHERE org_id=${orgId}`);
