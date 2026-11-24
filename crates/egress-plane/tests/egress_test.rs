@@ -282,9 +282,6 @@ fn cleanup_leftovers() {
     let _ = Command::new("ip")
         .args(["link", "del", "wg-host-test"])
         .output();
-    let _ = Command::new("rm")
-        .args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"])
-        .status();
 }
 
 #[cfg(target_os = "linux")]
@@ -2088,6 +2085,10 @@ async fn test_route_loss_fails_closed_without_host_fallback() {
 // ---------------------------------------------------------------------------
 
 #[cfg(target_os = "linux")]
+#[path = "support/wg_key_files.rs"]
+mod wg_key_files;
+
+#[cfg(target_os = "linux")]
 #[tokio::test]
 #[ignore = "requires root, Linux network namespaces, and WireGuard tools"]
 async fn test_wireguard_tunnel_mode_full_chain() {
@@ -2104,6 +2105,13 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let pub_host = wg_pubkey(&priv_host);
     let pub_client = wg_pubkey(&priv_client);
     let preshared_key = wg_genpsk();
+    let key_files = wg_key_files::create(
+        &std::env::temp_dir(),
+        &format!("axiom-wg-test-{}", uuid::Uuid::new_v4()),
+        &priv_host,
+        &preshared_key,
+    )
+    .expect("create private WireGuard test keys");
 
     // Host wg interface.
     let _ = Command::new("ip")
@@ -2117,12 +2125,6 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     // The host interface must listen on the veth host IP — created at bind
     // time. Register the peer first; the listen IP is bound later in the test
     // flow: we instead listen on 0.0.0.0:51820 to decouple.
-    let _ = Command::new("bash")
-        .args([
-            "-c",
-            &format!("printf '%s' '{}' > /tmp/wg_priv_host_test", priv_host),
-        ])
-        .status();
     assert!(Command::new("wg")
         .args([
             "set",
@@ -2130,20 +2132,11 @@ async fn test_wireguard_tunnel_mode_full_chain() {
             "listen-port",
             "51820",
             "private-key",
-            "/tmp/wg_priv_host_test"
         ])
+        .arg(&key_files.private_key)
         .status()
         .expect("wg set")
         .success());
-    let _ = Command::new("bash")
-        .args([
-            "-c",
-            &format!(
-                "printf '%s' '{}' > /tmp/wg_peer_host_test && printf '%s' '{}' > /tmp/wg_psk_host_test",
-                pub_client, preshared_key
-            ),
-        ])
-        .status();
     assert!(Command::new("wg")
         .args([
             "set",
@@ -2151,7 +2144,9 @@ async fn test_wireguard_tunnel_mode_full_chain() {
             "peer",
             &pub_client,
             "preshared-key",
-            "/tmp/wg_psk_host_test",
+        ])
+        .arg(&key_files.preshared_key)
+        .args([
             "allowed-ips",
             "10.0.0.2/32"
         ])
@@ -2259,14 +2254,9 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let _ = Command::new("ip")
         .args(["link", "del", "wg-host-test"])
         .output();
-    let _ = Command::new("rm")
-        .args([
-            "-f",
-            "/tmp/wg_priv_host_test",
-            "/tmp/wg_peer_host_test",
-            "/tmp/wg_psk_host_test",
-        ])
-        .status();
+    std::fs::remove_file(&key_files.private_key).expect("remove test private key");
+    std::fs::remove_file(&key_files.preshared_key).expect("remove test preshared key");
+    std::fs::remove_dir(&key_files.directory).expect("remove private test key directory");
 }
 
 #[cfg(target_os = "linux")]
