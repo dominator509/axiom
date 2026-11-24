@@ -2125,7 +2125,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     // The host interface must listen on the veth host IP — created at bind
     // time. Register the peer first; the listen IP is bound later in the test
     // flow: we instead listen on 0.0.0.0:51820 to decouple.
-    assert!(Command::new("wg")
+    let key_status = Command::new("wg")
         .args([
             "set",
             "wg-host-test",
@@ -2135,9 +2135,9 @@ async fn test_wireguard_tunnel_mode_full_chain() {
         ])
         .arg(&key_files.private_key)
         .status()
-        .expect("wg set")
-        .success());
-    assert!(Command::new("wg")
+        .expect("wg set");
+    assert!(key_status.success(), "wg private-key failed: {key_status}; {}", key_files.diagnostics());
+    let peer_status = Command::new("wg")
         .args([
             "set",
             "wg-host-test",
@@ -2151,8 +2151,8 @@ async fn test_wireguard_tunnel_mode_full_chain() {
             "10.0.0.2/32"
         ])
         .status()
-        .expect("wg peer")
-        .success());
+        .expect("wg peer");
+    assert!(peer_status.success(), "wg preshared-key failed: {peer_status}; {}", key_files.diagnostics());
     let _ = Command::new("ip")
         .args(["address", "add", "10.0.0.1/24", "dev", "wg-host-test"])
         .output();

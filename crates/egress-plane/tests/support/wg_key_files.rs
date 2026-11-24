@@ -9,6 +9,35 @@ pub struct WgKeyFiles {
     created_files: Vec<PathBuf>,
 }
 
+impl WgKeyFiles {
+    /// Failure evidence only: never include file contents or generated keys.
+    pub fn diagnostics(&self) -> String {
+        let mut evidence = Vec::new();
+        #[cfg(target_os = "linux")]
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            evidence.extend(status.lines().filter(|line| {
+                line.starts_with("Uid:") || line.starts_with("Gid:") || line.starts_with("Cap")
+            }).map(str::to_owned));
+        }
+        for path in [&self.directory, &self.private_key, &self.preshared_key] {
+            match std::fs::symlink_metadata(path) {
+                Ok(metadata) => {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::MetadataExt;
+                        evidence.push(format!("{}: uid={} gid={} mode={:o}",
+                            path.display(), metadata.uid(), metadata.gid(), metadata.mode() & 0o777));
+                    }
+                    #[cfg(not(unix))]
+                    evidence.push(format!("{}: readonly={}", path.display(), metadata.permissions().readonly()));
+                }
+                Err(error) => evidence.push(format!("{}: metadata error {error}", path.display())),
+            }
+        }
+        evidence.join("; ")
+    }
+}
+
 impl Drop for WgKeyFiles {
     fn drop(&mut self) {
         // Only unlink files successfully created by this guard. Never recurse:
@@ -111,6 +140,16 @@ mod tests {
         }
         drop(keys);
         assert!(!f.0.join("keys").exists());
+    }
+    #[test]
+    fn diagnostics_never_include_key_contents() {
+        let f = Fixture::new();
+        let keys = create(&f.0, "keys", "PRIVATE-CONTENT-MUST-NOT-APPEAR", "PSK-CONTENT-MUST-NOT-APPEAR").unwrap();
+        let evidence = keys.diagnostics();
+        assert!(!evidence.contains("PRIVATE-CONTENT-MUST-NOT-APPEAR"));
+        assert!(!evidence.contains("PSK-CONTENT-MUST-NOT-APPEAR"));
+        #[cfg(unix)]
+        assert!(evidence.contains("mode=600") && evidence.contains("mode=700"));
     }
     #[test]
     fn panic_unwinds_and_removes_keys() {
