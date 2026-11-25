@@ -25,6 +25,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Setup pinned Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -54,6 +64,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Setup pinned Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -106,6 +126,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -135,6 +165,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -174,6 +216,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Install pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
@@ -226,6 +278,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
       - name: Install pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
@@ -404,6 +466,18 @@ jobs:
       - name: Checkout repository
         # v7.0.1, immutable release commit.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out candidate
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_tree="$(git rev-parse HEAD^{tree})"
+          printf 'tested_sha=%s\ntested_tree=%s\n' "$actual_sha" "$actual_tree"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
 
       # ── pnpm & Node.js setup (shared across all matrix slots) ──
       - name: Install pnpm
@@ -620,7 +694,6 @@ jobs:
           DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
           TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
           TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          AXIOM_RETRIEVAL_PERFORMANCE: enabled
         run: pnpm --filter @axiom/worker exec vitest run src/viral-retrieval.integration.test.ts
 
       - name: Rust cargo check
