@@ -833,7 +833,7 @@ jobs:
       - name: Build deployment images
         if: matrix.task == 'container'
         run: |
-          docker build --label "org.opencontainers.image.revision=$GITHUB_SHA" --file infra/Dockerfile.hono --tag axiom-hono:ci .
+          docker build --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" --file infra/Dockerfile.hono --tag axiom-hono:ci .
           docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .
           docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
