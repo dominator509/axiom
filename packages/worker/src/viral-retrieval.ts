@@ -99,7 +99,10 @@ export async function retrieveCaptionGuidance(
       label: schema.viralExemplar.label,
       perfScore: schema.viralExemplar.perfScore,
       features: schema.viralExemplar.features,
-      embedding: schema.viralExemplar.embedding,
+      // PostgreSQL vector text is a finite numeric JSON array. Parse it in
+      // one native pass rather than allocating a string per coefficient.
+      embedding: sql<number[]>`${schema.viralExemplar.embedding}::text`
+        .mapWith((value: string) => JSON.parse(value) as number[]),
       createdAt: schema.viralExemplar.createdAt,
     })
     .from(schema.viralExemplar)

@@ -166,7 +166,7 @@ router.post('/models/:modelId/team-shifts', async (c) => {
   if (!parsed.success || !windowValid(parsed.data.startsAt, parsed.data.endsAt)) return apiError(c, 400, statusTitle(400), 'a valid shift window of seven days or less is required');
   const modelId = c.req.param('modelId');
   const saved = await withOrgContext(orgId, async (tx) => {
-    if (!(await modelExists(tx, orgId, modelId))) return { status: 404 as const, error: 'model not found' };
+    if (!(await modelExists(tx, orgId, modelId, c.get('role'), c.get('userId')))) return { status: 404 as const, error: 'model not found' };
     if (parsed.data.assigneeType === 'human') {
       const [member] = await tx.select({ id: schema.authUser.id }).from(schema.authUser).where(and(eq(schema.authUser.id, parsed.data.assigneeUserId!), eq(schema.authUser.orgId, orgId))).limit(1);
       if (!member) return { status: 409 as const, error: 'assignee is not a member of this workspace' };

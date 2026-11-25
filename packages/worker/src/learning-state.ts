@@ -118,6 +118,17 @@ export async function selectLearnedGuidance(
   if (!arms.length) return null;
   const contexts = [...new Set(arms.filter(isLearningArm).map(arm => learningContextForArm(arm, scheduledFor)))];
   if (!contexts.length) return null;
+  // An empty evidence history uses the same Beta(1,1) priors as an empty
+  // posterior result. Check through this RLS-scoped transaction before
+  // planning the attribution/decay query; never trust the cached bandit state.
+  // This witness is deliberately conservative: any recipe carrying the evidence marker keeps
+  // the existing posterior path, including all publication/context checks.
+  const observed = await tx.execute(sql`SELECT 1 AS present FROM viral_recipe
+    WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform}
+      AND recipe->>'evidence_source'='published-provider-snapshot-v2' LIMIT 1`);
+  if (observed.rows.length === 0) {
+    return chooseLearningArm(arms.map(arm => ({ arm, alpha: 1, beta: 1, recentUses: 0 })));
+  }
   const contextPredicate = contexts.length === 1
     ? sql`s.context=${contexts[0]}`
     : sql`s.context IN (${sql.join(contexts.map(context => sql`${context}`), sql`, `)})`;

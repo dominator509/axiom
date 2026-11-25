@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { availableParallelism, cpus, totalmem } from 'node:os';
@@ -13,7 +13,7 @@ import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
 import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
-import { refreshLearningState, selectLearnedGuidance } from './learning-state.js';
+import { chooseLearningArm, refreshLearningState, selectLearnedGuidance } from './learning-state.js';
 import { modelPlaybookContext } from './playbook-context.js';
 import { digestWeekly } from './executors/digest.js';
 import { enqueueWeeklyDigest, nextDigestAt } from './digest-schedule.js';
@@ -577,6 +577,26 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       if (process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled') await measureRetrievalPerformance(tx);
     });
   }, process.env.AXIOM_RETRIEVAL_PERFORMANCE === 'enabled' ? 30_000 : undefined);
+  it('preserves cosine ranking for database vectors with negative and scientific coefficients', async () => {
+    await fixture(async (tx, modelId) => {
+      await tx.update(schema.viralExemplar).set({ label: 'weak' })
+        .where(eq(schema.viralExemplar.modelId, modelId));
+      const aligned = embedExemplarIntent('blue vase');
+      const tinyIndex = aligned.findIndex(value => value === 0);
+      expect(tinyIndex).toBeGreaterThanOrEqual(0);
+      aligned[tinyIndex] = 1e-20;
+      const opposed = aligned.map(value => -value);
+      await tx.insert(schema.viralExemplar).values([
+        { caption: 'Synthetic aligned vector', embedding: aligned },
+        { caption: 'Synthetic opposed vector', embedding: opposed },
+      ].map(({ caption, embedding }) => ({
+        orgId, modelId, platform: 'instagram', label: 'viral', perfScore: 2, embedding,
+        features: { caption, evidence_source: 'published-provider-snapshot-v2', embedding_version: 'lexical-v1' },
+      })));
+      const rows = await retrieveTopExemplars(tx, orgId, modelId, 'instagram', 2, 'blue vase');
+      expect(rows.map(row => row.caption)).toEqual(['Synthetic aligned vector', 'Synthetic opposed vector']);
+    });
+  });
   it('shares only abstract structure when explicitly enabled', async () => {
     await fixture(async (tx, modelId) => {
       await tx.execute(sql`UPDATE org_settings SET viral_sharing=true WHERE org_id=${orgId}`);
@@ -813,6 +833,36 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const replayDecisions = await tx.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'variant.experiment.auto-evaluate'));
       expect(replayDecisions.filter(row => row.detail?.experimentId === experimentId)).toHaveLength(1);
       await expect(tx.transaction(nested => nested.update(schema.variantExperiment).set({ evaluation: {} }).where(eq(schema.variantExperiment.id, experimentId)))).rejects.toThrow();
+    });
+  });
+  it('uses unchanged priors for empty evidence despite a biased cached posterior', async () => {
+    await fixture(async (tx, modelId) => {
+      const arms = ['short:statement', 'short:question'];
+      await tx.insert(schema.banditState).values(arms.map((arm, index) => ({
+        orgId, modelId, platform: 'instagram', context: 'learn-v1:scheduled-utc-unknown', arm,
+        alpha: index === 0 ? 9999 : 1, beta: index === 0 ? 1 : 9999,
+      })));
+      const seeded = () => {
+        let state = 731;
+        return () => {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return state / 4294967296;
+        };
+      };
+      const rng = seeded();
+      const expected = Array.from({ length: 20 }, () => chooseLearningArm(
+        arms.map(arm => ({ arm, alpha: 1, beta: 1, recentUses: 0 })), rng,
+      ));
+      const random = vi.spyOn(Math, 'random').mockImplementation(seeded());
+      try {
+        const actual = [];
+        for (let sample = 0; sample < 20; sample++) {
+          actual.push(await selectLearnedGuidance(tx, orgId, modelId, 'instagram', arms, null));
+        }
+        expect(actual).toEqual(expected);
+      } finally {
+        random.mockRestore();
+      }
     });
   });
   it('decays published evidence, not poll age, and selects fresh posteriors rather than stale cache', async () => {
