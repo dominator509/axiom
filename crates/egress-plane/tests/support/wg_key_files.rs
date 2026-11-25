@@ -221,6 +221,35 @@ mod tests {
         fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); }
     }
     #[test]
+    fn finish_real_filesystem_success_removes_owned_entries() {
+        let f = Fixture::new();
+        let keys = create(&f.0, "keys", "synthetic-private", "synthetic-psk").unwrap();
+        let directory = keys.directory.clone();
+        let private_key = keys.private_key.clone();
+        let preshared_key = keys.preshared_key.clone();
+        keys.finish().unwrap();
+        assert!(!private_key.exists());
+        assert!(!preshared_key.exists());
+        assert!(!directory.exists());
+    }
+
+    #[test]
+    fn finish_real_filesystem_preserves_unexpected_entry() {
+        let f = Fixture::new();
+        let keys = create(&f.0, "keys", "synthetic-private", "synthetic-psk").unwrap();
+        let directory = keys.directory.clone();
+        let private_key = keys.private_key.clone();
+        let preshared_key = keys.preshared_key.clone();
+        let unexpected = directory.join("unexpected");
+        fs::write(&unexpected, "synthetic-unowned-entry").unwrap();
+        let error = keys.finish().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
+        assert!(!private_key.exists());
+        assert!(!preshared_key.exists());
+        assert_eq!(fs::read_to_string(&unexpected).unwrap(), "synthetic-unowned-entry");
+    }
+
+    #[test]
     fn private_modes_contents_and_normal_drop() {
         let f = Fixture::new();
         let keys = create(&f.0, "keys", "synthetic-private", "synthetic-psk").unwrap();
