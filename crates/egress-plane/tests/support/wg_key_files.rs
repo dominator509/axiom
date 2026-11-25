@@ -7,9 +7,49 @@ pub struct WgKeyFiles {
     pub private_key: PathBuf,
     pub preshared_key: PathBuf,
     created_files: Vec<PathBuf>,
+    directory_removed: bool,
 }
 
 impl WgKeyFiles {
+    /// Report cleanup failures on the normal success path.
+    pub fn finish(mut self) -> io::Result<()> {
+        self.cleanup_with(|path| std::fs::remove_file(path), |path| std::fs::remove_dir(path))
+    }
+
+    fn cleanup_with(
+        &mut self,
+        mut remove_file: impl FnMut(&Path) -> io::Result<()>,
+        mut remove_dir: impl FnMut(&Path) -> io::Result<()>,
+    ) -> io::Result<()> {
+        let mut first_error = None;
+        self.created_files.retain(|path| match remove_file(path) {
+            Ok(()) => false,
+            Err(error) => {
+                if first_error.is_none() { first_error = Some(error); }
+                true
+            }
+        });
+        if !self.directory_removed {
+            match remove_dir(&self.directory) {
+                Ok(()) => {
+                    self.directory_removed = true;
+                    self.created_files.clear();
+                }
+                Err(error) => if first_error.is_none() { first_error = Some(error); },
+            }
+        }
+        match first_error { Some(error) => Err(error), None => Ok(()) }
+    }
+
+    #[cfg(test)]
+    fn finish_with(
+        mut self,
+        remove_file: impl FnMut(&Path) -> io::Result<()>,
+        remove_dir: impl FnMut(&Path) -> io::Result<()>,
+    ) -> io::Result<()> {
+        self.cleanup_with(remove_file, remove_dir)
+    }
+
     /// Failure evidence only: never include file contents or generated keys.
     pub fn diagnostics(&self) -> String {
         let mut evidence = Vec::new();
@@ -42,10 +82,7 @@ impl Drop for WgKeyFiles {
     fn drop(&mut self) {
         // Only unlink files successfully created by this guard. Never recurse:
         // an unexpected entry must survive rather than broadening cleanup.
-        for path in &self.created_files {
-            let _ = std::fs::remove_file(path);
-        }
-        let _ = std::fs::remove_dir(&self.directory);
+        let _ = self.cleanup_with(|path| std::fs::remove_file(path), |path| std::fs::remove_dir(path));
     }
 }
 
@@ -101,6 +138,7 @@ fn create_with_hook(
         private_key: private_path,
         preshared_key: preshared_path,
         created_files: Vec::with_capacity(2),
+        directory_removed: false,
     };
     write_new(&mut guard, root.join(name).join("private-key"), private_key)?;
     after_private(&guard.directory)?;
@@ -113,6 +151,62 @@ mod tests {
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
     static NEXT: AtomicUsize = AtomicUsize::new(0);
+    fn virtual_keys() -> WgKeyFiles {
+        let directory = std::env::temp_dir().join(format!(
+            "axiom-virtual-wg-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        assert!(!directory.exists());
+        let private_key = directory.join("private-key");
+        let preshared_key = directory.join("preshared-key");
+        WgKeyFiles { directory, private_key: private_key.clone(), preshared_key: preshared_key.clone(),
+            created_files: vec![private_key, preshared_key], directory_removed: false }
+    }
+
+    #[test]
+    fn finish_success_removes_owned_files_and_directory() {
+        let keys = virtual_keys();
+        let expected = vec![keys.private_key.clone(), keys.preshared_key.clone()];
+        let mut removed = Vec::new();
+        let mut dirs = Vec::new();
+        keys.finish_with(|p| { removed.push(p.to_owned()); Ok(()) }, |p| { dirs.push(p.to_owned()); Ok(()) }).unwrap();
+        assert_eq!(removed, expected);
+        assert_eq!(dirs.len(), 1);
+    }
+
+    #[test]
+    fn finish_real_io_reports_missing_owned_path() {
+        let error = virtual_keys().finish().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn finish_reports_removal_failure_and_attempts_remaining_files() {
+        let keys = virtual_keys();
+        let private = keys.private_key.clone();
+        let mut removed = Vec::new();
+        let err = keys.finish_with(|p| { removed.push(p.to_owned()); if p == private { Err(io::Error::new(io::ErrorKind::PermissionDenied, "synthetic failure")) } else { Ok(()) } }, |_| Err(io::Error::new(io::ErrorKind::DirectoryNotEmpty, "synthetic failure"))).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(removed.len(), 2);
+    }
+
+    #[test]
+    fn finish_unwind_does_not_double_panic_on_cleanup_errors() {
+        let result = std::panic::catch_unwind(|| {
+            let _keys = virtual_keys();
+            panic!("synthetic original failure");
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn finish_preserves_unexpected_entries_and_reports_nonempty_directory() {
+        let keys = virtual_keys();
+        let expected = vec![keys.private_key.clone(), keys.preshared_key.clone()];
+        let mut removed = Vec::new();
+        let error = keys.finish_with(|p| { removed.push(p.to_owned()); Ok(()) }, |_| Err(io::Error::new(io::ErrorKind::DirectoryNotEmpty, "unexpected entry preserved"))).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
+        assert_eq!(removed, expected);
+    }
     struct Fixture(PathBuf);
     impl Fixture {
         fn new() -> Self {

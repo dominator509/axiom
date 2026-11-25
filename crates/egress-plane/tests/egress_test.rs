@@ -2254,7 +2254,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let _ = Command::new("ip")
         .args(["link", "del", "wg-host-test"])
         .output();
-    drop(key_files); // The same owned-file cleanup also runs during panic unwinding.
+    key_files.finish().expect("remove test key files and directory");
 }
 
 #[cfg(target_os = "linux")]
